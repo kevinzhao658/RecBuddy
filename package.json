@@ -1,0 +1,40 @@
+{
+  "name": "recbuddy",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "db:start": "supabase start",
+    "db:stop": "supabase stop",
+    "db:reset": "supabase db reset",
+    "migrate:new": "supabase migration new",
+    "seed": "tsx scripts/seed.ts",
+    "test": "vitest run"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kevinzhao658/RecBuddy.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/kevinzhao658/RecBuddy/issues"
+  },
+  "homepage": "https://github.com/kevinzhao658/RecBuddy#readme",
+  "devDependencies": {
+    "@types/node": "^25.9.2",
+    "dotenv": "^17.4.2",
+    "supabase": "^2.105.0",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.108.1"
+  }
+}
