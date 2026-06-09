@@ -1,0 +1,14 @@
+# macOS
+.DS_Store
+
+# Original handoff archive (extracted copy lives in RecBuddy/)
+RecBuddy.zip
+
+# Node / tooling (added as sub-projects land)
+node_modules/
+.env
+.env.local
+
+# Supabase local
+supabase/.branches/
+supabase/.temp/

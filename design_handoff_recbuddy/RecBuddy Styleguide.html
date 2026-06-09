@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>RecBuddy — Styleguide (Volt Lime)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:ital,wght@0,500;0,600;0,700;0,800;1,700;1,800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --accent:#ADFF2F; --accent2:#7CCB00; --onacc:#0A0C08;
+    --bg:#0A0C08; --surface:#15170F; --surface2:#1E2114;
+    --text:#F3FBE8; --mute:rgba(243,251,232,0.56); --faint:rgba(243,251,232,0.30);
+    --line:rgba(243,251,232,0.12); --hair:rgba(243,251,232,0.07); --chip:rgba(243,251,232,0.08);
+    --red:#FF5A52; --redsoft:rgba(255,90,82,0.16); --limesoft:rgba(173,255,47,0.15);
+    --radius:24px; --radiusSm:14px;
+    --shadow:0 2px 8px rgba(0,0,0,0.45), 0 14px 30px rgba(0,0,0,0.4);
+    --display:"Saira Condensed",-apple-system,system-ui,sans-serif;
+    --num:"Space Grotesk",-apple-system,system-ui,sans-serif;
+    --ui:-apple-system,"SF Pro Text",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);}
+  body{font-family:var(--ui);color:var(--text);-webkit-font-smoothing:antialiased;
+    background:radial-gradient(1100px 640px at 50% -10%,rgba(173,255,47,0.07),transparent 60%),var(--bg);}
+  .wrap{max-width:1080px;margin:0 auto;padding:56px 40px 100px;}
+
+  /* header */
+  .brand{font-family:var(--display);font-style:italic;font-weight:800;font-size:64px;letter-spacing:-1.5px;line-height:1;}
+  .brand .r{color:var(--accent);} .brand .b{color:var(--text);}
+  .brandlbl{font-family:var(--ui);font-weight:700;font-size:12px;letter-spacing:3px;color:var(--mute);margin-top:8px;}
+  .lede{font-size:15px;color:var(--mute);max-width:600px;line-height:1.6;margin-top:18px;}
+
+  /* section */
+  .sec{margin-top:56px;}
+  .eyebrow{font-family:var(--display);font-weight:700;font-size:13px;letter-spacing:2.5px;text-transform:uppercase;color:var(--accent);}
+  .sec-title{font-family:var(--display);font-weight:700;font-size:26px;letter-spacing:-0.2px;margin:6px 0 22px;}
+  .grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:22px;box-shadow:var(--shadow);}
+  .lbl{font-family:var(--ui);font-weight:700;font-size:11px;letter-spacing:0.6px;text-transform:uppercase;color:var(--mute);}
+
+  /* color swatches */
+  .sw{display:flex;flex-direction:column;gap:0;border-radius:14px;overflow:hidden;border:1px solid var(--line);}
+  .sw .row{display:flex;align-items:center;gap:12px;padding:13px 14px;}
+  .sw .chip{width:34px;height:34px;border-radius:9px;flex-shrink:0;border:1px solid rgba(255,255,255,0.07);}
+  .sw .nm{font-weight:600;font-size:13px;}
+  .sw .hx{font-family:var(--num);font-size:12px;color:var(--mute);margin-left:auto;}
+  .sw .row + .row{border-top:1px solid var(--hair);}
+
+  /* status legend */
+  .statline{display:flex;gap:22px;flex-wrap:wrap;align-items:center;}
+  .statitem{display:flex;align-items:center;gap:8px;}
+  .dot{width:10px;height:10px;border-radius:10px;}
+
+  /* type specimens */
+  .spec{display:flex;align-items:baseline;justify-content:space-between;gap:20px;padding:16px 0;border-top:1px solid var(--hair);}
+  .spec:first-child{border-top:none;}
+  .spec .meta{flex-shrink:0;text-align:right;font-size:11.5px;color:var(--faint);font-family:var(--num);}
+  .t-hero{font-family:var(--display);font-style:italic;font-weight:800;font-size:46px;line-height:1;letter-spacing:-1px;}
+  .t-h1{font-family:var(--display);font-weight:700;font-size:30px;letter-spacing:-0.3px;}
+  .t-h2{font-family:var(--display);font-weight:700;font-size:20px;}
+  .t-body{font-family:var(--ui);font-size:15px;color:var(--text);}
+  .t-label{font-family:var(--ui);font-weight:700;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--mute);}
+  .t-stat{font-family:var(--num);font-weight:700;font-size:30px;font-feature-settings:"tnum" 1;}
+
+  /* tokens row */
+  .toks{display:flex;flex-wrap:wrap;gap:14px;}
+  .tok{display:flex;flex-direction:column;align-items:center;gap:8px;}
+  .tokbox{background:var(--surface2);border:1px solid var(--line);}
+  .tokn{font-family:var(--num);font-size:11px;color:var(--mute);}
+
+  /* components */
+  .btn{font-family:var(--display);font-style:italic;font-weight:800;text-transform:uppercase;letter-spacing:0.3px;font-size:14px;
+    padding:11px 20px;border-radius:12px;border:none;background:var(--accent);color:var(--onacc);cursor:pointer;
+    box-shadow:0 0 22px rgba(173,255,47,0.4);}
+  .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--text);box-shadow:none;}
+  .btn.sm{font-size:12px;padding:8px 14px;}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-weight:600;font-size:12px;padding:5px 11px;border-radius:20px;background:var(--chip);color:var(--mute);}
+  .pill.lime{background:var(--limesoft);color:var(--accent);}
+  .pill.red{background:var(--redsoft);color:var(--red);}
+  .seg{display:inline-flex;background:var(--surface2);border-radius:11px;padding:2px;gap:2px;}
+  .seg button{border:none;cursor:pointer;border-radius:9px;padding:8px 16px;font-family:var(--ui);font-weight:600;font-size:13px;background:transparent;color:var(--mute);}
+  .seg button.on{background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,0.4);}
+  .inp{width:100%;background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:11px 13px;color:var(--text);font-family:var(--ui);font-size:14px;outline:none;}
+  .inp:focus{border-color:var(--accent);}
+
+  /* workout cards demo */
+  .wk{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+  .wkcard{position:relative;border-radius:16px;padding:13px;background:var(--surface);border:1.5px solid var(--line);box-shadow:var(--shadow);min-height:120px;display:flex;flex-direction:column;}
+  .wkcard.done{background:var(--limesoft);border-color:var(--accent);}
+  .wkcard.miss{background:var(--redsoft);border-color:var(--red);}
+  .wkcard.today{box-shadow:0 0 0 2px var(--text), var(--shadow);}
+  .wkicon{position:absolute;top:11px;right:11px;color:var(--mute);}
+  .wktitle{font-family:var(--ui);font-weight:700;font-size:14.5px;padding-right:18px;}
+  .wkmeta{font-family:var(--num);font-size:12px;color:var(--mute);margin-top:3px;}
+  .wkstat{margin-top:auto;display:flex;align-items:center;gap:5px;padding-top:8px;border-top:1px solid var(--hair);font-size:10.5px;font-weight:700;}
+  .colhead{font-family:var(--ui);font-size:12px;color:var(--mute);margin-bottom:7px;}
+  .colhead b{color:var(--text);}
+  .todaypill{font-family:var(--ui);font-weight:800;font-size:10px;letter-spacing:0.6px;background:var(--text);color:var(--bg);padding:3px 8px;border-radius:6px;text-transform:uppercase;}
+
+  .note{font-size:13px;color:var(--mute);line-height:1.6;margin-top:14px;}
+  .foot{margin-top:60px;padding-top:20px;border-top:1px solid var(--line);font-size:13px;color:var(--mute);}
+  .foot b{color:var(--text);}
+  svg{display:block;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="brand"><span class="r">Rec</span><span class="b">Buddy</span></div>
+  <div class="brandlbl">DESIGN SYSTEM · VOLT LIME</div>
+  <p class="lede">The living styleguide for RecBuddy — night-run energy on near-black, one volt-lime accent, condensed type that leans forward. Companion to <b>design.md</b>; tokens mirror <code>THEMES.athletic</code>.</p>
+
+  <!-- COLOR -->
+  <div class="sec">
+    <div class="eyebrow">01 — Color</div>
+    <div class="sec-title">Palette &amp; semantics</div>
+    <div class="grid2">
+      <div class="card">
+        <div class="lbl" style="margin-bottom:12px;">Core palette</div>
+        <div class="sw">
+          <div class="row"><span class="chip" style="background:#ADFF2F"></span><span class="nm">Accent · Volt Lime</span><span class="hx">#ADFF2F</span></div>
+          <div class="row"><span class="chip" style="background:#7CCB00"></span><span class="nm">Accent 2 · Deep Lime</span><span class="hx">#7CCB00</span></div>
+          <div class="row"><span class="chip" style="background:#0A0C08"></span><span class="nm">Background</span><span class="hx">#0A0C08</span></div>
+          <div class="row"><span class="chip" style="background:#15170F"></span><span class="nm">Surface</span><span class="hx">#15170F</span></div>
+          <div class="row"><span class="chip" style="background:#1E2114"></span><span class="nm">Surface 2</span><span class="hx">#1E2114</span></div>
+          <div class="row"><span class="chip" style="background:#F3FBE8"></span><span class="nm">Text</span><span class="hx">#F3FBE8</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="lbl" style="margin-bottom:12px;">Completion semantics — the only status colors</div>
+        <div class="statline" style="margin-bottom:16px;">
+          <div class="statitem"><span class="dot" style="background:var(--faint)"></span><span style="font-size:13px;">Planned</span></div>
+          <div class="statitem"><span class="dot" style="background:var(--accent)"></span><span style="font-size:13px;">Completed</span></div>
+          <div class="statitem"><span class="dot" style="background:var(--red)"></span><span style="font-size:13px;">Missed</span></div>
+          <div class="statitem"><span class="dot" style="background:var(--text)"></span><span style="font-size:13px;">Today</span></div>
+        </div>
+        <div class="note" style="margin-top:0;">Color encodes <b style="color:var(--text)">completion only</b>. Workout <i>type</i> is never colored — it's a neutral icon decoded by a legend. The system is mono-accent + red for misses; never add accent hues.</div>
+        <div style="display:flex;gap:8px;margin-top:16px;">
+          <span class="pill">Planned</span><span class="pill lime">Completed</span><span class="pill red">Missed</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TYPE -->
+  <div class="sec">
+    <div class="eyebrow">02 — Typography</div>
+    <div class="sec-title">Saira Condensed · Space Grotesk · SF Pro</div>
+    <div class="card">
+      <div class="spec"><div class="t-hero"><span style="color:var(--accent)">Rec</span>Buddy</div><div class="meta">Saira Condensed<br>800 Italic · hero</div></div>
+      <div class="spec"><div class="t-h1">Your Plan</div><div class="meta">Saira Condensed<br>700 · h1 30px</div></div>
+      <div class="spec"><div class="t-h2">Workout structure</div><div class="meta">Saira Condensed<br>700 · h2 20px</div></div>
+      <div class="spec"><div class="t-body">Settle into 800 rhythm — the recoveries matter as much as the reps.</div><div class="meta">SF Pro<br>15px · body</div></div>
+      <div class="spec"><div class="t-label">Target pace · this week</div><div class="meta">SF Pro 700<br>12px · label</div></div>
+      <div class="spec"><div class="t-stat">5×800m&nbsp;&nbsp;7:30/mi&nbsp;&nbsp;5h 37m</div><div class="meta">Space Grotesk<br>700 tnum · stat</div></div>
+    </div>
+  </div>
+
+  <!-- SPACING / RADII / SHADOW -->
+  <div class="sec">
+    <div class="eyebrow">03 — Space, radius &amp; elevation</div>
+    <div class="sec-title">Base-4 rhythm</div>
+    <div class="grid2">
+      <div class="card">
+        <div class="lbl" style="margin-bottom:14px;">Spacing scale</div>
+        <div class="toks">
+          <div class="tok"><div class="tokbox" style="width:4px;height:34px;"></div><span class="tokn">4</span></div>
+          <div class="tok"><div class="tokbox" style="width:8px;height:34px;"></div><span class="tokn">8</span></div>
+          <div class="tok"><div class="tokbox" style="width:12px;height:34px;"></div><span class="tokn">12</span></div>
+          <div class="tok"><div class="tokbox" style="width:16px;height:34px;"></div><span class="tokn">16</span></div>
+          <div class="tok"><div class="tokbox" style="width:20px;height:34px;"></div><span class="tokn">20</span></div>
+          <div class="tok"><div class="tokbox" style="width:24px;height:34px;"></div><span class="tokn">24</span></div>
+          <div class="tok"><div class="tokbox" style="width:32px;height:34px;"></div><span class="tokn">32</span></div>
+          <div class="tok"><div class="tokbox" style="width:40px;height:34px;"></div><span class="tokn">40</span></div>
+        </div>
+        <div class="lbl" style="margin:22px 0 14px;">Radii</div>
+        <div class="toks">
+          <div class="tok"><div class="tokbox" style="width:54px;height:40px;border-radius:10px;"></div><span class="tokn">10 input</span></div>
+          <div class="tok"><div class="tokbox" style="width:54px;height:40px;border-radius:14px;"></div><span class="tokn">14 sm</span></div>
+          <div class="tok"><div class="tokbox" style="width:54px;height:40px;border-radius:20px;"></div><span class="tokn">20 pill</span></div>
+          <div class="tok"><div class="tokbox" style="width:54px;height:40px;border-radius:24px;"></div><span class="tokn">24 card</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="lbl" style="margin-bottom:14px;">Elevation</div>
+        <div style="display:flex;gap:16px;align-items:flex-end;">
+          <div style="flex:1;height:70px;border-radius:14px;background:var(--surface2);border:1px solid var(--line);"></div>
+          <div style="flex:1;height:70px;border-radius:14px;background:var(--surface);box-shadow:var(--shadow);"></div>
+          <div style="flex:1;height:70px;border-radius:14px;background:var(--surface);box-shadow:0 0 22px rgba(173,255,47,0.4);border:1px solid var(--accent);"></div>
+        </div>
+        <div style="display:flex;gap:16px;margin-top:8px;">
+          <span class="tokn" style="flex:1;text-align:center;">flat · border</span>
+          <span class="tokn" style="flex:1;text-align:center;">card shadow</span>
+          <span class="tokn" style="flex:1;text-align:center;">accent glow</span>
+        </div>
+        <div class="note">Glow is reserved for the single primary button per view. Today/selection rings are neutral (<code>--text</code>), never lime.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ICONS -->
+  <div class="sec">
+    <div class="eyebrow">04 — Iconography</div>
+    <div class="sec-title">Neutral workout key</div>
+    <div class="card">
+      <div id="iconrow" style="display:flex;flex-wrap:wrap;gap:26px;align-items:center;color:var(--mute);"></div>
+      <div class="note">Stroke 2px, rounded caps, <code>currentColor</code>. Workout-type icons are always neutral and unlabeled on cards — this legend is how they're decoded.</div>
+    </div>
+  </div>
+
+  <!-- COMPONENTS -->
+  <div class="sec">
+    <div class="eyebrow">05 — Components</div>
+    <div class="sec-title">Controls</div>
+    <div class="grid2">
+      <div class="card">
+        <div class="lbl" style="margin-bottom:14px;">Buttons &amp; chips</div>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+          <button class="btn">Start run</button>
+          <button class="btn ghost">View plan</button>
+          <button class="btn sm">Mark done</button>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;">
+          <span class="pill">Week 5</span><span class="pill lime">PR pace</span><span class="pill red">Missed</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="lbl" style="margin-bottom:14px;">Segmented &amp; input</div>
+        <div class="seg"><button class="on">Month</button><button>Week</button></div>
+        <input class="inp" style="margin-top:14px;" placeholder="Message Coach Mara…" />
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px;">
+      <div class="lbl" style="margin-bottom:14px;">Workout cards — completion states</div>
+      <div class="wk">
+        <div>
+          <div class="colhead"><b>Planned</b> · gray</div>
+          <div class="wkcard">
+            <span class="wkicon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 3L5 13h6l-1 8 8-10h-6l1-8Z"/></svg></span>
+            <div class="wktitle">5 × 800m</div><div class="wkmeta">6 mi · 7:30/mi</div>
+            <div class="wkstat" style="color:var(--mute)"><span class="dot" style="width:6px;height:6px;background:var(--faint)"></span>Planned</div>
+          </div>
+        </div>
+        <div>
+          <div class="colhead"><b>Completed</b> · lime</div>
+          <div class="wkcard done">
+            <span class="wkicon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 5.5a1.6 1.6 0 1 0 0-3.2 1.6 1.6 0 0 0 0 3.2ZM8 21l2.5-5 2-1.8-1-4.7-3 2.2-1 3"/></svg></span>
+            <div class="wktitle">Easy Run</div><div class="wkmeta">4.5 mi · 9:40/mi</div>
+            <div class="wkstat" style="color:var(--accent)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg>Completed</div>
+          </div>
+        </div>
+        <div>
+          <div class="colhead"><b>Missed</b> · red</div>
+          <div class="wkcard miss">
+            <span class="wkicon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v5l3.5 2M12 21a9 9 0 1 1 0-18 9 9 0 0 1 0 18Z"/></svg></span>
+            <div class="wktitle">Tempo 6 mi</div><div class="wkmeta">9 mi · 7:40/mi</div>
+            <div class="wkstat" style="color:var(--red)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v8M8 12h8M12 21a9 9 0 1 1 0-18 9 9 0 0 1 0 18Z"/></svg>Missed</div>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:16px;">
+        <span class="todaypill">Today</span>
+        <span class="note" style="margin:0;">Current day = bright neutral ring + TODAY pill. Deliberately not lime, so "today" never reads as "done".</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    Full written spec — voice, motion, do/don'ts, usage rules — lives in <b>design.md</b>. This page renders the live tokens from <b>app/core.jsx → THEMES.athletic</b>.
+  </div>
+
+</div>
+
+<script>
+  // render the neutral workout-key icon legend
+  const ICONS = {
+    Easy:'M13.5 5.5a1.6 1.6 0 1 0 0-3.2 1.6 1.6 0 0 0 0 3.2ZM8 21l2.5-5 2-1.8-1-4.7-3 2.2-1 3M12.5 9.5l2.5 1.5 1 3 2.5 1',
+    Long:'M3 19l6-11 4 6 2-3 6 8H3Z',
+    Intervals:'M13 3L5 13h6l-1 8 8-10h-6l1-8Z',
+    Tempo:'M12 22a8 8 0 1 1 0-16 8 8 0 0 1 0 16ZM12 14V9M9 2h6M19 5l1.5 1.5',
+    Recovery:'M12 20s-7-4.3-7-9.3A3.7 3.7 0 0 1 12 7.5 3.7 3.7 0 0 1 19 10.7c0 5-7 9.3-7 9.3Z',
+    'Cross-train':'M12 8v8M8 12h8M12 21a9 9 0 1 1 0-18 9 9 0 0 1 0 18Z',
+    Rest:'M4 12a8 8 0 1 0 16 0 8 8 0 0 0-16 0ZM9 9h6l-6 6h6'
+  };
+  const row = document.getElementById('iconrow');
+  for (const [name, d] of Object.entries(ICONS)) {
+    const el = document.createElement('div');
+    el.style.cssText = 'display:flex;align-items:center;gap:8px;';
+    el.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg><span style="font-family:var(--ui);font-size:13px;color:var(--text);">${name}</span>`;
+    row.appendChild(el);
+  }
+</script>
+</body>
+</html>

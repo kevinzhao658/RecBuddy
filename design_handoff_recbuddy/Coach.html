@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>RecBuddy — Coach</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:ital,wght@0,600;0,700;0,800;1,700;1,800&family=Space+Grotesk:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600;6..72,700&display=swap" rel="stylesheet" />
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #0A0C08; }
+  body { font-family: -apple-system, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  #root { height: 100%; }
+  div::-webkit-scrollbar { width: 8px; height: 8px; }
+  div::-webkit-scrollbar-thumb { background: rgba(247,244,238,0.14); border-radius: 8px; }
+  div::-webkit-scrollbar-track { background: transparent; }
+  button { font: inherit; }
+  input, textarea { font: inherit; }
+  input:focus, textarea:focus { border-color: #46E07A !important; }
+  .rb-metal-lime {
+    color: #C8FF5C;
+    text-shadow: 0 -1px 0 rgba(255,255,255,0.45), 0 1px 0 #7DC421, 0 2px 2px rgba(0,0,0,0.45), 0 4px 7px rgba(0,0,0,0.4);
+  }
+  .rb-metal-silver {
+    color: #FCFFF6;
+    text-shadow: 0 -1px 0 rgba(255,255,255,0.55), 0 1px 0 #97A784, 0 2px 2px rgba(0,0,0,0.45), 0 4px 7px rgba(0,0,0,0.4);
+  }
+  .rb-metal-slogan {
+    background-image: linear-gradient(180deg, #FFFFFF 0%, #E4EDD6 44%, #9FB089 76%, #F2F8E8 100%);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; color: transparent;
+    text-shadow: 0 1px 1px rgba(0,0,0,0.4);
+  }
+  .rb-stage {
+    height: 100%; width: 100%; display: flex; align-items: center; justify-content: center;
+    background:
+      radial-gradient(1200px 700px at 50% -10%, rgba(173,255,47,0.07), transparent 60%),
+      #0A0C08;
+    overflow: hidden;
+  }
+  .rb-window {
+    width: 1440px; height: 900px; flex-shrink: 0; transform-origin: center center;
+    border-radius: 16px; overflow: hidden; position: relative;
+    box-shadow: 0 40px 100px rgba(0,0,0,0.55), 0 0 0 1px rgba(247,244,238,0.08);
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<!-- shared core + ui -->
+<script type="text/babel" src="app/core.jsx"></script>
+<script type="text/babel" src="app/ui.jsx"></script>
+
+<!-- coach -->
+<script type="text/babel" src="coach/coach-data.jsx"></script>
+<script type="text/babel" src="coach/editor.jsx"></script>
+<script type="text/babel" src="coach/plan-grid.jsx"></script>
+<script type="text/babel" src="coach/coach-login.jsx"></script>
+<script type="text/babel" src="coach/coach-chat.jsx"></script>
+<script type="text/babel" src="coach/coach-modals.jsx"></script>
+<script type="text/babel" src="coach/coach-app.jsx"></script>
+
+<script type="text/babel" data-presets="react">
+  const RBCoachApp = window.CoachApp;
+  const RBThemes = window.THEMES;
+
+  function Stage() {
+    const winRef = React.useRef(null);
+    React.useEffect(() => {
+      const fit = () => {
+        const el = winRef.current; if (!el) return;
+        const pad = 36;
+        const s = Math.min(1, (window.innerWidth - pad) / 1440, (window.innerHeight - pad) / 900);
+        el.style.transform = `scale(${s})`;
+      };
+      fit();
+      window.addEventListener('resize', fit);
+      const t = setTimeout(fit, 300);
+      return () => { window.removeEventListener('resize', fit); clearTimeout(t); };
+    }, []);
+    return (
+      <div className="rb-stage">
+        <div className="rb-window" ref={winRef}>
+          <RBCoachApp theme={RBThemes.athletic} />
+        </div>
+      </div>
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById('root')).render(<Stage />);
+</script>
+</body>
+</html>
