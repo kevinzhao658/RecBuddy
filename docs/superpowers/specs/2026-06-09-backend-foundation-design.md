@@ -108,9 +108,14 @@ Adopt the handoff's `01_schema.sql` **as-is**:
 
 - **Email/password** via Supabase Auth. No OAuth yet (the design's Apple/Google buttons are
   deferred to a later milestone; frontends may show them disabled or hidden).
-- **Signup metadata:** clients pass `role` and `name` (plus `experience_level`/`primary_goal`
-  for athletes) in `options.data`; the `handle_new_user` trigger populates `profiles`. A
-  guarantees `profiles.role` is reliably set for every new user.
+- **Signup metadata (hardened — see §8.4):** `role` and `title` are privilege-bearing, so the
+  `handle_new_user` trigger reads them **only from `app_metadata`** (which only the service-role
+  key can write) and **defaults self-signups to `'athlete'`**. Non-privileged profile fields
+  (`name`, `experience_level`, `primary_goal`) come from client-supplied `user_metadata`
+  (`options.data`). Consequence: **athletes self-sign-up** (role defaults to athlete);
+  **coaches are provisioned through a trusted path** (service-role / admin API now — the seed
+  does exactly this — and a server endpoint behind the future coach-signup screen). A
+  guarantees `profiles.role` is reliably and safely set for every new user.
 - **Linking flow (per-athlete, one-time codes):**
   1. A **coach** generates an invite → inserts an `invites` row with a unique `code` (and an
      optional `athlete_name` label). (The generation *UI* is a B concern; A provides the table
@@ -213,6 +218,12 @@ working directory; initialization is a first step of the A implementation plan.
 2. **Admin-API seed script** (§5) — create real, loggable demo accounts instead of raw profile
    inserts. *Usable: you can actually log in as the demo users while building B and C.*
 3. **Vitest integration tests over pgTAP** (§6) — test the way the real clients hit the DB.
+4. **Role assignment hardened against privilege escalation** (§3) — added after an automated
+   security review flagged the handoff's `handle_new_user` reading `role`/`title` from
+   client-writable `user_metadata` (any signup could self-assign `coach`). Fixed: read
+   `role`/`title` from `app_metadata` (service-role only), default to `'athlete'`, and pin
+   `search_path` on the SECURITY DEFINER trigger + RLS helper functions. Athletes self-sign-up;
+   coaches are provisioned via a trusted/service-role path. *Approved by the user.*
 
 ---
 

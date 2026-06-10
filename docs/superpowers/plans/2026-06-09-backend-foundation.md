@@ -227,10 +227,46 @@ git commit -m "feat(db): apply RecBuddy schema (enums, tables, triggers) as firs
 ## Task 3: Test harness helpers + auth/profile-trigger test
 
 **Files:**
+- Create: `supabase/migrations/<ts>_harden_auth_trigger.sql`
 - Create: `tests/helpers.ts`
 - Test: `tests/auth.test.ts`
 
-- [ ] **Step 1: Write the harness helpers**
+- [ ] **Step 1: Harden the new-user trigger (CRITICAL security fix)**
+
+The handoff's `handle_new_user` reads `role`/`title` from `raw_user_meta_data`, which a client sets at `signUp()` — letting anyone self-assign the `coach` role (privilege escalation). Fix it so privilege-bearing fields come ONLY from `app_metadata` (service-role writable), self-signups default to `'athlete'`, and the SECURITY DEFINER function is hardened with `search_path` + schema-qualified enum casts.
+
+```bash
+npx supabase migration new harden_auth_trigger
+```
+Put this in `supabase/migrations/<timestamp>_harden_auth_trigger.sql` (it `create or replace`s the function from the schema migration; the `on_auth_user_created` trigger already points at it by name, so replacing the body is enough):
+```sql
+-- Security: role + title must NOT come from user-supplied signup metadata.
+-- Read them from app_metadata (only the service-role key can write it);
+-- default self-signups to the non-privileged 'athlete' role. Pin search_path
+-- and schema-qualify casts (defense in depth for a SECURITY DEFINER function).
+create or replace function handle_new_user() returns trigger as $$
+begin
+  insert into public.profiles (id, role, name, email, experience_level, primary_goal, title)
+  values (
+    new.id,
+    coalesce((new.raw_app_meta_data->>'role')::public.user_role, 'athlete'),
+    coalesce(new.raw_user_meta_data->>'name', split_part(new.email,'@',1)),
+    new.email,
+    (new.raw_user_meta_data->>'experience_level')::public.athlete_level,
+    (new.raw_user_meta_data->>'primary_goal')::public.athlete_goal,
+    (new.raw_app_meta_data->>'title')::public.coach_title
+  );
+  return new;
+end;
+$$ language plpgsql security definer set search_path = public, pg_temp;
+```
+Apply it:
+```bash
+npm run db:reset
+```
+Expected: applies both the `schema` and `harden_auth_trigger` migrations without error.
+
+- [ ] **Step 2: Write the harness helpers**
 
 `tests/helpers.ts`:
 ```ts
@@ -265,7 +301,11 @@ export type NewUser = {
 }
 
 /** Create an auth user via the admin API; the handle_new_user trigger
- *  populates `profiles`. Returns the user id + the credentials used. */
+ *  populates `profiles`. Returns the user id + the credentials used.
+ *  SECURITY: role + title are privilege-bearing, so they go in app_metadata
+ *  (service-role writable only) — the hardened trigger reads them from there.
+ *  Non-privileged profile fields (name, experience_level, primary_goal) go in
+ *  user_metadata, matching what a real self-signup would send. */
 export async function createUser(u: NewUser) {
   const email = u.email ?? `${randomUUID()}@test.recbuddy.app`
   const password = u.password ?? 'test-password-123'
@@ -273,12 +313,14 @@ export async function createUser(u: NewUser) {
     email,
     password,
     email_confirm: true,
-    user_metadata: {
+    app_metadata: {
       role: u.role,
+      title: u.title,
+    },
+    user_metadata: {
       name: u.name,
       experience_level: u.experience_level,
       primary_goal: u.primary_goal,
-      title: u.title,
     },
   })
   if (error) throw error
@@ -301,16 +343,17 @@ export async function createAndSignIn(u: NewUser) {
 }
 ```
 
-- [ ] **Step 2: Write the failing auth/profile-trigger test**
+- [ ] **Step 3: Write the failing auth/profile-trigger test**
 
 `tests/auth.test.ts`:
 ```ts
 import 'dotenv/config'
 import { describe, it, expect } from 'vitest'
+import { randomUUID } from 'node:crypto'
 import { admin, createAndSignIn } from './helpers'
 
 describe('auth + profile trigger', () => {
-  it('creates a coach profile with role + title from signup metadata', async () => {
+  it('creates a coach profile with role + title from app_metadata', async () => {
     const { id } = await createAndSignIn({ role: 'coach', name: 'Test Coach', title: 'Head Coach' })
     const { data, error } = await admin().from('profiles').select('*').eq('id', id).single()
     expect(error).toBeNull()
@@ -328,21 +371,37 @@ describe('auth + profile trigger', () => {
     expect(data!.experience_level).toBe('returning')
     expect(data!.primary_goal).toBe('pr')
   })
+
+  it('does NOT let a client self-assign the coach role via user_metadata', async () => {
+    // Simulate a malicious self-signup that crams role/title into user_metadata
+    // (the client-writable bucket). The hardened trigger must ignore it.
+    const sql = admin()
+    const { data, error } = await sql.auth.admin.createUser({
+      email: `escalate-${randomUUID()}@test.recbuddy.app`,
+      password: 'test-password-123',
+      email_confirm: true,
+      user_metadata: { role: 'coach', title: 'Head Coach', name: 'Sneaky' },
+    })
+    expect(error).toBeNull()
+    const prof = await sql.from('profiles').select('role,title').eq('id', data.user!.id).single()
+    expect(prof.data!.role).toBe('athlete') // defaulted, NOT coach
+    expect(prof.data!.title).toBeNull()
+  })
 })
 ```
 
-- [ ] **Step 3: Run the tests**
+- [ ] **Step 4: Run the tests**
 
 ```bash
 npm test -- auth schema
 ```
-Expected: PASS. The schema's `handle_new_user` trigger (from Task 2) populates `profiles` from `user_metadata`, including the generated `initials`.
+Expected: PASS. The hardened `handle_new_user` trigger (Step 1) populates `profiles` — role/title from `app_metadata`, name/experience/goal from `user_metadata`, plus the generated `initials` — and the escalation attempt defaults to `athlete`.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add tests/helpers.ts tests/auth.test.ts
-git commit -m "test(backend): add Supabase test harness + auth/profile-trigger tests"
+git add supabase/migrations/ tests/helpers.ts tests/auth.test.ts
+git commit -m "feat(db): harden handle_new_user (role via app_metadata) + test harness"
 ```
 
 ---
@@ -455,12 +514,32 @@ Copy `design_handoff_recbuddy/supabase/02_rls.sql` into the new `supabase/migrat
 ```bash
 cp design_handoff_recbuddy/supabase/02_rls.sql supabase/migrations/<timestamp>_rls.sql
 ```
-Then **delete** these two lines from that migration (the broad athlete update — replaced by the RPC in Task 5):
+Then make these two edits to the migration:
+
+1. **Delete** these two lines (the broad athlete update — replaced by the RPC in Task 5):
 ```sql
 create policy workouts_athlete_update on workouts for update
   using (athlete_id = auth.uid()) with check (athlete_id = auth.uid());
 ```
-Leave everything else intact: the `is_coach_of` / `is_head_coach_of` helpers, all `select`/`for all` policies, and the two `alter publication supabase_realtime add table ...` lines at the end (messages, workouts).
+
+2. **Harden the two SECURITY DEFINER helper functions** (the security review flagged `SECURITY DEFINER` without a pinned `search_path`). Add `set search_path = public, pg_temp` to each. After editing, the helpers read:
+```sql
+create or replace function is_coach_of(_athlete uuid) returns boolean as $$
+  select exists (
+    select 1 from coach_athlete
+    where athlete_id = _athlete and coach_id = auth.uid()
+  );
+$$ language sql stable security definer set search_path = public, pg_temp;
+
+create or replace function is_head_coach_of(_athlete uuid) returns boolean as $$
+  select exists (
+    select 1 from coach_athlete
+    where athlete_id = _athlete and coach_id = auth.uid() and relationship = 'head'
+  );
+$$ language sql stable security definer set search_path = public, pg_temp;
+```
+
+Leave everything else intact: all `select`/`for all` policies, the `enable row level security` statements, and the two `alter publication supabase_realtime add table ...` lines at the end (messages, workouts).
 
 - [ ] **Step 5: Apply and re-run the tests**
 
@@ -779,27 +858,36 @@ const sql = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE
 
 const PASSWORD = 'recbuddy-dev' // documented dev password for every seeded user
 
-async function makeUser(email: string, meta: Record<string, unknown>) {
+// role + title are privilege-bearing → app_metadata (service-role only); the
+// hardened handle_new_user trigger reads them there. name/experience/goal are
+// non-privileged profile fields → user_metadata.
+async function makeUser(
+  email: string,
+  app: { role: 'coach' | 'athlete'; title?: string },
+  user: { name: string; experience_level?: string; primary_goal?: string },
+) {
   // Idempotent-ish: delete an existing user with this email first.
   const { data: list } = await sql.auth.admin.listUsers()
   const existing = list.users.find((u) => u.email === email)
   if (existing) await sql.auth.admin.deleteUser(existing.id)
 
   const { data, error } = await sql.auth.admin.createUser({
-    email, password: PASSWORD, email_confirm: true, user_metadata: meta,
+    email, password: PASSWORD, email_confirm: true,
+    app_metadata: app,
+    user_metadata: user,
   })
   if (error) throw error
   return data.user!.id
 }
 
 async function main() {
-  // ---- coaches ----
-  const mara = await makeUser('mara@recbuddy.app', { role: 'coach', name: 'Mara Whitlock', title: 'Head Coach' })
-  const sam  = await makeUser('sam@recbuddy.app',  { role: 'coach', name: 'Sam Okafor', title: 'Assistant Coach' })
+  // ---- coaches (role/title via app_metadata) ----
+  const mara = await makeUser('mara@recbuddy.app', { role: 'coach', title: 'Head Coach' }, { name: 'Mara Whitlock' })
+  const sam  = await makeUser('sam@recbuddy.app',  { role: 'coach', title: 'Assistant Coach' }, { name: 'Sam Okafor' })
 
   // ---- athletes ----
-  const jordan = await makeUser('jordan@recbuddy.app', { role: 'athlete', name: 'Jordan Reyes', experience_level: 'returning', primary_goal: 'pr' })
-  const priya  = await makeUser('priya@recbuddy.app',  { role: 'athlete', name: 'Priya Nair', experience_level: 'new', primary_goal: 'first-race' })
+  const jordan = await makeUser('jordan@recbuddy.app', { role: 'athlete' }, { name: 'Jordan Reyes', experience_level: 'returning', primary_goal: 'pr' })
+  const priya  = await makeUser('priya@recbuddy.app',  { role: 'athlete' }, { name: 'Priya Nair', experience_level: 'new', primary_goal: 'first-race' })
 
   // ---- roster: Mara heads both; Sam assists Jordan ----
   await sql.from('coach_athlete').insert([
@@ -923,6 +1011,11 @@ Every seeded user's password is `recbuddy-dev`.
 - `../tests/` — integration tests acting as specific signed-in users
 
 ## Notes
+- **Roles are assigned safely.** `role` and `title` come only from `app_metadata`
+  (service-role writable); self-signups default to `'athlete'`. So athletes
+  self-register, but coaches must be created through a trusted path (the seed /
+  admin API now; a server endpoint behind the future coach-signup screen). A
+  client cannot self-assign `coach` by stuffing `role` into `user_metadata`.
 - Athletes mark workouts complete only via the `mark_workout_status` RPC (they
   have no direct UPDATE on `workouts`).
 - Invite flow: a coach inserts an `invites` row; the athlete previews it with
