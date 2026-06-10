@@ -1052,11 +1052,13 @@ Every seeded user's password is `recbuddy-dev`.
 - `../tests/` — integration tests acting as specific signed-in users
 
 ## Notes
-- **Roles are assigned safely.** `role` and `title` come only from `app_metadata`
-  (service-role writable); self-signups default to `'athlete'`. So athletes
-  self-register, but coaches must be created through a trusted path (the seed /
-  admin API now; a server endpoint behind the future coach-signup screen). A
-  client cannot self-assign `coach` by stuffing `role` into `user_metadata`.
+- **Roles are assigned safely.** The `handle_new_user` trigger creates every
+  signup as an `'athlete'` and never reads role/title from signup metadata.
+  Coaches are promoted by a **service-role `profiles` update** (the seed / admin
+  API now; a server endpoint behind the future coach-signup screen), and a
+  BEFORE UPDATE guard blocks anyone but the service role from changing
+  `role`/`title`. So a client cannot self-assign `coach` (not via `user_metadata`,
+  not via a direct profile update).
 - Athletes mark workouts complete only via the `mark_workout_status` RPC (they
   have no direct UPDATE on `workouts`).
 - Invite flow: a coach inserts an `invites` row; the athlete previews it with
