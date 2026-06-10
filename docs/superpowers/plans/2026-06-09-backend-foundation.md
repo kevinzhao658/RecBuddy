@@ -233,28 +233,28 @@ git commit -m "feat(db): apply RecBuddy schema (enums, tables, triggers) as firs
 
 - [ ] **Step 1: Harden the new-user trigger (CRITICAL security fix)**
 
-The handoff's `handle_new_user` reads `role`/`title` from `raw_user_meta_data`, which a client sets at `signUp()` — letting anyone self-assign the `coach` role (privilege escalation). Fix it so privilege-bearing fields come ONLY from `app_metadata` (service-role writable), self-signups default to `'athlete'`, and the SECURITY DEFINER function is hardened with `search_path` + schema-qualified enum casts.
+The handoff's `handle_new_user` reads `role`/`title` from `raw_user_meta_data`, which a client sets at `signUp()` — letting anyone self-assign the `coach` role (privilege escalation). Fix: the trigger **always** creates a profile as `'athlete'` and never reads role/title from any signup metadata. **Coaches are promoted by the trusted service role** after creation (the test harness and seed do this) — so `profiles.role` is the single source of truth and is writable only by the service role. (Note: this avoids depending on GoTrue's `app_metadata` write timing — GoTrue inserts the `auth.users` row, firing this `AFTER INSERT` trigger, *before* it persists admin-supplied `app_metadata`, so reading role from `app_metadata` here would always miss it.) Harden the SECURITY DEFINER function with a pinned `search_path` + schema-qualified casts.
 
 ```bash
 npx supabase migration new harden_auth_trigger
 ```
-Put this in `supabase/migrations/<timestamp>_harden_auth_trigger.sql` (it `create or replace`s the function from the schema migration; the `on_auth_user_created` trigger already points at it by name, so replacing the body is enough):
+Put this in `supabase/migrations/<timestamp>_harden_auth_trigger.sql` (it `create or replace`s the function from the schema migration; the existing `on_auth_user_created` AFTER INSERT trigger already points at it by name, so replacing the body is enough — do NOT recreate the trigger):
 ```sql
--- Security: role + title must NOT come from user-supplied signup metadata.
--- Read them from app_metadata (only the service-role key can write it);
--- default self-signups to the non-privileged 'athlete' role. Pin search_path
--- and schema-qualify casts (defense in depth for a SECURITY DEFINER function).
+-- Security: self-signups are ALWAYS created as athletes — role/title are never
+-- taken from client-supplied metadata. Coaches are promoted by the service role
+-- after creation (see the test harness / seed). This closes the privilege-
+-- escalation hole regardless of GoTrue's app_metadata write timing.
+-- SECURITY DEFINER with a pinned search_path; enum casts schema-qualified.
 create or replace function handle_new_user() returns trigger as $$
 begin
-  insert into public.profiles (id, role, name, email, experience_level, primary_goal, title)
+  insert into public.profiles (id, role, name, email, experience_level, primary_goal)
   values (
     new.id,
-    coalesce((new.raw_app_meta_data->>'role')::public.user_role, 'athlete'),
+    'athlete',
     coalesce(new.raw_user_meta_data->>'name', split_part(new.email,'@',1)),
     new.email,
     (new.raw_user_meta_data->>'experience_level')::public.athlete_level,
-    (new.raw_user_meta_data->>'primary_goal')::public.athlete_goal,
-    (new.raw_app_meta_data->>'title')::public.coach_title
+    (new.raw_user_meta_data->>'primary_goal')::public.athlete_goal
   );
   return new;
 end;
@@ -300,12 +300,12 @@ export type NewUser = {
   title?: string
 }
 
-/** Create an auth user via the admin API; the handle_new_user trigger
- *  populates `profiles`. Returns the user id + the credentials used.
- *  SECURITY: role + title are privilege-bearing, so they go in app_metadata
- *  (service-role writable only) — the hardened trigger reads them from there.
- *  Non-privileged profile fields (name, experience_level, primary_goal) go in
- *  user_metadata, matching what a real self-signup would send. */
+/** Create an auth user via the admin API; the handle_new_user trigger creates
+ *  the profile (always as 'athlete'). Coaches are then PROMOTED via a
+ *  service-role update — the only path to the coach role. Returns the user id
+ *  + the credentials used.
+ *  SECURITY: role/title are never set from client-supplied signup metadata;
+ *  only this service-role (admin) client can grant the coach role. */
 export async function createUser(u: NewUser) {
   const email = u.email ?? `${randomUUID()}@test.recbuddy.app`
   const password = u.password ?? 'test-password-123'
@@ -313,10 +313,6 @@ export async function createUser(u: NewUser) {
     email,
     password,
     email_confirm: true,
-    app_metadata: {
-      role: u.role,
-      title: u.title,
-    },
     user_metadata: {
       name: u.name,
       experience_level: u.experience_level,
@@ -324,7 +320,15 @@ export async function createUser(u: NewUser) {
     },
   })
   if (error) throw error
-  return { id: data.user!.id, email, password }
+  const id = data.user!.id
+  if (u.role === 'coach') {
+    const { error: pErr } = await admin()
+      .from('profiles')
+      .update({ role: 'coach', title: u.title ?? null })
+      .eq('id', id)
+    if (pErr) throw pErr
+  }
+  return { id, email, password }
 }
 
 /** Sign in and return a user-scoped client (RLS applies as this user). */
@@ -492,6 +496,15 @@ describe('RLS access rules', () => {
     const theirs = await other.client.from('library_workouts').select('*').eq('coach_id', coach.id)
     expect(theirs.data!.length).toBe(0)
   })
+
+  it('an athlete cannot escalate their own role via a direct profile update', async () => {
+    const before = await admin().from('profiles').select('role').eq('id', athleteB.id).single()
+    expect(before.data!.role).toBe('athlete')
+    const { error } = await athleteB.client.from('profiles').update({ role: 'coach' }).eq('id', athleteB.id)
+    expect(error).not.toBeNull() // guard trigger raises
+    const after = await admin().from('profiles').select('role').eq('id', athleteB.id).single()
+    expect(after.data!.role).toBe('athlete') // unchanged
+  })
 })
 ```
 
@@ -537,6 +550,25 @@ create or replace function is_head_coach_of(_athlete uuid) returns boolean as $$
     where athlete_id = _athlete and coach_id = auth.uid() and relationship = 'head'
   );
 $$ language sql stable security definer set search_path = public, pg_temp;
+```
+
+3. **Add a guard against role/title self-escalation.** The `profiles_self_update` policy lets a user update their own profile row — including the `role` column (RLS can't restrict columns), which would re-open the privilege-escalation hole from a different door. Append this BEFORE UPDATE guard to the migration. It is **SECURITY INVOKER** (the default — do NOT add `security definer`) so that `current_user` reflects the caller's DB role (`authenticated` for users, `service_role` for the service key):
+```sql
+-- Block privilege escalation via a direct profile update: only the service
+-- role may change role/title. Users may still edit their other profile fields.
+-- SECURITY INVOKER (default) so current_user is the caller's role, not the owner.
+create or replace function guard_profile_privileged_fields() returns trigger as $$
+begin
+  if (new.role is distinct from old.role or new.title is distinct from old.title)
+     and current_user <> 'service_role' then
+    raise exception 'role/title may only be changed by the service role';
+  end if;
+  return new;
+end;
+$$ language plpgsql set search_path = public, pg_temp;
+
+create trigger profiles_guard_privileged before update on profiles
+  for each row execute function guard_profile_privileged_fields();
 ```
 
 Leave everything else intact: all `select`/`for all` policies, the `enable row level security` statements, and the two `alter publication supabase_realtime add table ...` lines at the end (messages, workouts).
@@ -858,9 +890,9 @@ const sql = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE
 
 const PASSWORD = 'recbuddy-dev' // documented dev password for every seeded user
 
-// role + title are privilege-bearing → app_metadata (service-role only); the
-// hardened handle_new_user trigger reads them there. name/experience/goal are
-// non-privileged profile fields → user_metadata.
+// The trigger creates every signup as an athlete; coaches are PROMOTED here
+// via the service-role client (the only path to the coach role). name/level/
+// goal are non-privileged profile fields passed as user_metadata.
 async function makeUser(
   email: string,
   app: { role: 'coach' | 'athlete'; title?: string },
@@ -873,11 +905,15 @@ async function makeUser(
 
   const { data, error } = await sql.auth.admin.createUser({
     email, password: PASSWORD, email_confirm: true,
-    app_metadata: app,
     user_metadata: user,
   })
   if (error) throw error
-  return data.user!.id
+  const id = data.user!.id
+  if (app.role === 'coach') {
+    const { error: pErr } = await sql.from('profiles').update({ role: 'coach', title: app.title ?? null }).eq('id', id)
+    if (pErr) throw pErr
+  }
+  return id
 }
 
 async function main() {
