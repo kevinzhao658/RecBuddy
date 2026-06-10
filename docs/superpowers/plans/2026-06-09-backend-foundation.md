@@ -665,7 +665,7 @@ create or replace function mark_workout_status(p_workout_id uuid, p_status worko
 returns void
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 begin
   if p_status not in ('done', 'planned') then
@@ -806,7 +806,7 @@ returns table (coach_name text, coach_initials text)
 language sql
 stable
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
   select p.name, p.initials
   from invites i
@@ -825,7 +825,7 @@ create or replace function redeem_invite(p_code text)
 returns void
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 declare
   v invites%rowtype;
