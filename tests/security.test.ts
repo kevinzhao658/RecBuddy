@@ -1,7 +1,7 @@
 import 'dotenv/config'
 import { describe, it, expect, beforeAll } from 'vitest'
 import { randomUUID } from 'node:crypto'
-import { admin, createAndSignIn } from './helpers'
+import { admin, createAndSignIn, anon } from './helpers'
 
 describe('access-model hardening (final-review fixes)', () => {
   let coachX: any, coachY: any, athlete: any, victim: any
@@ -54,5 +54,14 @@ describe('access-model hardening (final-review fixes)', () => {
     expect(error).not.toBeNull() // already has a head coach
     const heads = await admin().from('coach_athlete').select('*').eq('athlete_id', athlete.id).eq('relationship', 'head')
     expect(heads.data!.length).toBe(1)
+  })
+
+  it('anon cannot execute redeem_invite or mark_workout_status (authenticated only)', async () => {
+    const r1 = await anon().rpc('redeem_invite', { p_code: `x-${randomUUID()}` })
+    expect(r1.error).not.toBeNull()
+    expect(`${r1.error?.code ?? ''} ${r1.error?.message ?? ''}`.toLowerCase()).toMatch(/pgrst202|permission|could not find|denied/)
+    const r2 = await anon().rpc('mark_workout_status', { p_workout_id: '00000000-0000-0000-0000-000000000000', p_status: 'done' })
+    expect(r2.error).not.toBeNull()
+    expect(`${r2.error?.code ?? ''} ${r2.error?.message ?? ''}`.toLowerCase()).toMatch(/pgrst202|permission|could not find|denied/)
   })
 })
