@@ -922,7 +922,7 @@ async function makeUser(
 }
 
 async function main() {
-  // ---- coaches (role/title via app_metadata) ----
+  // ---- coaches (promoted to the coach role via the service-role update in makeUser) ----
   const mara = await makeUser('mara@recbuddy.app', { role: 'coach', title: 'Head Coach' }, { name: 'Mara Whitlock' })
   const sam  = await makeUser('sam@recbuddy.app',  { role: 'coach', title: 'Assistant Coach' }, { name: 'Sam Okafor' })
 
