@@ -1083,6 +1083,198 @@ git commit -m "docs(backend): add local dev workflow + credentials README"
 
 ---
 
+## Task 9: Access-model hardening (from final review)
+
+The whole-implementation review found gaps the per-task reviews missed. Fix the CRITICAL + IMPORTANT ones (and one cheap MINOR integrity guard) in a new migration, TDD-style.
+
+**Files:**
+- Create: `supabase/migrations/<ts>_harden_access.sql`
+- Test: `tests/security.test.ts`
+
+- [ ] **Step 1: Write the failing tests**
+
+`tests/security.test.ts`:
+```ts
+import 'dotenv/config'
+import { describe, it, expect, beforeAll } from 'vitest'
+import { randomUUID } from 'node:crypto'
+import { admin, createAndSignIn } from './helpers'
+
+describe('access-model hardening (final-review fixes)', () => {
+  let coachX: any, coachY: any, athlete: any, victim: any
+  let athleteMsgId: string
+  let victimWorkoutId: string
+
+  beforeAll(async () => {
+    coachX = await createAndSignIn({ role: 'coach', name: 'Coach X', title: 'Head Coach' })
+    coachY = await createAndSignIn({ role: 'coach', name: 'Coach Y', title: 'Head Coach' })
+    athlete = await createAndSignIn({ role: 'athlete', name: 'Athlete One' })
+    victim = await createAndSignIn({ role: 'athlete', name: 'Victim Two' })
+    const sql = admin()
+    await sql.from('coach_athlete').insert({ coach_id: coachX.id, athlete_id: athlete.id, relationship: 'head' })
+    const { data: t } = await sql.from('message_threads').insert({ athlete_id: athlete.id, coach_id: coachX.id }).select().single()
+    const { data: am } = await sql.from('messages').insert({ thread_id: t!.id, from_user_id: athlete.id, kind: 'text', body: 'athlete original' }).select().single()
+    athleteMsgId = am!.id
+    const { data: vp } = await sql.from('plans').insert({ athlete_id: victim.id }).select().single()
+    const { data: vw } = await sql.from('workouts').insert({ plan_id: vp!.id, athlete_id: victim.id, date: '2026-07-01', type: 'easy', title: 'Victim Run', status: 'planned' }).select().single()
+    victimWorkoutId = vw!.id
+  })
+
+  it('a coach CANNOT self-link to an unrelated athlete as head (no invite bypass)', async () => {
+    const { error } = await coachY.client.from('coach_athlete').insert({ coach_id: coachY.id, athlete_id: victim.id, relationship: 'head' }).select()
+    expect(error).not.toBeNull()
+    const link = await admin().from('coach_athlete').select('*').eq('coach_id', coachY.id).eq('athlete_id', victim.id)
+    expect(link.data!.length).toBe(0)
+  })
+
+  it('a thread participant CANNOT rewrite message content, but CAN mark read', async () => {
+    const tamper = await coachX.client.from('messages').update({ body: 'TAMPERED' }).eq('id', athleteMsgId).select()
+    expect(tamper.error).not.toBeNull()
+    const fresh = await admin().from('messages').select('body').eq('id', athleteMsgId).single()
+    expect(fresh.data!.body).toBe('athlete original')
+    const read = await coachX.client.from('messages').update({ read: true }).eq('id', athleteMsgId).select()
+    expect(read.error).toBeNull()
+    expect(read.data!.length).toBe(1)
+  })
+
+  it('an athlete CANNOT attach an actual to another athlete workout', async () => {
+    const { error } = await athlete.client.from('workout_actuals').insert({
+      workout_id: victimWorkoutId, athlete_id: athlete.id, dist: 3, source: 'manual',
+    }).select()
+    expect(error).not.toBeNull()
+  })
+
+  it('an athlete cannot end up with two head coaches via redeem', async () => {
+    const code = `HEAD2-${randomUUID()}`
+    await admin().from('invites').insert({ code, coach_id: coachY.id })
+    const { error } = await athlete.client.rpc('redeem_invite', { p_code: code })
+    expect(error).not.toBeNull() // already has a head coach
+    const heads = await admin().from('coach_athlete').select('*').eq('athlete_id', athlete.id).eq('relationship', 'head')
+    expect(heads.data!.length).toBe(1)
+  })
+})
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+```bash
+npm test -- security
+```
+Expected: FAIL — without the fixes, the coach self-link succeeds, the message tamper succeeds, the cross-workout actual inserts, and a second head is allowed.
+
+- [ ] **Step 3: Create the migration**
+
+```bash
+npx supabase migration new harden_access
+```
+
+- [ ] **Step 4: Write the hardening migration**
+
+Put this in `supabase/migrations/<timestamp>_harden_access.sql` EXACTLY:
+```sql
+-- Final-review access-model fixes.
+
+-- (1) CRITICAL: coach_athlete.team_write let any coach self-link to an arbitrary
+--     athlete as 'head', bypassing the invite flow (account takeover). The
+--     legitimate first-head link is created by redeem_invite (SECURITY DEFINER,
+--     bypasses RLS) or the service-role seed, so no client self-insert branch is
+--     needed. Restrict client writes to the athlete's existing head coach.
+drop policy team_write on coach_athlete;
+create policy team_write on coach_athlete for all
+  using (is_head_coach_of(athlete_id))
+  with check (is_head_coach_of(athlete_id));
+
+-- (2) IMPORTANT: messages_update exists for mark-as-read, but RLS can't limit
+--     columns, so a thread participant could rewrite another user's message.
+--     Guard: only the `read` flag may change (service role exempt). INVOKER so
+--     current_user is the caller's role.
+create or replace function guard_message_immutable_content() returns trigger as $$
+begin
+  if (new.body is distinct from old.body
+      or new.kind is distinct from old.kind
+      or new.payload is distinct from old.payload
+      or new.from_user_id is distinct from old.from_user_id
+      or new.thread_id is distinct from old.thread_id
+      or new.created_at is distinct from old.created_at)
+     and current_user <> 'service_role' then
+    raise exception 'only the read flag may be updated on a message';
+  end if;
+  return new;
+end;
+$$ language plpgsql set search_path = public, pg_temp;
+
+create trigger messages_guard_content before update on messages
+  for each row execute function guard_message_immutable_content();
+
+-- (3) IMPORTANT: an actual's workout_id (if set) must belong to the same athlete
+--     as the actual, so an athlete can't pin an actual onto someone else's workout.
+drop policy actuals_write on workout_actuals;
+create policy actuals_write on workout_actuals for all
+  using (athlete_id = auth.uid() or is_coach_of(athlete_id))
+  with check (
+    (athlete_id = auth.uid() or is_coach_of(athlete_id))
+    and (
+      workout_id is null
+      or exists (
+        select 1 from workouts w
+        where w.id = workout_actuals.workout_id
+          and w.athlete_id = workout_actuals.athlete_id
+      )
+    )
+  );
+
+-- (4) MINOR integrity: enforce a single head coach per athlete in redeem_invite.
+create or replace function redeem_invite(p_code text)
+returns void
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v invites%rowtype;
+begin
+  select * into v from invites where code = p_code for update;
+
+  if not found then
+    raise exception 'invalid invite code';
+  end if;
+  if v.consumed_at is not null then
+    raise exception 'invite code already used';
+  end if;
+  if v.expires_at is not null and v.expires_at <= now() then
+    raise exception 'invite code expired';
+  end if;
+  if exists (select 1 from coach_athlete where athlete_id = auth.uid() and relationship = 'head') then
+    raise exception 'athlete already has a head coach';
+  end if;
+
+  insert into coach_athlete (coach_id, athlete_id, relationship)
+  values (v.coach_id, auth.uid(), 'head')
+  on conflict (coach_id, athlete_id) do nothing;
+
+  update invites
+  set consumed_at = now(), consumed_by = auth.uid()
+  where id = v.id;
+end;
+$$;
+```
+
+- [ ] **Step 5: Apply and run the FULL suite**
+
+```bash
+npm run db:reset && npm run seed && npm test
+```
+Expected: seed completes; ALL test files pass — `schema`, `auth`, `rls`, `mark-status`, `invites`, `security` (the prior invites redeem test still passes because that athlete has no prior head).
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add supabase/migrations/ tests/security.test.ts
+git commit -m "fix(db): close team_write takeover, message tampering, cross-athlete actuals; single head coach"
+```
+
+---
+
 ## Done criteria for Sub-project A
 - `npm run db:reset && npm run seed && npm test` is green end-to-end.
 - A coach and athlete can be created via email/password; the role + profile land via the trigger.
