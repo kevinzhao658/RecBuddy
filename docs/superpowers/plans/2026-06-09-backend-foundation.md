@@ -1275,6 +1275,65 @@ git commit -m "fix(db): close team_write takeover, message tampering, cross-athl
 
 ---
 
+## Task 10: Restrict RPC execution to intended roles
+
+A direct grant check revealed `redeem_invite` and `mark_workout_status` are EXECUTE-able by `anon`. Supabase's default privileges grant EXECUTE to `anon`/`authenticated` on new `public` functions, and `revoke all from public` does NOT remove those per-role grants — so `anon` must be revoked explicitly. (`resolve_invite` intentionally stays anon-callable.) Low real risk (both fail safe when `auth.uid()` is null) but it contradicts the intended/ documented model.
+
+**Files:**
+- Create: `supabase/migrations/<ts>_restrict_rpc_grants.sql`
+- Modify: `tests/security.test.ts` (add an anon-execution test)
+
+- [ ] **Step 1: Add the failing test** — append to `tests/security.test.ts` (and add `anon` to its import from `./helpers`):
+```ts
+  it('anon cannot execute redeem_invite or mark_workout_status (authenticated only)', async () => {
+    const r1 = await anon().rpc('redeem_invite', { p_code: `x-${randomUUID()}` })
+    expect(r1.error).not.toBeNull()
+    expect(`${r1.error?.code ?? ''} ${r1.error?.message ?? ''}`.toLowerCase()).toMatch(/pgrst202|permission|could not find|denied/)
+    const r2 = await anon().rpc('mark_workout_status', { p_workout_id: '00000000-0000-0000-0000-000000000000', p_status: 'done' })
+    expect(r2.error).not.toBeNull()
+    expect(`${r2.error?.code ?? ''} ${r2.error?.message ?? ''}`.toLowerCase()).toMatch(/pgrst202|permission|could not find|denied/)
+  })
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+```bash
+npm test -- security
+```
+Expected: FAIL — anon currently CAN reach both functions (they error only at runtime on null `auth.uid()`, not with a permission/not-found error).
+
+- [ ] **Step 3: Create the migration**
+
+```bash
+npx supabase migration new restrict_rpc_grants
+```
+
+- [ ] **Step 4: Write the migration** EXACTLY:
+```sql
+-- redeem_invite and mark_workout_status are for authenticated users only.
+-- Supabase's default privileges grant EXECUTE to anon on new public functions,
+-- and `revoke all from public` does not remove those per-role grants — so revoke
+-- anon explicitly. (resolve_invite intentionally remains anon-callable.)
+revoke execute on function redeem_invite(text) from anon;
+revoke execute on function mark_workout_status(uuid, workout_status) from anon;
+```
+
+- [ ] **Step 5: Apply and run the full suite**
+
+```bash
+npm run db:reset && npm run seed && npm test
+```
+Expected: all pass, including the new anon-execution test. (`resolve_invite` anon test in `invites` still passes.)
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add supabase/migrations/ tests/security.test.ts
+git commit -m "fix(db): revoke anon EXECUTE on redeem_invite + mark_workout_status"
+```
+
+---
+
 ## Done criteria for Sub-project A
 - `npm run db:reset && npm run seed && npm test` is green end-to-end.
 - A coach and athlete can be created via email/password; the role + profile land via the trigger.
