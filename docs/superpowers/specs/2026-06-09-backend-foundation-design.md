@@ -108,9 +108,19 @@ Adopt the handoff's `01_schema.sql` **as-is**:
 
 - **Email/password** via Supabase Auth. No OAuth yet (the design's Apple/Google buttons are
   deferred to a later milestone; frontends may show them disabled or hidden).
-- **Signup metadata:** clients pass `role` and `name` (plus `experience_level`/`primary_goal`
-  for athletes) in `options.data`; the `handle_new_user` trigger populates `profiles`. A
-  guarantees `profiles.role` is reliably set for every new user.
+- **Signup metadata (hardened — see §8.4):** the `handle_new_user` trigger **always** creates a
+  profile as `'athlete'` and never reads `role`/`title` from any signup metadata. Non-privileged
+  fields (`name`, `experience_level`, `primary_goal`) come from client-supplied `user_metadata`
+  (`options.data`). **Coaches are promoted by a service-role update** to `profiles` after the user
+  is created (the seed and test harness do this) — so `profiles.role` is the single source of
+  truth, writable only by the service role. Consequence: **athletes self-sign-up** (role defaults
+  to athlete); **coaches are provisioned through a trusted path** (service-role / admin API now —
+  the seed does exactly this — and a server endpoint behind the future coach-signup screen).
+  (Mechanism note: a service-role `profiles` promotion is used rather than reading role from
+  `app_metadata`, because GoTrue inserts `auth.users` — firing the AFTER INSERT trigger — before
+  it persists admin-supplied `app_metadata`. Same security goal, robust to that timing.) A also
+  guards `profiles.role`/`title` against self-update via a BEFORE UPDATE trigger (§4), so an
+  authenticated user cannot escalate by directly updating their own profile row.
 - **Linking flow (per-athlete, one-time codes):**
   1. A **coach** generates an invite → inserts an `invites` row with a unique `code` (and an
      optional `athlete_name` label). (The generation *UI* is a B concern; A provides the table
@@ -213,6 +223,17 @@ working directory; initialization is a first step of the A implementation plan.
 2. **Admin-API seed script** (§5) — create real, loggable demo accounts instead of raw profile
    inserts. *Usable: you can actually log in as the demo users while building B and C.*
 3. **Vitest integration tests over pgTAP** (§6) — test the way the real clients hit the DB.
+4. **Role assignment hardened against privilege escalation** (§3) — added after an automated
+   security review flagged the handoff's `handle_new_user` reading `role`/`title` from
+   client-writable `user_metadata` (any signup could self-assign `coach`). Fixed: the trigger
+   always creates profiles as `'athlete'` and ignores signup metadata for role/title; coaches are
+   promoted by a **service-role `profiles` update** (the only path to the coach role); a BEFORE
+   UPDATE guard on `profiles` blocks non-service-role changes to `role`/`title`; and `search_path`
+   is pinned on the SECURITY DEFINER trigger + RLS helper functions. (A service-role promotion is
+   used instead of reading `app_metadata` in the trigger because GoTrue persists admin
+   `app_metadata` in an UPDATE *after* the INSERT that fires the trigger — discovered during
+   implementation.) Athletes self-sign-up; coaches via a trusted/service-role path. *Approved by
+   the user.*
 
 ---
 
