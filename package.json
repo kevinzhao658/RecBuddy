@@ -11,7 +11,7 @@
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset",
     "migrate:new": "supabase migration new",
-    "seed": "tsx scripts/seed.ts",
+    "seed": "tsx supabase/scripts/seed.ts",
     "test": "vitest run"
   },
   "repository": {
