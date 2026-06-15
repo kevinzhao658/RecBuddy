@@ -10,15 +10,52 @@ The original design handoff (high-fidelity prototype, design system, data model)
 [`design_handoff_recbuddy/`](design_handoff_recbuddy/) and is the source of truth for UX and
 visual design. Specs and implementation plans live in [`docs/superpowers/`](docs/superpowers/).
 
+## Architecture (high level)
+
+**Two independent frontend apps over one shared backend.** Each frontend builds, tests, and
+deploys on its own; they share *only* the backend contract (Postgres schema + RLS + RPCs), never
+code.
+
+```
+   apps/coach-web (React SPA)          apps/athlete-ios (SwiftUI)
+            │                                   │
+            └──────────── HTTPS ────────────────┘
+                          │
+                  Supabase backend
+        Postgres + RLS + RPCs · Auth · Realtime · Edge Functions
+```
+
+- **Backend (`supabase/`)** — Postgres is the single source of truth. Access is enforced in the
+  database via Row-Level Security, so clients hold only the public **anon** key; the **service_role**
+  key is server-only (seed + Edge Functions). Privileged actions (coach signup/promotion) run in
+  Edge Functions, never in a client.
+- **Coach web (`apps/coach-web/`)** — Vite + React + TypeScript SPA. TanStack Query for all
+  server state (reads/mutations/cache + realtime invalidation), React Router, Tailwind v4 with the
+  Volt Lime design tokens. Talks to Supabase via `@supabase/supabase-js`.
+- **Athlete iOS (`apps/athlete-ios/`)** — native SwiftUI app using the Supabase Swift SDK.
+- **Contract = the migrations.** Both apps depend on the schema/RLS/RPCs; changing the contract
+  means a new migration in `supabase/migrations/`, applied locally then pushed to cloud.
+
 ## Repo layout
 
 ```
-supabase/          backend: migrations (schema, RLS, RPCs), config, README
-scripts/seed.ts    dev seed — creates demo users + sample data
-tests/             integration test suite (Vitest) proving the access rules
-coach-web/         (future) sub-project B
-ios-athlete/       (future) sub-project C
+supabase/                backend (the only shared dependency)
+  migrations/            schema, RLS, RPCs — the source of truth / contract
+  functions/             Edge Functions (privileged server actions, e.g. coach signup)
+  scripts/seed.ts        dev seed — demo users + sample data
+  tests/                 integration suite (Vitest) proving the access rules
+  README.md              backend access model + invite/role details
+apps/
+  coach-web/             sub-project B — React SPA (own package.json/build/deploy)
+  athlete-ios/           sub-project C — SwiftUI Xcode project
+docs/superpowers/        specs + implementation plans
+design_handoff_recbuddy/ original design handoff (UX + visual source of truth)
+package.json             backend tooling commands (db:*, seed, test)
 ```
+
+> Layout note: backend tooling is being consolidated under `supabase/` and the frontends under
+> `apps/` as part of sub-project B. Until that lands, `tests/` and `scripts/` still sit at the repo
+> root.
 
 ## Backend: local development
 
