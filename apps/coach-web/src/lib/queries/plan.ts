@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabase } from '../supabase'
 import type { Workout } from '../types'
-import { weekDates } from '../week'
+import { weekDates, addDays } from '../week'
 
 /** Returns a 7-slot array (Mon..Sun); null for empty days. */
 export async function fetchWeek(client: SupabaseClient, athleteId: string, monday: string): Promise<(Workout | null)[]> {
@@ -107,5 +107,26 @@ export function usePasteWorkout(athleteId: string, monday: string) {
   return useMutation({
     mutationFn: ({ date, source }: { date: string; source: Workout }) => pasteWorkout(supabase, athleteId, date, source),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['week', athleteId, monday] }),
+  })
+}
+
+/** Copy each workout in [monday..sun] into the following week (date + 7), status reset. */
+export async function duplicateWeek(client: SupabaseClient, athleteId: string, monday: string): Promise<void> {
+  const dates = weekDates(monday)
+  const planId = await getOrCreatePlanId(client, athleteId)
+  const { data, error } = await client.from('workouts').select('*').eq('athlete_id', athleteId).gte('date', dates[0]).lte('date', dates[6])
+  if (error) throw error
+  const rows = (data as Workout[]).map((w) => ({
+    plan_id: planId, athlete_id: athleteId, date: addDays(w.date, 7), type: w.type, title: w.title,
+    dist: w.dist, pace: w.pace, est_minutes: w.est_minutes, dur: w.dur, note: w.note, sets: w.sets,
+    status: w.type === 'rest' ? 'rest' : 'planned',
+  }))
+  if (rows.length) { const { error: upErr } = await client.from('workouts').upsert(rows, { onConflict: 'athlete_id,date' }); if (upErr) throw upErr }
+}
+export function useDuplicateWeek(athleteId: string, monday: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => duplicateWeek(supabase, athleteId, monday),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['week', athleteId] }),
   })
 }
