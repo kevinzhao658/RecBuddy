@@ -64,3 +64,48 @@ export function useClearDay(athleteId: string, monday: string) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['week', athleteId, monday] }),
   })
 }
+
+/** Move a workout from one date to another; if the target has a workout, swap dates.
+ *  Uses a temp date to avoid the unique(athlete_id,date) collision during a swap. */
+export async function moveWorkout(client: SupabaseClient, { athleteId, from, to }: { athleteId: string; from: string; to: string }): Promise<void> {
+  if (from === to) return
+  const { data, error } = await client.from('workouts').select('id, date').eq('athlete_id', athleteId).in('date', [from, to])
+  if (error) throw error
+  const rows = data as { id: string; date: string }[]
+  const src = rows.find((w) => w.date === from)
+  const dst = rows.find((w) => w.date === to)
+  if (!src) return
+  const TMP = '1900-01-01'
+  const upd = (id: string, date: string) => client.from('workouts').update({ date }).eq('id', id)
+  let e = (await upd(src.id, TMP)).error; if (e) throw e
+  if (dst) { e = (await upd(dst.id, from)).error; if (e) throw e }
+  e = (await upd(src.id, to)).error; if (e) throw e
+}
+
+export function useMoveWorkout(athleteId: string, monday: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (args: { from: string; to: string }) => moveWorkout(supabase, { athleteId, ...args }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['week', athleteId, monday] }),
+  })
+}
+
+/** Paste a copied workout onto a date (creating the plan if needed). */
+export async function pasteWorkout(client: SupabaseClient, athleteId: string, date: string, source: Workout): Promise<void> {
+  const planId = await getOrCreatePlanId(client, athleteId)
+  const status = source.type === 'rest' ? 'rest' : 'planned'
+  const { error } = await client.from('workouts').upsert(
+    { plan_id: planId, athlete_id: athleteId, date, type: source.type, title: source.title, dist: source.dist, pace: source.pace,
+      est_minutes: source.est_minutes, dur: source.dur, note: source.note, sets: source.sets, status },
+    { onConflict: 'athlete_id,date' },
+  )
+  if (error) throw error
+}
+
+export function usePasteWorkout(athleteId: string, monday: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ date, source }: { date: string; source: Workout }) => pasteWorkout(supabase, athleteId, date, source),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['week', athleteId, monday] }),
+  })
+}

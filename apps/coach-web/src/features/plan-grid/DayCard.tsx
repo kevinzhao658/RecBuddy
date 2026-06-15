@@ -4,8 +4,9 @@ import { TypeIcon } from '../../components/ui/Icon'
 const STATUS_RING: Record<string, string> = { done: 'border-accent', missed: 'border-missed', today: 'border-text', planned: 'border-line', rest: 'border-line' }
 const STATUS_DOT: Record<string, string> = { done: 'text-accent', missed: 'text-missed', today: 'text-text', planned: 'text-text-faint', rest: 'text-text-faint' }
 
-export function DayCard({ date: _date, dow, workout, selected, onClick, onCopy }: {
+export function DayCard({ date: _date, dow, workout, selected, onClick, onCopy, canPaste, onPaste }: {
   date: string; dow: string; workout: Workout | null; selected: boolean; onClick: () => void; onCopy: () => void
+  canPaste?: boolean; onPaste?: () => void
 }) {
   return (
     <div onClick={onClick}
@@ -22,7 +23,12 @@ export function DayCard({ date: _date, dow, workout, selected, onClick, onCopy }
             <button aria-label="Copy workout" onClick={(e) => { e.stopPropagation(); onCopy() }} className="text-text-faint">⧉</button>
           </div>
         </>
-      ) : <div className="m-auto text-text-faint">＋ Add</div>}
+      ) : (
+        <div className="m-auto flex flex-col items-center gap-1 text-text-faint">
+          {canPaste && <button aria-label="Paste workout" onClick={(e) => { e.stopPropagation(); onPaste?.() }} className="text-accent text-sm">Paste</button>}
+          <span>＋ Add</span>
+        </div>
+      )}
     </div>
   )
 }
