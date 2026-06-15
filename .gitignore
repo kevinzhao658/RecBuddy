@@ -12,3 +12,6 @@ node_modules/
 # Supabase local
 supabase/.branches/
 supabase/.temp/
+
+# Supabase edge function secrets (service-role key — never commit)
+supabase/.env.functions
