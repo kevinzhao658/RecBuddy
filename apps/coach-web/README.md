@@ -1,73 +1,39 @@
-# React + TypeScript + Vite
+# RecBuddy Coach (web)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Vite + React + TS SPA for coaches. Talks to the Supabase backend in `../../supabase`
+via `@supabase/supabase-js` (anon key; RLS is the security boundary). Server state is
+managed with TanStack Query; styling uses Tailwind v4 with the Volt Lime design tokens.
 
-Currently, two official plugins are available:
+## Dev setup
+1. From the repo root, start the backend: `npm run db:start && npm run db:reset && npm run seed`
+2. `cp .env.example .env.local` and fill `VITE_SUPABASE_ANON_KEY` from `npx supabase status`
+   (the URL is the local default `http://127.0.0.1:54321`).
+3. Coach signup hits an Edge Function — serve it locally (in a separate terminal):
+   `npx supabase functions serve coach-signup --no-verify-jwt`
+   (The `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` it needs are auto-injected by the local
+   edge runtime — no `--env-file` required.)
+4. `npm run dev`
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Demo coach login: `mara@recbuddy.app` / `recbuddy-dev`. (Athlete logins exist too but the
+athlete app is sub-project C.)
 
-## React Compiler
+## Test
+`npm test` — Vitest + React Testing Library. Component tests mock the query hooks; the
+data-layer tests are integration tests that hit the local Supabase, so the stack must be
+running (`npm run db:reset` for a clean slate).
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Scripts
+- `npm run dev` — Vite dev server
+- `npm run build` — typecheck + production build
+- `npm test` — run the test suite
 
-## Expanding the ESLint configuration
+## What's here
+- `src/routes/` — login, signup, coach dashboard (guarded)
+- `src/features/` — roster, plan-grid, editor, library, team
+- `src/lib/queries/` — TanStack Query hooks (one module per domain)
+- `src/lib/` — supabase client, types, week/est helpers
+- `src/auth/` — session/role context + coach-only guard
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
-
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## Not yet built
+Chat (the "Message" button is disabled) → sub-project D. Garmin/Strava sync and the
+athlete metrics dashboard are out of MVP scope.
