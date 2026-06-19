@@ -15,3 +15,6 @@ supabase/.temp/
 
 # Supabase edge function secrets (service-role key — never commit)
 supabase/.env.functions
+
+# Cloud seed credentials (service-role key)
+.env.cloud

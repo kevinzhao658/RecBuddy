@@ -12,6 +12,8 @@
     "db:reset": "supabase db reset",
     "migrate:new": "supabase migration new",
     "seed": "tsx supabase/scripts/seed.ts",
+    "seed:cloud": "dotenv -e .env.cloud -- tsx supabase/scripts/seed.ts",
+    "dev:coach": "npm --prefix apps/coach-web run dev",
     "test": "vitest run"
   },
   "repository": {
@@ -29,6 +31,7 @@
   "devDependencies": {
     "@types/node": "^25.9.2",
     "dotenv": "^17.4.2",
+    "dotenv-cli": "^11.0.0",
     "supabase": "^2.105.0",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",
