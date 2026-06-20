@@ -3,11 +3,14 @@ import { useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { Button } from '../components/ui/Button'
 import { Wordmark } from '../components/ui/Wordmark'
+import { IconField } from '../components/ui/IconField'
+import { MailIcon, LockIcon, GoogleIcon } from '../components/ui/FormIcons'
 
 export default function LoginPage() {
   const nav = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [show, setShow] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -21,25 +24,56 @@ export default function LoginPage() {
 
   return (
     <div className="grid min-h-screen md:grid-cols-2">
-      <div className="rb-surface hidden h-full flex-col justify-center border-r border-line p-12 md:flex">
-        <Wordmark className="text-6xl" />
-        <p className="mt-3 text-xs font-bold uppercase tracking-[0.24em] text-text-mute">Coach</p>
-        <p className="mt-6 font-display text-sm font-bold uppercase tracking-[0.1em] text-text-mute">Unleash yourself</p>
+      {/* Brand panel */}
+      <div className="rb-surface relative hidden flex-col overflow-hidden border-r border-line p-14 md:flex">
+        <div className="pointer-events-none absolute -left-24 -top-24 h-[420px] w-[420px] rounded-full"
+          style={{ background: 'radial-gradient(circle, rgba(173,255,47,0.16), transparent 65%)' }} />
+        <div className="relative">
+          <Wordmark className="text-6xl" />
+          <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-mute">Coach</p>
+        </div>
+        <div className="relative mt-auto max-w-sm">
+          <h1 className="text-[44px] font-bold leading-[1.05] tracking-tight">Build the plan.<br />Coach every mile.</h1>
+          <p className="mt-4 text-[15px] leading-relaxed text-text-mute">
+            Your athletes, their weeks, and every workout — in one place. Drag, adjust, and keep
+            everyone on pace for race day.
+          </p>
+        </div>
       </div>
-      <form onSubmit={submit} className="flex flex-col justify-center gap-4 p-12">
-        <h2 className="font-display text-3xl font-bold tracking-tight">Sign in</h2>
-        <label className="flex flex-col gap-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-text-mute">Email
-          <input aria-label="Email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
-            className="rounded-[10px] border border-line bg-surface2 px-3 py-2.5 text-[15px] font-normal normal-case tracking-normal text-text" />
-        </label>
-        <label className="flex flex-col gap-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-text-mute">Password
-          <input aria-label="Password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)}
-            className="rounded-[10px] border border-line bg-surface2 px-3 py-2.5 text-[15px] font-normal normal-case tracking-normal text-text" />
-        </label>
-        {err && <p className="text-sm text-missed">{err}</p>}
-        <Button type="submit" disabled={busy}>{busy ? 'Signing in…' : 'Log in'}</Button>
-        <p className="text-sm text-text-mute">New coach? <Link to="/signup" className="text-accent hover:brightness-110">Create an account</Link></p>
-      </form>
+
+      {/* Form panel */}
+      <div className="flex items-center justify-center p-8 md:p-12">
+        <form onSubmit={submit} className="w-full max-w-[380px]">
+          <h2 className="text-[30px] font-bold tracking-tight">Coach sign in</h2>
+          <p className="mt-1 text-[15px] text-text-mute">Welcome back. Let’s get your athletes moving.</p>
+
+          <div className="mt-8 flex flex-col gap-4">
+            <IconField label="Email" type="email" required icon={<MailIcon />} placeholder="you@email.com"
+              value={email} onChange={(e) => setEmail(e.target.value)} />
+            <IconField label="Password" type={show ? 'text' : 'password'} required icon={<LockIcon />}
+              value={password} onChange={(e) => setPassword(e.target.value)}
+              trailing={<button type="button" aria-label="Toggle visibility" onClick={() => setShow((s) => !s)} className="text-text-faint hover:text-text-mute">{show ? '🙈' : '👁'}</button>} />
+            {err && <p className="text-sm text-missed">{err}</p>}
+            <Button type="submit" disabled={busy} className="w-full">{busy ? 'Signing in…' : 'Log in'}</Button>
+
+            <div className="my-1 flex items-center gap-3 text-xs text-text-faint">
+              <span className="h-px flex-1 bg-line" />or<span className="h-px flex-1 bg-line" />
+            </div>
+            <button type="button" onClick={() => setErr('Google sign-in is coming soon — use email + password for now.')}
+              className="flex w-full items-center justify-center gap-2 rounded-[12px] border border-line bg-surface2 py-2.5 text-sm font-semibold text-text hover:border-text-mute">
+              <GoogleIcon /> Continue with Google
+            </button>
+
+            <div className="mt-1 flex items-center justify-between text-sm">
+              <span className="text-text-mute">Forgot password?</span>
+              <span className="font-semibold text-accent">Athlete? Open the app →</span>
+            </div>
+            <p className="mt-2 text-center text-sm text-text-mute">
+              New to RecBuddy? <Link to="/signup" className="font-semibold text-accent hover:brightness-110">Create a coach account</Link>
+            </p>
+          </div>
+        </form>
+      </div>
     </div>
   )
 }
