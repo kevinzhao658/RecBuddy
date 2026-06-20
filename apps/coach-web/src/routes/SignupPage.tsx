@@ -28,28 +28,30 @@ export default function SignupPage() {
   }
 
   const field = (k: keyof typeof form, label: string, type = 'text') => (
-    <label className="flex flex-col gap-1 text-sm text-text-mute">{label}
+    <label className="flex flex-col gap-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-text-mute">{label}
       <input aria-label={label} type={type} required value={form[k]}
         onChange={(e) => setForm({ ...form, [k]: e.target.value })}
-        className="rounded-[10px] border border-line bg-surface2 px-3 py-2 text-text" />
+        className="rounded-[10px] border border-line bg-surface2 px-3 py-2.5 text-[15px] font-normal normal-case tracking-normal text-text" />
     </label>
   )
 
   return (
-    <form onSubmit={submit} className="mx-auto flex max-w-md flex-col gap-4 p-12">
-      <h2 className="text-3xl font-bold">Create a coach account</h2>
-      {field('name', 'Full name')}
-      {field('email', 'Work email', 'email')}
-      {field('password', 'Password', 'password')}
-      <div className="flex flex-wrap gap-2">
-        {TITLES.map((t) => (
-          <button type="button" key={t} onClick={() => setTitle(t)}
-            className={`rounded-[20px] px-3 py-1.5 text-sm ${title === t ? 'bg-accent text-on-accent' : 'bg-chip text-text-mute'}`}>{t}</button>
-        ))}
-      </div>
-      {err && <p className="text-sm text-missed">{err}</p>}
-      <Button type="submit" disabled={busy}>{busy ? 'Creating…' : 'Create account'}</Button>
-      <p className="text-sm text-text-mute">Have an account? <Link to="/login" className="text-accent">Sign in</Link></p>
-    </form>
+    <div className="grid min-h-screen place-items-center p-6">
+      <form onSubmit={submit} className="rb-card flex w-full max-w-md flex-col gap-4 p-8">
+        <h2 className="font-display text-3xl font-bold tracking-tight">Create a coach account</h2>
+        {field('name', 'Full name')}
+        {field('email', 'Work email', 'email')}
+        {field('password', 'Password', 'password')}
+        <div className="flex flex-wrap gap-2">
+          {TITLES.map((t) => (
+            <button type="button" key={t} onClick={() => setTitle(t)}
+              className={`rounded-[20px] px-3 py-1.5 text-sm transition ${title === t ? 'bg-accent text-on-accent' : 'bg-chip text-text-mute hover:text-text'}`}>{t}</button>
+          ))}
+        </div>
+        {err && <p className="text-sm text-missed">{err}</p>}
+        <Button type="submit" disabled={busy}>{busy ? 'Creating…' : 'Create account'}</Button>
+        <p className="text-sm text-text-mute">Have an account? <Link to="/login" className="text-accent hover:brightness-110">Sign in</Link></p>
+      </form>
+    </div>
   )
 }

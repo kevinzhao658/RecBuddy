@@ -17,7 +17,56 @@
   --radius-card: 24px;
   --radius-sm: 14px;
   --radius-pill: 20px;
+  --font-display: "Saira Condensed", -apple-system, system-ui, sans-serif;
+  --font-num: "Space Grotesk", -apple-system, system-ui, sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
 }
 
-:root { color-scheme: dark; }
-body { background: var(--color-bg); color: var(--color-text); }
+:root {
+  color-scheme: dark;
+  /* Volt Lime — brushed-metal athletic treatment (THEMES.athletic) */
+  --rb-surface: linear-gradient(157deg, #23271b 0%, #181b12 46%, #0e100a 100%);
+  --rb-surface2: linear-gradient(157deg, #262b1c 0%, #181c11 100%);
+  --rb-bevel: inset 0 1px 0 rgba(243, 251, 232, 0.16), inset 0 -1.5px 2px rgba(0, 0, 0, 0.6),
+    inset 0 0 0 1px rgba(243, 251, 232, 0.045), 0 1px 2px rgba(0, 0, 0, 0.5), 0 16px 34px rgba(0, 0, 0, 0.55);
+  --rb-glow: 0 0 22px rgba(173, 255, 47, 0.45);
+}
+
+body {
+  background:
+    radial-gradient(1200px 700px at 50% -10%, rgba(173, 255, 47, 0.06), transparent 60%),
+    var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* metallic surfaces + beveled cards */
+.rb-surface { background: var(--rb-surface); }
+.rb-surface2 { background: var(--rb-surface2); }
+.rb-card {
+  background: var(--rb-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--rb-bevel);
+}
+.rb-card-sm { border-radius: var(--radius-sm); }
+.rb-glow { box-shadow: var(--rb-glow); }
+
+/* two-tone metallic wordmark — never background-clip the italic glyphs */
+.rb-metal-lime {
+  color: #c8ff5c;
+  text-shadow: 0 -1px 0 rgba(255, 255, 255, 0.45), 0 1px 0 #7dc421, 0 2px 2px rgba(0, 0, 0, 0.45),
+    0 4px 7px rgba(0, 0, 0, 0.4);
+}
+.rb-metal-silver {
+  color: #fcfff6;
+  text-shadow: 0 -1px 0 rgba(255, 255, 255, 0.55), 0 1px 0 #97a784, 0 2px 2px rgba(0, 0, 0, 0.45),
+    0 4px 7px rgba(0, 0, 0, 0.4);
+}
+
+/* refined chrome */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: rgba(247, 244, 238, 0.14); border-radius: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+input:focus, textarea:focus { border-color: var(--color-accent); }

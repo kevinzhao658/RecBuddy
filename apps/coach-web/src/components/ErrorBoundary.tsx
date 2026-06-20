@@ -27,8 +27,8 @@ export class ErrorBoundary extends Component<Props, State> {
 
     return (
       <div className="grid min-h-screen place-items-center p-8">
-        <div className="w-full max-w-lg rounded-[24px] border border-line bg-surface p-8 text-center">
-          <h1 className="text-2xl font-bold text-missed">Something went wrong</h1>
+        <div className="rb-card w-full max-w-lg p-8 text-center">
+          <h1 className="font-display text-2xl font-bold text-missed">Something went wrong</h1>
           <p className="mt-2 text-sm text-text-mute">
             The page hit an unexpected error and stopped rendering. The details below are also in the
             browser console.

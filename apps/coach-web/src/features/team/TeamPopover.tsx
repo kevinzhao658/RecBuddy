@@ -20,19 +20,19 @@ export function TeamPopover({ athleteId, isHead }: { athleteId: string; isHead: 
 
   return (
     <div className="relative">
-      <div className="flex items-center gap-1">
+      <div className="flex items-center -space-x-2">
         {members.map((m) => <Avatar key={m.coach_id} initials={m.coach?.initials ?? '?'} className="ring-1 ring-line" />)}
         {isHead && <button aria-label="Manage coaching team" onClick={() => setOpen((o) => !o)}
-          className="grid h-9 w-9 place-items-center rounded-full border border-dashed border-line text-text-mute">+</button>}
+          className="ml-3 grid h-9 w-9 place-items-center rounded-full border border-dashed border-line text-text-mute hover:border-text-mute hover:text-text">+</button>}
       </div>
       {open && isHead && (
-        <div className="absolute right-0 z-40 mt-2 w-72 rounded-[14px] border border-line bg-surface p-3">
-          <div className="mb-2 text-xs uppercase tracking-wider text-text-mute">Coaching team</div>
+        <div className="rb-card absolute right-0 z-40 mt-2 w-72 p-3">
+          <div className="mb-2 font-display text-[11px] font-bold uppercase tracking-[0.18em] text-text-mute">Coaching team</div>
           {members.map((m) => (
             <div key={m.coach_id} className="flex items-center gap-2 py-1">
               <Avatar initials={m.coach?.initials ?? '?'} />
               <span className="flex-1 text-sm">{m.coach?.name ?? 'Coach'}<span className="block text-xs text-text-mute">{m.relationship}</span></span>
-              {m.relationship === 'assistant' && <button aria-label={`Remove ${m.coach?.name ?? 'coach'}`} onClick={() => remove.mutate(m.coach_id)} className="text-text-faint">✕</button>}
+              {m.relationship === 'assistant' && <button aria-label={`Remove ${m.coach?.name ?? 'coach'}`} onClick={() => remove.mutate(m.coach_id)} className="text-text-faint hover:text-text">✕</button>}
             </div>
           ))}
           <input aria-label="Search coaches" value={q} onChange={(e) => runSearch(e.target.value)} placeholder="Add an assistant…"

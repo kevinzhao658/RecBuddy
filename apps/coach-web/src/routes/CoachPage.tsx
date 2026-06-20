@@ -8,6 +8,7 @@ import { WorkoutLibrary } from '../features/library/WorkoutLibrary'
 import { TeamPopover } from '../features/team/TeamPopover'
 import { Toast } from '../components/ui/Toast'
 import { Button } from '../components/ui/Button'
+import { Wordmark } from '../components/ui/Wordmark'
 import { useRoster } from '../lib/queries/roster'
 import { useTeam } from '../lib/queries/team'
 import { useLibrary } from '../lib/queries/library'
@@ -36,9 +37,12 @@ export default function CoachPage() {
     <div className="flex min-h-screen">
       <RosterSidebar selectedId={selectedId} onSelect={(id) => { setSelectedId(id); setSelectedDate(null) }} />
       <main className="flex-1">
-        <div className="flex items-center justify-end gap-3 border-b border-line px-6 py-2">
-          <button onClick={() => supabase.auth.signOut()} className="text-sm text-text-mute hover:text-text">Log out</button>
-          <span title="Available when the athlete app ships" className="text-sm text-text-faint">Preview as athlete</span>
+        <div className="rb-surface flex items-center justify-between gap-3 border-b border-line px-6 py-2.5">
+          <Wordmark className="text-2xl" />
+          <div className="flex items-center gap-4">
+            <button onClick={() => supabase.auth.signOut()} className="text-sm text-text-mute hover:text-text">Log out</button>
+            <span title="Available when the athlete app ships" className="text-sm text-text-faint">Preview as athlete</span>
+          </div>
         </div>
         {selectedId
           ? <AthleteDashboard
@@ -46,7 +50,11 @@ export default function CoachPage() {
               monday={monday} setMonday={setMonday}
               selectedDate={selectedDate} setSelectedDate={setSelectedDate}
               clipboard={clipboard} sensors={sensors} flash={flash} />
-          : <p className="p-6 text-text-mute">Select an athlete</p>}
+          : <div className="grid place-items-center px-6 py-24 text-center">
+              <p className="font-display text-xs font-bold uppercase tracking-[0.18em] text-accent">Roster</p>
+              <p className="mt-3 text-text-mute">Select an athlete</p>
+              <p className="mt-1 text-sm text-text-faint">Pick someone from the roster to build their week.</p>
+            </div>}
       </main>
       <Toast message={toast} />
     </div>
@@ -94,10 +102,10 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, selectedDate,
           <div className="flex-1"><TopBar athlete={entry.athlete} plan={entry.plans?.[0] ?? null} week={week} /></div>
         </div>
         <div className="flex items-center justify-between px-6 py-3">
-          <div className="flex items-center gap-2">
-            <button aria-label="Previous week" onClick={() => setMonday(addDays(monday, -7))} className="text-text-mute">‹</button>
-            <span className="text-sm tabular-nums">{monday} – {addDays(monday, 6)}</span>
-            <button aria-label="Next week" onClick={() => setMonday(addDays(monday, 7))} className="text-text-mute">›</button>
+          <div className="flex items-center gap-3">
+            <button aria-label="Previous week" onClick={() => setMonday(addDays(monday, -7))} className="text-2xl leading-none text-text-mute hover:text-text">‹</button>
+            <span className="font-num text-sm tabular-nums text-text-mute">{monday} – {addDays(monday, 6)}</span>
+            <button aria-label="Next week" onClick={() => setMonday(addDays(monday, 7))} className="text-2xl leading-none text-text-mute hover:text-text">›</button>
           </div>
           <div className="flex items-center gap-3">
             <TeamPopover athleteId={athleteId} isHead={isHead} />

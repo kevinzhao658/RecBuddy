@@ -14,17 +14,17 @@ export function AddAthleteModal({ open, onClose }: { open: boolean; onClose: () 
 
   return (
     <Modal open={open} onClose={onClose}>
-      <h3 className="mb-3 text-xl font-bold">Add athlete</h3>
+      <h3 className="mb-3 font-display text-xl font-bold">Add athlete</h3>
       {code ? (
         <div className="flex flex-col gap-3">
           <p className="text-text-mute">Share this invite code with your athlete:</p>
-          <code className="rounded-[10px] bg-surface2 p-3 text-center text-2xl tracking-widest text-accent">{code}</code>
+          <code className="rb-surface2 rounded-[10px] p-3 text-center font-num text-3xl tracking-[0.2em] text-accent">{code}</code>
           <Button onClick={onClose}>Done</Button>
         </div>
       ) : (
         <div className="flex flex-col gap-3">
           <input aria-label="Athlete name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Athlete name"
-            className="rounded-[10px] border border-line bg-surface2 px-3 py-2 text-text" />
+            className="rounded-[10px] border border-line bg-surface2 px-3 py-2.5 text-text" />
           <Button disabled={!name || create.isPending} onClick={() => create.mutate(name, { onSuccess: setCode })}>
             {create.isPending ? 'Generating…' : 'Generate invite code'}
           </Button>
