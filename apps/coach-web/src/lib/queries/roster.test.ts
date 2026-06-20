@@ -27,6 +27,15 @@ describe('roster queries', () => {
     const roster = await fetchRoster(coachClient)
     expect(roster.some((r) => r.athlete.name === 'Rita')).toBe(true)
   })
+  it('lists each athlete exactly once even when another coach also coaches them', async () => {
+    // Rita (this coach's athlete) gets a SECOND coach (an assistant). RLS would
+    // expose that row to the head coach too; fetchRoster must still return Rita once.
+    const rita = (await fetchRoster(coachClient)).find((r) => r.athlete.name === 'Rita')!
+    const asst = await makeCoach('Second Coach')
+    await admin().from('coach_athlete').insert({ coach_id: asst.id, athlete_id: rita.athlete.id, relationship: 'assistant' })
+    const roster = await fetchRoster(coachClient)
+    expect(roster.filter((r) => r.athlete.id === rita.athlete.id)).toHaveLength(1)
+  })
   it('returns only unconsumed invites as pending', async () => {
     const pending = await fetchPendingInvites(coachClient)
     expect(pending.some((i) => i.athlete_name === 'Pending Pat')).toBe(true)
