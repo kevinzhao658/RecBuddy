@@ -21,7 +21,7 @@ export function TeamPopover({ athleteId, isHead }: { athleteId: string; isHead: 
   return (
     <div className="relative">
       <div className="flex items-center gap-1">
-        {members.map((m) => <Avatar key={m.coach_id} initials={m.coach.initials} className="ring-1 ring-line" />)}
+        {members.map((m) => <Avatar key={m.coach_id} initials={m.coach?.initials ?? '?'} className="ring-1 ring-line" />)}
         {isHead && <button aria-label="Manage coaching team" onClick={() => setOpen((o) => !o)}
           className="grid h-9 w-9 place-items-center rounded-full border border-dashed border-line text-text-mute">+</button>}
       </div>
@@ -30,9 +30,9 @@ export function TeamPopover({ athleteId, isHead }: { athleteId: string; isHead: 
           <div className="mb-2 text-xs uppercase tracking-wider text-text-mute">Coaching team</div>
           {members.map((m) => (
             <div key={m.coach_id} className="flex items-center gap-2 py-1">
-              <Avatar initials={m.coach.initials} />
-              <span className="flex-1 text-sm">{m.coach.name}<span className="block text-xs text-text-mute">{m.relationship}</span></span>
-              {m.relationship === 'assistant' && <button aria-label={`Remove ${m.coach.name}`} onClick={() => remove.mutate(m.coach_id)} className="text-text-faint">✕</button>}
+              <Avatar initials={m.coach?.initials ?? '?'} />
+              <span className="flex-1 text-sm">{m.coach?.name ?? 'Coach'}<span className="block text-xs text-text-mute">{m.relationship}</span></span>
+              {m.relationship === 'assistant' && <button aria-label={`Remove ${m.coach?.name ?? 'coach'}`} onClick={() => remove.mutate(m.coach_id)} className="text-text-faint">✕</button>}
             </div>
           ))}
           <input aria-label="Search coaches" value={q} onChange={(e) => runSearch(e.target.value)} placeholder="Add an assistant…"
