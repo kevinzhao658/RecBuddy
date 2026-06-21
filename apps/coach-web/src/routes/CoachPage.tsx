@@ -4,6 +4,7 @@ import { RosterSidebar } from '../features/roster/RosterSidebar'
 import { TopBar } from '../features/plan-grid/TopBar'
 import { WeekStats } from '../features/plan-grid/WeekStats'
 import { WeekGrid } from '../features/plan-grid/WeekGrid'
+import { WorkoutKey } from '../features/plan-grid/WorkoutKey'
 import { WorkoutEditor } from '../features/editor/WorkoutEditor'
 import { WorkoutLibrary } from '../features/library/WorkoutLibrary'
 import { TeamPopover } from '../features/team/TeamPopover'
@@ -42,19 +43,19 @@ export default function CoachPage() {
   return (
     <div className="flex min-h-screen">
       <RosterSidebar selectedId={selectedId} onSelect={(id) => { setSelectedId(id); setSelectedDate(null) }} />
-      <main className="flex-1">
-        {selectedId
-          ? <AthleteDashboard
-              key={selectedId} athleteId={selectedId} coachId={session!.user.id}
-              monday={monday} setMonday={setMonday}
-              selectedDate={selectedDate} setSelectedDate={setSelectedDate}
-              clipboard={clipboard} sensors={sensors} flash={flash} />
-          : <div className="grid place-items-center px-6 py-32 text-center">
+      {selectedId
+        ? <AthleteDashboard
+            key={selectedId} athleteId={selectedId} coachId={session!.user.id}
+            monday={monday} setMonday={setMonday}
+            selectedDate={selectedDate} setSelectedDate={setSelectedDate}
+            clipboard={clipboard} sensors={sensors} flash={flash} />
+        : <main className="grid flex-1 place-items-center px-6 py-32 text-center">
+            <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent">Roster</p>
               <p className="mt-3 text-lg text-text-mute">Select an athlete</p>
               <p className="mt-1 text-sm text-text-faint">Pick someone from the roster to build their week.</p>
-            </div>}
-      </main>
+            </div>
+          </main>}
       <Toast message={toast} />
     </div>
   )
@@ -93,61 +94,65 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, selectedDate,
     }
   }
 
-  if (!entry) return <p className="p-6 text-text-mute">Loading…</p>
+  if (!entry) return <main className="flex-1 p-6 text-text-mute">Loading…</main>
 
   return (
     <DndContext sensors={sensors} onDragEnd={onDragEnd}>
-      <div className="flex flex-col">
-        <TopBar
-          athlete={entry.athlete}
-          plan={entry.plans?.[0] ?? null}
-          actions={
-            <>
-              <TeamPopover athleteId={athleteId} isHead={isHead} />
-              <button disabled title="Chat ships in a later release"
-                className="flex items-center gap-1.5 rounded-[12px] bg-accent px-4 py-2 text-sm font-semibold text-on-accent disabled:opacity-55">
-                <ChatIcon className="h-4 w-4" /> Message
-              </button>
-              <button onClick={() => duplicate.mutate(undefined, { onSuccess: () => flash('Week duplicated to next week'), onError: (err: any) => flash(err.message) })}
-                className="flex items-center gap-1.5 rounded-[12px] border border-line bg-surface2 px-4 py-2 text-sm font-semibold text-text hover:border-text-mute">
-                <span className="text-accent">＋</span> Duplicate week
-              </button>
-            </>
-          }
-        />
+      <main className="flex min-h-screen min-w-0 flex-1">
+        {/* Center column: identity, controls, the week grid */}
+        <div className="flex min-w-0 flex-1 flex-col">
+          <TopBar
+            athlete={entry.athlete}
+            plan={entry.plans?.[0] ?? null}
+            actions={
+              <>
+                <TeamPopover athleteId={athleteId} isHead={isHead} />
+                <button disabled title="Chat ships in a later release"
+                  className="flex items-center gap-1.5 rounded-[12px] bg-accent px-4 py-2 text-sm font-semibold text-on-accent disabled:opacity-55">
+                  <ChatIcon className="h-4 w-4" /> Message
+                </button>
+                <button onClick={() => duplicate.mutate(undefined, { onSuccess: () => flash('Week duplicated to next week'), onError: (err: any) => flash(err.message) })}
+                  className="flex items-center gap-1.5 rounded-[12px] border border-line bg-surface2 px-4 py-2 text-sm font-semibold text-text hover:border-text-mute">
+                  <span className="text-accent">＋</span> Duplicate week
+                </button>
+              </>
+            }
+          />
 
-        {/* Controls row */}
-        <div className="flex items-center justify-between gap-4 px-6 py-3">
-          <div className="flex items-center gap-4">
-            <div className="inline-flex rounded-[10px] bg-surface2 p-1">
-              <span className="rounded-[8px] bg-surface px-4 py-1.5 text-sm font-semibold text-text shadow-sm">Week</span>
-              <button disabled title="Month view coming next" className="rounded-[8px] px-4 py-1.5 text-sm font-medium text-text-faint">Month</button>
+          <div className="flex items-center justify-between gap-4 px-6 py-3">
+            <div className="flex items-center gap-4">
+              <div className="inline-flex rounded-[10px] bg-surface2 p-1">
+                <span className="rounded-[8px] bg-surface px-4 py-1.5 text-sm font-semibold text-text shadow-sm">Week</span>
+                <button disabled title="Month view coming next" className="rounded-[8px] px-4 py-1.5 text-sm font-medium text-text-faint">Month</button>
+              </div>
+              <div className="flex items-center gap-2">
+                <button aria-label="Previous week" onClick={() => setMonday(addDays(monday, -7))} className="text-2xl leading-none text-text-mute hover:text-text">‹</button>
+                <span className="font-num text-sm font-medium tabular-nums text-text">{fmtShortDate(monday)} – {fmtShortDate(addDays(monday, 6))}</span>
+                <button aria-label="Next week" onClick={() => setMonday(addDays(monday, 7))} className="text-2xl leading-none text-text-mute hover:text-text">›</button>
+                {isThisWeek && <span className="ml-1 text-xs text-text-faint">This week</span>}
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <button aria-label="Previous week" onClick={() => setMonday(addDays(monday, -7))} className="text-2xl leading-none text-text-mute hover:text-text">‹</button>
-              <span className="font-num text-sm font-medium tabular-nums text-text">{fmtShortDate(monday)} – {fmtShortDate(addDays(monday, 6))}</span>
-              <button aria-label="Next week" onClick={() => setMonday(addDays(monday, 7))} className="text-2xl leading-none text-text-mute hover:text-text">›</button>
-              {isThisWeek && <span className="ml-1 text-xs text-text-faint">This week</span>}
-            </div>
+            <WeekStats week={week} />
           </div>
-          <WeekStats week={week} />
-        </div>
 
-        <div className="flex flex-1">
-          <div className="flex-1 p-6">
+          <div className="flex-1 px-6 pb-6">
             <WeekGrid monday={monday} week={week} selectedDate={selectedDate}
               onSelectDate={(d) => setSelectedDate(d)}
               onCopy={(w) => { clipboard.copy(w); flash('Workout copied') }}
               canPaste={!!clipboard.clip}
               onPaste={(d) => clipboard.clip && paste.mutate({ date: d, source: clipboard.clip }, { onError: (err: any) => flash(err.message) })} />
+            <WorkoutKey />
+            <p className="mt-3 px-1 text-xs text-text-faint">Drag from the workout library or move cards between days · Click any day to edit</p>
           </div>
-          {selectedDate
-            ? <WorkoutEditor key={selectedDate} date={selectedDate} workout={selectedWorkout}
-                onSave={(draft) => { upsert.mutate({ date: selectedDate, draft }, { onSuccess: () => setSelectedDate(null), onError: (err: any) => flash(err.message) }) }}
-                onClear={() => { clearDay.mutate(selectedDate, { onSuccess: () => setSelectedDate(null), onError: (err: any) => flash(err.message) }) }} />
-            : <WorkoutLibrary />}
         </div>
-      </div>
+
+        {/* Right column: editor (a day is selected) or the library — full height */}
+        {selectedDate
+          ? <WorkoutEditor key={selectedDate} date={selectedDate} workout={selectedWorkout}
+              onSave={(draft) => { upsert.mutate({ date: selectedDate, draft }, { onSuccess: () => setSelectedDate(null), onError: (err: any) => flash(err.message) }) }}
+              onClear={() => { clearDay.mutate(selectedDate, { onSuccess: () => setSelectedDate(null), onError: (err: any) => flash(err.message) }) }} />
+          : <WorkoutLibrary />}
+      </main>
     </DndContext>
   )
 }
