@@ -22,7 +22,7 @@ function DayCell({ date, dow, workout, selected, onSelectDate, onCopy, canPaste,
         <span className="font-num text-[11px] tabular-nums text-text-faint">{fmtShortDate(date)}</span>
       </div>
       <div ref={(el) => { drop.setNodeRef(el); drag.setNodeRef(el) }} {...(workout ? { ...drag.attributes, ...drag.listeners } : {})}
-        className={`flex-1 rounded-[14px] ${drop.isOver ? 'ring-2 ring-accent/40' : ''}`}>
+        className={`flex-1 rounded-[14px] transition ${drop.isOver ? '-translate-y-0.5 ring-2 ring-accent shadow-[0_0_22px_rgba(173,255,47,0.35)]' : ''}`}>
         <DayCard workout={workout} selected={selected} isToday={isToday}
           onClick={() => onSelectDate(date)} onCopy={() => workout && onCopy(workout)}
           canPaste={!workout && canPaste} onPaste={() => onPaste(date)} />

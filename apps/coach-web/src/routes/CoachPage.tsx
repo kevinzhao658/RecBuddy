@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
+import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core'
+import { TypeIcon } from '../components/ui/Icon'
 import { RosterSidebar } from '../features/roster/RosterSidebar'
 import { TopBar } from '../features/plan-grid/TopBar'
 import { WeekStats } from '../features/plan-grid/WeekStats'
@@ -83,7 +84,16 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, selectedDate,
   const isThisWeek = monday === mondayOf(todayISO())
   const selectedWorkout = selectedDate ? (week.find((w) => w?.date === selectedDate) ?? null) : null
 
+  const [activeId, setActiveId] = useState<string | null>(null)
+  const activeGhost = activeId
+    ? activeId.startsWith('lib:')
+      ? (library.data ?? []).find((t) => `lib:${t.id}` === activeId) ?? null
+      : week.find((w) => w?.date === activeId) ?? null
+    : null
+
+  const onDragStart = (e: DragStartEvent) => setActiveId(String(e.active.id))
   const onDragEnd = (e: DragEndEvent) => {
+    setActiveId(null)
     const from = String(e.active.id); const to = e.over ? String(e.over.id) : null
     if (!to) return
     if (from.startsWith('lib:')) {
@@ -97,7 +107,7 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, selectedDate,
   if (!entry) return <main className="flex-1 p-6 text-text-mute">Loading…</main>
 
   return (
-    <DndContext sensors={sensors} onDragEnd={onDragEnd}>
+    <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
       <main className="flex min-h-screen min-w-0 flex-1">
         {/* Center column: identity, controls, the week grid */}
         <div className="flex min-w-0 flex-1 flex-col">
@@ -153,6 +163,18 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, selectedDate,
               onClear={() => { clearDay.mutate(selectedDate, { onSuccess: () => setSelectedDate(null), onError: (err: any) => flash(err.message) }) }} />
           : <WorkoutLibrary />}
       </main>
+
+      <DragOverlay dropAnimation={null}>
+        {activeGhost ? (
+          <div className="rb-card rb-card-sm flex w-60 rotate-2 cursor-grabbing items-center gap-2 p-3 shadow-2xl ring-1 ring-accent/50">
+            <TypeIcon type={activeGhost.type} className="shrink-0 text-text-mute" />
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold">{activeGhost.title}</div>
+              {activeGhost.dist != null && <div className="font-num text-xs text-text-mute">{activeGhost.dist} mi · {activeGhost.pace}</div>}
+            </div>
+          </div>
+        ) : null}
+      </DragOverlay>
     </DndContext>
   )
 }
