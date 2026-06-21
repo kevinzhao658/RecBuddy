@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core'
+import { DndContext, DragOverlay, PointerSensor, pointerWithin, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core'
 import { TypeIcon } from '../components/ui/Icon'
 import { RosterSidebar } from '../features/roster/RosterSidebar'
 import { TopBar } from '../features/plan-grid/TopBar'
@@ -107,7 +107,7 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, selectedDate,
   if (!entry) return <main className="flex-1 p-6 text-text-mute">Loading…</main>
 
   return (
-    <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
+    <DndContext sensors={sensors} collisionDetection={pointerWithin} onDragStart={onDragStart} onDragEnd={onDragEnd}>
       <main className="flex min-h-screen min-w-0 flex-1">
         {/* Center column: identity, controls, the week grid */}
         <div className="flex min-w-0 flex-1 flex-col">

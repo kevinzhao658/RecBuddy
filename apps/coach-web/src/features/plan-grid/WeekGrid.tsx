@@ -14,12 +14,12 @@ function DayCell({ date, dow, workout, selected, onSelectDate, onCopy, canPaste,
   const isToday = date === today()
   return (
     <div className="flex flex-col">
-      {/* Column header (weekday · date) sits in the frame behind the cards */}
-      <div className="mb-2 flex items-baseline gap-2 px-1">
+      {/* Fixed-height, single-line header so every card starts at the same Y */}
+      <div className="mb-2 flex h-5 items-center gap-1.5 overflow-hidden whitespace-nowrap px-1">
         {isToday
-          ? <span className="rounded-[6px] bg-text px-1.5 py-[3px] text-[10px] font-bold uppercase tracking-wide text-bg">Today</span>
+          ? <span className="rounded-[5px] bg-text px-1 py-px text-[9px] font-bold uppercase leading-none tracking-wide text-bg">Today</span>
           : <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-mute">{dow}</span>}
-        <span className="font-num text-[11px] tabular-nums text-text-faint">{fmtShortDate(date)}</span>
+        <span className="font-num text-[10px] tabular-nums text-text-faint">{fmtShortDate(date)}</span>
       </div>
       <div ref={(el) => { drop.setNodeRef(el); drag.setNodeRef(el) }} {...(workout ? { ...drag.attributes, ...drag.listeners } : {})}
         className={`flex-1 rounded-[14px] transition ${drop.isOver ? '-translate-y-0.5 ring-2 ring-accent shadow-[0_0_22px_rgba(173,255,47,0.35)]' : ''}`}>

@@ -31,8 +31,8 @@ export function DayCard({ workout, selected, isToday, onClick, onCopy, canPaste,
           </div>
           {workout.dist != null && <div className="font-num text-xs text-text-mute">{workout.dist} mi · {workout.pace}</div>}
           <div className="mt-auto flex items-center justify-between pt-2">
-            <span className={`flex items-center gap-1 text-xs ${STATUS_DOT[workout.status]}`}>
-              <span aria-hidden>{workout.status === 'done' ? '✓' : '●'}</span>{STATUS_LABEL[workout.status]}
+            <span className={`text-sm leading-none ${STATUS_DOT[workout.status]}`} aria-label={STATUS_LABEL[workout.status]}>
+              {workout.status === 'done' ? '✓' : workout.status === 'missed' ? '✕' : ''}
             </span>
             <button aria-label="Copy workout" onClick={(e) => { e.stopPropagation(); onCopy() }} className="text-text-faint hover:text-text">⧉</button>
           </div>
