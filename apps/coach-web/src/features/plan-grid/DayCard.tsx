@@ -22,7 +22,7 @@ export function DayCard({ workout, selected, isToday, onClick, onCopy, canPaste,
     ? 'ring-2 ring-accent ring-offset-2 ring-offset-bg'
     : isToday ? 'ring-2 ring-text' : workout ? STATUS_RING[workout.status] : ''
   return (
-    <div onClick={onClick}
+    <div onClick={(e) => { e.stopPropagation(); onClick() }}
       className={`rb-card rb-card-sm flex h-[128px] cursor-pointer flex-col p-3 ${workout ? STATUS_BG[workout.status] : 'border-dashed'} ${ring}`}>
       {workout ? (
         <>

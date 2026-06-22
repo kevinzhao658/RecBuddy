@@ -145,7 +145,8 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, selectedDate,
             <WeekStats week={week} />
           </div>
 
-          <div className="flex-1 px-6 pb-6">
+          {/* Clicking blank space here exits the editor (day cards stop propagation) */}
+          <div className="flex-1 px-6 pb-6" onClick={() => selectedDate && setSelectedDate(null)}>
             <WeekGrid monday={monday} week={week} selectedDate={selectedDate}
               onSelectDate={(d) => setSelectedDate(d)}
               onCopy={(w) => { clipboard.copy(w); flash('Workout copied') }}
