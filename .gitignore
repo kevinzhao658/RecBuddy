@@ -4,6 +4,10 @@
 # Original handoff archive (extracted copy lives in RecBuddy/)
 RecBuddy.zip
 
+# Claude Design UI reference (screenshots + extracted mockups) — local only
+RecBuddy_UI.zip
+_ui_ref/
+
 # Node / tooling (added as sub-projects land)
 node_modules/
 .env
