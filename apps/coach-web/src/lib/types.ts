@@ -26,3 +26,14 @@ export interface Invite {
   goal_race: string | null; goal_distance: string | null; goal_date: string | null; goal_time: string | null
 }
 export interface RosterEntry { relationship: 'head' | 'assistant'; athlete: Profile; plans: Plan[] }
+
+export type MessageKind = 'text' | 'runcard' | 'adjust'
+/** payload for kind='runcard' (a completed run the athlete logged). */
+export interface RunCard { title: string; dist: string; pace: string; time: string; hr: number }
+/** payload for kind='adjust' (a workout change the coach pushed). */
+export interface AdjustCard { from: string; to: string; reason: string }
+export interface Thread { id: string; athlete_id: string; coach_id: string }
+export interface Message {
+  id: string; thread_id: string; from_user_id: string; kind: MessageKind
+  body: string | null; payload: RunCard | AdjustCard | null; read: boolean; created_at: string
+}

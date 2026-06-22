@@ -10,6 +10,7 @@ import { DragGhost } from '../features/plan-grid/DragGhost'
 import { useAthleteDnd } from '../features/plan-grid/useAthleteDnd'
 import { WorkoutEditor } from '../features/editor/WorkoutEditor'
 import { WorkoutLibrary } from '../features/library/WorkoutLibrary'
+import { ChatPanel } from '../features/chat/ChatPanel'
 import { TeamPopover } from '../features/team/TeamPopover'
 import { Toast } from '../components/ui/Toast'
 import { useRoster } from '../lib/queries/roster'
@@ -98,6 +99,8 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, monthAnchor, 
     onMove: (from, to) => move.mutate({ from, to }, { onError }),
   })
 
+  const [chatOpen, setChatOpen] = useState(false)
+
   const goMonth = () => { setMonthAnchor(firstOfMonth(monday)); setView('month') }
   const prev = () => view === 'week' ? setMonday(addDays(monday, -7)) : setMonthAnchor(addMonths(monthAnchor, -1))
   const next = () => view === 'week' ? setMonday(addDays(monday, 7)) : setMonthAnchor(addMonths(monthAnchor, 1))
@@ -116,8 +119,8 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, monthAnchor, 
             actions={
               <>
                 <TeamPopover athleteId={athleteId} isHead={isHead} />
-                <button disabled title="Chat ships in a later release"
-                  className="flex items-center gap-1.5 rounded-[12px] bg-accent px-4 py-2 text-sm font-semibold text-on-accent disabled:opacity-55">
+                <button onClick={() => setChatOpen(true)}
+                  className="flex items-center gap-1.5 rounded-[12px] bg-accent px-4 py-2 text-sm font-semibold text-on-accent hover:brightness-110">
                   <ChatIcon className="h-4 w-4" /> Message
                 </button>
                 <button onClick={() => duplicate.mutate(undefined, { onSuccess: () => flash('Week duplicated to next week'), onError })}
@@ -162,6 +165,8 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, monthAnchor, 
       </main>
 
       <DragOverlay dropAnimation={null}><DragGhost workout={dnd.activeGhost} /></DragOverlay>
+
+      {chatOpen && <ChatPanel athleteId={athleteId} athleteName={entry.athlete.name} onClose={() => setChatOpen(false)} />}
     </DndContext>
   )
 }
