@@ -21,20 +21,22 @@ export function PaceField({ value, onChange }: { value: string | null; onChange:
   const commit = (t: number) => onChange(secondsToPace(t))
 
   return (
-    <div className="flex items-center gap-1 rounded-[10px] border border-line bg-surface2 px-3 py-2 focus-within:border-text-mute">
-      <input aria-label="Pace minutes" inputMode="numeric" value={String(min)}
-        onChange={(e) => commit(Number(e.target.value.replace(/\D/g, '').slice(0, 2) || '0') * 60 + sec)}
-        className={`w-6 bg-transparent text-right font-num text-[15px] text-text outline-none ${noSpin}`} />
-      <span className="font-num text-[15px] text-text">:</span>
-      <input aria-label="Pace seconds" inputMode="numeric" value={String(sec).padStart(2, '0')}
-        onChange={(e) => commit(min * 60 + Math.min(59, Number(e.target.value.replace(/\D/g, '').slice(-2) || '0')))}
-        className={`w-7 bg-transparent font-num text-[15px] text-text outline-none ${noSpin}`} />
-      <span className="font-num text-sm text-text-faint">/mi</span>
-      <div className="ml-auto flex flex-col">
+    <div className="flex items-stretch overflow-hidden rounded-[10px] border border-line bg-surface2 focus-within:border-text-mute">
+      <div className="flex flex-1 items-center gap-1 px-3 py-2">
+        <input aria-label="Pace minutes" inputMode="numeric" value={String(min)}
+          onChange={(e) => commit(Number(e.target.value.replace(/\D/g, '').slice(0, 2) || '0') * 60 + sec)}
+          className={`w-6 bg-transparent text-right font-num text-[15px] text-text outline-none ${noSpin}`} />
+        <span className="font-num text-[15px] text-text">:</span>
+        <input aria-label="Pace seconds" inputMode="numeric" value={String(sec).padStart(2, '0')}
+          onChange={(e) => commit(min * 60 + Math.min(59, Number(e.target.value.replace(/\D/g, '').slice(-2) || '0')))}
+          className={`w-7 bg-transparent font-num text-[15px] text-text outline-none ${noSpin}`} />
+        <span className="font-num text-sm text-text-faint">/mi</span>
+      </div>
+      <div className="flex flex-col border-l border-line">
         <button type="button" aria-label="Increase pace by 15 seconds" onClick={() => commit(total + 15)}
-          className="-mb-px text-[9px] leading-none text-text-faint hover:text-text">▲</button>
+          className="flex flex-1 items-center px-2 text-[11px] leading-none text-text-faint transition hover:bg-surface hover:text-text">▲</button>
         <button type="button" aria-label="Decrease pace by 15 seconds" onClick={() => commit(total - 15)}
-          className="-mt-px text-[9px] leading-none text-text-faint hover:text-text">▼</button>
+          className="flex flex-1 items-center border-t border-line px-2 text-[11px] leading-none text-text-faint transition hover:bg-surface hover:text-text">▼</button>
       </div>
     </div>
   )
