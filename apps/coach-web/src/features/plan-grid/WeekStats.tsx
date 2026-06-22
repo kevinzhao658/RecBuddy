@@ -1,6 +1,7 @@
 import type { Workout } from '../../lib/types'
 import { estMinutes } from '../../lib/estMinutes'
 import { fmtDur } from '../../lib/fmtDur'
+import { Stat } from '../../components/ui/Stat'
 
 /** The week's projected volume / time-on-feet / completion, shown in the controls row. */
 export function WeekStats({ week }: { week: (Workout | null)[] }) {
@@ -13,15 +14,6 @@ export function WeekStats({ week }: { week: (Workout | null)[] }) {
       <Stat label="Est. weekly vol." value={`${miles.toFixed(1)} mi`} />
       <Stat label="Time on feet" value={fmtDur(minutes)} />
       <Stat label="Completed" value={`${done}/${present.length}`} />
-    </div>
-  )
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-text-mute">{label}</div>
-      <div className="font-num text-[19px] font-bold tabular-nums text-text">{value}</div>
     </div>
   )
 }

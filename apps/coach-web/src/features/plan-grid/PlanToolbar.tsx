@@ -1,12 +1,11 @@
-import type { Workout } from '../../lib/types'
-import { WeekStats } from './WeekStats'
+import type { ReactNode } from 'react'
 
 export type PlanView = 'week' | 'month'
 
-/** Week/Month toggle + period navigation + (week-only) summary stats. */
-export function PlanToolbar({ view, onWeek, onMonth, onPrev, onNext, label, isCurrent, week }: {
+/** Week/Month toggle + period navigation + a stats slot (week or month totals). */
+export function PlanToolbar({ view, onWeek, onMonth, onPrev, onNext, label, isCurrent, stats }: {
   view: PlanView; onWeek: () => void; onMonth: () => void; onPrev: () => void; onNext: () => void
-  label: string; isCurrent: boolean; week: (Workout | null)[]
+  label: string; isCurrent: boolean; stats?: ReactNode
 }) {
   const tab = (active: boolean) =>
     `rounded-[8px] px-4 py-1.5 text-sm transition ${active ? 'bg-surface font-semibold text-text shadow-sm' : 'font-medium text-text-faint hover:text-text'}`
@@ -25,7 +24,7 @@ export function PlanToolbar({ view, onWeek, onMonth, onPrev, onNext, label, isCu
           {isCurrent && <span className="ml-1 text-xs text-text-faint">{view === 'week' ? 'This week' : 'This month'}</span>}
         </div>
       </div>
-      {view === 'week' && <WeekStats week={week} />}
+      {stats}
     </div>
   )
 }

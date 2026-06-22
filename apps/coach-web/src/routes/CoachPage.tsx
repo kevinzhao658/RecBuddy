@@ -3,6 +3,8 @@ import { DndContext, DragOverlay, PointerSensor, pointerWithin, useSensor, useSe
 import { RosterSidebar } from '../features/roster/RosterSidebar'
 import { TopBar } from '../features/plan-grid/TopBar'
 import { PlanToolbar, type PlanView } from '../features/plan-grid/PlanToolbar'
+import { WeekStats } from '../features/plan-grid/WeekStats'
+import { MonthStats } from '../features/plan-grid/MonthStats'
 import { WeekGrid } from '../features/plan-grid/WeekGrid'
 import { MonthGrid } from '../features/plan-grid/MonthGrid'
 import { WorkoutKey } from '../features/plan-grid/WorkoutKey'
@@ -135,7 +137,7 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, monthAnchor, 
             view={view} onWeek={() => setView('week')} onMonth={goMonth} onPrev={prev} onNext={next}
             label={view === 'week' ? `${fmtShortDate(monday)} – ${fmtShortDate(addDays(monday, 6))}` : fmtMonthYear(monthAnchor)}
             isCurrent={view === 'week' ? monday === mondayOf(todayISO()) : monthAnchor === firstOfMonth(todayISO())}
-            week={week} />
+            stats={view === 'week' ? <WeekStats week={week} /> : <MonthStats byDate={monthQ.data ?? {}} anchor={monthAnchor} />} />
 
           {view === 'week' ? (
             // Clicking blank space exits the editor (day cards stop propagation)
@@ -151,17 +153,17 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, monthAnchor, 
           ) : (
             <div className="flex-1 px-6 pb-6">
               <MonthGrid anchor={monthAnchor} byDate={monthQ.data ?? {}} selectedDate={selectedDate} onPick={pickMonthDay} />
-              <p className="mt-3 px-1 text-xs text-text-faint">Click any day to open that week and edit it.</p>
+              <p className="mt-3 px-1 text-xs text-text-faint">Each row shows miles completed vs scheduled for the week · Click a day to open that week and edit.</p>
             </div>
           )}
         </div>
 
-        {/* Right column: week view shows the editor (a day is selected) or the library */}
-        {view === 'week' && (selectedDate
+        {/* Right column: the editor when a day is selected (week view), else the library */}
+        {view === 'week' && selectedDate
           ? <WorkoutEditor key={selectedDate} date={selectedDate} workout={selectedWorkout}
               onSave={(draft) => { upsert.mutate({ date: selectedDate, draft }, { onSuccess: () => setSelectedDate(null), onError }) }}
               onClear={() => { clearDay.mutate(selectedDate, { onSuccess: () => setSelectedDate(null), onError }) }} />
-          : <WorkoutLibrary />)}
+          : <WorkoutLibrary />}
       </main>
 
       <DragOverlay dropAnimation={null}><DragGhost workout={dnd.activeGhost} /></DragOverlay>
