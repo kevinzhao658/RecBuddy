@@ -1,12 +1,13 @@
 import { useState } from 'react'
-import { DndContext, DragOverlay, PointerSensor, pointerWithin, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core'
-import { TypeIcon } from '../components/ui/Icon'
+import { DndContext, DragOverlay, PointerSensor, pointerWithin, useSensor, useSensors } from '@dnd-kit/core'
 import { RosterSidebar } from '../features/roster/RosterSidebar'
 import { TopBar } from '../features/plan-grid/TopBar'
-import { WeekStats } from '../features/plan-grid/WeekStats'
+import { PlanToolbar, type PlanView } from '../features/plan-grid/PlanToolbar'
 import { WeekGrid } from '../features/plan-grid/WeekGrid'
 import { MonthGrid } from '../features/plan-grid/MonthGrid'
 import { WorkoutKey } from '../features/plan-grid/WorkoutKey'
+import { DragGhost } from '../features/plan-grid/DragGhost'
+import { useAthleteDnd } from '../features/plan-grid/useAthleteDnd'
 import { WorkoutEditor } from '../features/editor/WorkoutEditor'
 import { WorkoutLibrary } from '../features/library/WorkoutLibrary'
 import { TeamPopover } from '../features/team/TeamPopover'
@@ -19,10 +20,8 @@ import { useClipboard } from '../features/plan-grid/useClipboard'
 import { useRealtimePlan } from '../lib/useRealtimePlan'
 import { mondayOf, addDays, fmtShortDate, firstOfMonth, addMonths, fmtMonthYear } from '../lib/week'
 import { useAuth } from '../auth/AuthProvider'
-import type { Workout } from '../lib/types'
 
 const todayISO = () => new Date().toISOString().slice(0, 10)
-type View = 'week' | 'month'
 
 function ChatIcon({ className = '' }: { className?: string }) {
   return (
@@ -37,7 +36,7 @@ export default function CoachPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [monday, setMonday] = useState<string>(() => mondayOf(todayISO()))
   const [monthAnchor, setMonthAnchor] = useState<string>(() => firstOfMonth(todayISO()))
-  const [view, setView] = useState<View>('week')
+  const [view, setView] = useState<PlanView>('week')
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const clipboard = useClipboard()
@@ -71,7 +70,7 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, monthAnchor, 
   athleteId: string; coachId: string
   monday: string; setMonday: (m: string) => void
   monthAnchor: string; setMonthAnchor: (m: string) => void
-  view: View; setView: (v: View) => void
+  view: PlanView; setView: (v: PlanView) => void
   selectedDate: string | null; setSelectedDate: (d: string | null) => void
   clipboard: ReturnType<typeof useClipboard>; sensors: ReturnType<typeof useSensors>; flash: (m: string) => void
 }) {
@@ -90,16 +89,14 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, monthAnchor, 
   const entry = (roster.data ?? []).find((r) => r.athlete.id === athleteId)
   const week = planQ.data ?? Array(7).fill(null)
   const isHead = (team.data ?? []).some((m) => m.coach_id === coachId && m.relationship === 'head')
-  const isThisWeek = monday === mondayOf(todayISO())
-  const isThisMonth = monthAnchor === firstOfMonth(todayISO())
   const selectedWorkout = selectedDate ? (week.find((w) => w?.date === selectedDate) ?? null) : null
 
-  const [activeId, setActiveId] = useState<string | null>(null)
-  const activeGhost = activeId
-    ? activeId.startsWith('lib:')
-      ? (library.data ?? []).find((t) => `lib:${t.id}` === activeId) ?? null
-      : week.find((w) => w?.date === activeId) ?? null
-    : null
+  const onError = (err: any) => flash(err.message)
+  const dnd = useAthleteDnd({
+    week, library: library.data,
+    onPasteTemplate: (date, tpl) => paste.mutate({ date, source: tpl }, { onError }),
+    onMove: (from, to) => move.mutate({ from, to }, { onError }),
+  })
 
   const goMonth = () => { setMonthAnchor(firstOfMonth(monday)); setView('month') }
   const prev = () => view === 'week' ? setMonday(addDays(monday, -7)) : setMonthAnchor(addMonths(monthAnchor, -1))
@@ -107,43 +104,10 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, monthAnchor, 
   // From the month overview, clicking a day jumps to that week's editor.
   const pickMonthDay = (date: string) => { setMonday(mondayOf(date)); setSelectedDate(date); setView('week') }
 
-  const onDragStart = (e: DragStartEvent) => setActiveId(String(e.active.id))
-  const onDragEnd = (e: DragEndEvent) => {
-    setActiveId(null)
-    const from = String(e.active.id); const to = e.over ? String(e.over.id) : null
-    if (!to) return
-    if (from.startsWith('lib:')) {
-      const tpl = (library.data ?? []).find((t) => `lib:${t.id}` === from)
-      if (tpl) paste.mutate({ date: to, source: tpl as unknown as Workout }, { onError: (err: any) => flash(err.message) })
-    } else if (from !== to) {
-      move.mutate({ from, to }, { onError: (err: any) => flash(err.message) })
-    }
-  }
-
   if (!entry) return <main className="flex-1 p-6 text-text-mute">Loading…</main>
 
-  const toggle = (
-    <div className="inline-flex rounded-[10px] bg-surface2 p-1">
-      <button onClick={() => setView('week')}
-        className={`rounded-[8px] px-4 py-1.5 text-sm transition ${view === 'week' ? 'bg-surface font-semibold text-text shadow-sm' : 'font-medium text-text-faint hover:text-text'}`}>Week</button>
-      <button onClick={goMonth}
-        className={`rounded-[8px] px-4 py-1.5 text-sm transition ${view === 'month' ? 'bg-surface font-semibold text-text shadow-sm' : 'font-medium text-text-faint hover:text-text'}`}>Month</button>
-    </div>
-  )
-  const nav = (
-    <div className="flex items-center gap-2">
-      <button aria-label={view === 'week' ? 'Previous week' : 'Previous month'} onClick={prev} className="text-2xl leading-none text-text-mute hover:text-text">‹</button>
-      <span className="font-num text-sm font-medium tabular-nums text-text">
-        {view === 'week' ? `${fmtShortDate(monday)} – ${fmtShortDate(addDays(monday, 6))}` : fmtMonthYear(monthAnchor)}
-      </span>
-      <button aria-label={view === 'week' ? 'Next week' : 'Next month'} onClick={next} className="text-2xl leading-none text-text-mute hover:text-text">›</button>
-      {view === 'week' && isThisWeek && <span className="ml-1 text-xs text-text-faint">This week</span>}
-      {view === 'month' && isThisMonth && <span className="ml-1 text-xs text-text-faint">This month</span>}
-    </div>
-  )
-
   return (
-    <DndContext sensors={sensors} collisionDetection={pointerWithin} onDragStart={onDragStart} onDragEnd={onDragEnd}>
+    <DndContext sensors={sensors} collisionDetection={pointerWithin} onDragStart={dnd.onDragStart} onDragEnd={dnd.onDragEnd}>
       <main className="flex min-h-screen min-w-0 flex-1">
         <div className="flex min-w-0 flex-1 flex-col">
           <TopBar
@@ -156,7 +120,7 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, monthAnchor, 
                   className="flex items-center gap-1.5 rounded-[12px] bg-accent px-4 py-2 text-sm font-semibold text-on-accent disabled:opacity-55">
                   <ChatIcon className="h-4 w-4" /> Message
                 </button>
-                <button onClick={() => duplicate.mutate(undefined, { onSuccess: () => flash('Week duplicated to next week'), onError: (err: any) => flash(err.message) })}
+                <button onClick={() => duplicate.mutate(undefined, { onSuccess: () => flash('Week duplicated to next week'), onError })}
                   className="flex items-center gap-1.5 rounded-[12px] border border-line bg-surface2 px-4 py-2 text-sm font-semibold text-text hover:border-text-mute">
                   <span className="text-accent">＋</span> Duplicate week
                 </button>
@@ -164,10 +128,11 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, monthAnchor, 
             }
           />
 
-          <div className="flex items-center justify-between gap-4 px-6 py-3">
-            <div className="flex items-center gap-4">{toggle}{nav}</div>
-            {view === 'week' && <WeekStats week={week} />}
-          </div>
+          <PlanToolbar
+            view={view} onWeek={() => setView('week')} onMonth={goMonth} onPrev={prev} onNext={next}
+            label={view === 'week' ? `${fmtShortDate(monday)} – ${fmtShortDate(addDays(monday, 6))}` : fmtMonthYear(monthAnchor)}
+            isCurrent={view === 'week' ? monday === mondayOf(todayISO()) : monthAnchor === firstOfMonth(todayISO())}
+            week={week} />
 
           {view === 'week' ? (
             // Clicking blank space exits the editor (day cards stop propagation)
@@ -176,7 +141,7 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, monthAnchor, 
                 onSelectDate={(d) => setSelectedDate(d)}
                 onCopy={(w) => { clipboard.copy(w); flash('Workout copied') }}
                 canPaste={!!clipboard.clip}
-                onPaste={(d) => clipboard.clip && paste.mutate({ date: d, source: clipboard.clip }, { onError: (err: any) => flash(err.message) })} />
+                onPaste={(d) => clipboard.clip && paste.mutate({ date: d, source: clipboard.clip }, { onError })} />
               <WorkoutKey />
               <p className="mt-3 px-1 text-xs text-text-faint">Drag from the workout library or move cards between days · Click any day to edit</p>
             </div>
@@ -191,22 +156,12 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, monthAnchor, 
         {/* Right column: week view shows the editor (a day is selected) or the library */}
         {view === 'week' && (selectedDate
           ? <WorkoutEditor key={selectedDate} date={selectedDate} workout={selectedWorkout}
-              onSave={(draft) => { upsert.mutate({ date: selectedDate, draft }, { onSuccess: () => setSelectedDate(null), onError: (err: any) => flash(err.message) }) }}
-              onClear={() => { clearDay.mutate(selectedDate, { onSuccess: () => setSelectedDate(null), onError: (err: any) => flash(err.message) }) }} />
+              onSave={(draft) => { upsert.mutate({ date: selectedDate, draft }, { onSuccess: () => setSelectedDate(null), onError }) }}
+              onClear={() => { clearDay.mutate(selectedDate, { onSuccess: () => setSelectedDate(null), onError }) }} />
           : <WorkoutLibrary />)}
       </main>
 
-      <DragOverlay dropAnimation={null}>
-        {activeGhost ? (
-          <div className="rb-card rb-card-sm flex w-60 rotate-2 cursor-grabbing items-center gap-2 p-3 shadow-2xl ring-1 ring-accent/50">
-            <TypeIcon type={activeGhost.type} className="shrink-0 text-text-mute" />
-            <div className="min-w-0">
-              <div className="truncate text-sm font-semibold">{activeGhost.title}</div>
-              {activeGhost.dist != null && <div className="font-num text-xs text-text-mute">{activeGhost.dist} mi · {activeGhost.pace}</div>}
-            </div>
-          </div>
-        ) : null}
-      </DragOverlay>
+      <DragOverlay dropAnimation={null}><DragGhost workout={dnd.activeGhost} /></DragOverlay>
     </DndContext>
   )
 }
