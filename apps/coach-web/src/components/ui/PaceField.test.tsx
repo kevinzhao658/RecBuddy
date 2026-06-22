@@ -16,9 +16,14 @@ test('steppers adjust pace by 15s and keep the /mi unit', () => {
   expect(onChange).toHaveBeenCalledWith('8:15/mi')
 })
 
-test('editing minutes preserves seconds', () => {
+test('typed digits fill MM:SS from the right, spilling into minutes past 2', () => {
   const onChange = vi.fn()
   render(<PaceField value="8:30/mi" onChange={onChange} />)
-  fireEvent.change(screen.getByLabelText(/pace minutes/i), { target: { value: '7' } })
-  expect(onChange).toHaveBeenCalledWith('7:30/mi')
+  const input = screen.getByLabelText('Pace')
+  fireEvent.change(input, { target: { value: '45' } })   // two digits -> seconds
+  expect(onChange).toHaveBeenLastCalledWith('0:45/mi')
+  fireEvent.change(input, { target: { value: '730' } })  // third digit spills to minutes
+  expect(onChange).toHaveBeenLastCalledWith('7:30/mi')
+  fireEvent.change(input, { target: { value: '1245' } }) // 12:45
+  expect(onChange).toHaveBeenLastCalledWith('12:45/mi')
 })

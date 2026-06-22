@@ -5,6 +5,7 @@ import { fmtShortDate } from '../../lib/week'
 import { Button } from '../../components/ui/Button'
 import { TypeIcon } from '../../components/ui/Icon'
 import { PaceField } from '../../components/ui/PaceField'
+import { NumberField } from '../../components/ui/NumberField'
 import type { WorkoutDraft } from '../../lib/queries/plan'
 
 const TYPES: WorkoutType[] = ['easy', 'long', 'speed', 'tempo', 'recovery', 'cross', 'rest']
@@ -62,7 +63,7 @@ export function WorkoutEditor({ date, workout, onSave, onClear }: {
         <div className="flex gap-2">
           <div className="flex-1">
             <span className={labelEyebrow}>Distance (mi)</span>
-            <input aria-label="Distance" type="number" value={d.dist ?? ''} onChange={(e) => set({ dist: e.target.value ? Number(e.target.value) : null })} className={`${field} font-num`} />
+            <NumberField value={d.dist} onChange={(v) => set({ dist: v })} step={0.5} ariaLabel="Distance" />
           </div>
           <div className="flex-1">
             <span className={labelEyebrow}>Pace</span>
