@@ -21,5 +21,8 @@ export interface LibraryWorkout {
   id: string; coach_id: string; type: WorkoutType; title: string; dist: number | null
   pace: string | null; est_minutes: number | null; note: string | null; sets: [string, string][]; custom: boolean
 }
-export interface Invite { id: string; code: string; coach_id: string; athlete_name: string | null; consumed_at: string | null }
+export interface Invite {
+  id: string; code: string; coach_id: string; athlete_name: string | null; consumed_at: string | null
+  goal_race: string | null; goal_distance: string | null; goal_date: string | null; goal_time: string | null
+}
 export interface RosterEntry { relationship: 'head' | 'assistant'; athlete: Profile; plans: Plan[] }

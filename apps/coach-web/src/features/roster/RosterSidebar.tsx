@@ -65,7 +65,9 @@ export function RosterSidebar({ selectedId, onSelect }: { selectedId: string | n
             <Avatar initials="?" />
             <span className="min-w-0 flex-1">
               <span className="block truncate text-text">{inv.athlete_name ?? 'Invited athlete'}</span>
-              <span className="block truncate text-xs text-text-mute">Invited · <code className="font-num text-accent">{inv.code}</code></span>
+              <span className="block truncate text-xs text-text-mute">
+                {inv.goal_race ? `${inv.goal_race} · ` : 'Invited · '}<code className="font-num text-accent">{inv.code}</code>
+              </span>
             </span>
             <button aria-label="Revoke invite" onClick={() => revoke.mutate(inv.id)} className="shrink-0 text-text-faint hover:text-text">✕</button>
           </div>

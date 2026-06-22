@@ -11,11 +11,21 @@ export async function fetchPendingInvites(client: SupabaseClient): Promise<Invit
 export function usePendingInvites() {
   return useQuery({ queryKey: ['invites'], queryFn: () => fetchPendingInvites(supabase) })
 }
+export interface InviteDraft {
+  athleteName: string; goalRace?: string | null; goalDistance?: string | null
+  goalDate?: string | null; goalTime?: string | null
+}
 export function useCreateInvite() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (athleteName: string) => {
-      const { data, error } = await supabase.rpc('create_invite', { p_athlete_name: athleteName })
+    mutationFn: async (draft: InviteDraft) => {
+      const { data, error } = await supabase.rpc('create_invite', {
+        p_athlete_name: draft.athleteName,
+        p_goal_race: draft.goalRace || null,
+        p_goal_distance: draft.goalDistance || null,
+        p_goal_date: draft.goalDate || null,
+        p_goal_time: draft.goalTime || null,
+      })
       if (error) throw error
       return data as string
     },

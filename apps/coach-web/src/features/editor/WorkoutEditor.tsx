@@ -4,6 +4,7 @@ import { estMinutes } from '../../lib/estMinutes'
 import { fmtShortDate } from '../../lib/week'
 import { Button } from '../../components/ui/Button'
 import { TypeIcon } from '../../components/ui/Icon'
+import { PaceField } from '../../components/ui/PaceField'
 import type { WorkoutDraft } from '../../lib/queries/plan'
 
 const TYPES: WorkoutType[] = ['easy', 'long', 'speed', 'tempo', 'recovery', 'cross', 'rest']
@@ -65,7 +66,7 @@ export function WorkoutEditor({ date, workout, onSave, onClear }: {
           </div>
           <div className="flex-1">
             <span className={labelEyebrow}>Pace</span>
-            <input aria-label="Pace" value={d.pace ?? ''} onChange={(e) => set({ pace: e.target.value || null })} className={`${field} font-num`} />
+            <PaceField value={d.pace} onChange={(v) => set({ pace: v })} />
           </div>
         </div>
 
