@@ -36,13 +36,19 @@ export default defineConfig([
       // intentional documented reset-on-close effect. Surface, don't block.
       'react-hooks/refs': 'warn',
       'react-hooks/set-state-in-effect': 'warn',
+      // Backstop for the file-size standard (see CLAUDE.md): ~150 lines is a
+      // review-time "split for responsibility?" trigger; this only flags genuine
+      // monsters without nagging cohesive files. Warning, never blocks.
+      'max-lines': ['warn', { max: 300, skipBlankLines: true, skipComments: true }],
     },
   },
   {
-    // Test files lean on `any` for mocks and intentionally bind unused values.
+    // Test files lean on `any` for mocks and intentionally bind unused values,
+    // and may run long (many cases); the size backstop doesn't apply.
     files: ['**/*.test.{ts,tsx}'],
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
+      'max-lines': 'off',
       '@typescript-eslint/no-unused-vars': [
         'warn',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },

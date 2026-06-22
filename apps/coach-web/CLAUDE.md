@@ -35,7 +35,9 @@ styles/        theme.css (Tailwind tokens + helpers)
 
 ## Component standards
 
-- **Small & single-purpose.** Soft cap **~150 lines** per component. When a screen grows past it, extract a section component (e.g. `PlanToolbar`), a presentational piece (`DragGhost`), or a hook (`useAthleteDnd`) — see `CoachPage.tsx` as the worked example.
+- **Split for responsibility, not for line count.** The real rule is *one reason to change per file* — can you hold it in your head? **~150 lines is a review-time trigger**, not a gate: when a file crosses it, ask "does this have more than one responsibility, or a piece something else would reuse?" If yes, extract a section component (`PlanToolbar`), a presentational piece (`DragGhost`), or a hook (`useAthleteDnd`) — see `CoachPage.tsx` as the worked example. If it's one cohesive thing, leave it. **Never split just to hit a number** — over-fragmentation (prop-drilling between pieces that only make sense together) is worse than a long-but-cohesive file.
+- **Length expectations vary by file type.** Components are tightest (extract a hook/section past ~150–200). Query modules (`plan.ts`) may run longer if one domain — split across *unrelated* domains, not by query. Pure helpers and `types.ts` are judged by cohesion only; length is irrelevant. Route compositions are naturally longer (they wire many sections) — judge the *child* boundaries, not the parent.
+- **Backstop:** ESLint `max-lines` **warns** at 300 (blanks/comments excluded, tests exempt). It catches genuine monsters; it never blocks the build, and a passing warning count is not a goal.
 - **Reusable inputs are primitives.** Shared widgets live in `components/ui/` and are used everywhere — never re-implement them inline. The pace/distance fields share one `Stepper`; copy that pattern.
 - **Accessibility = test anchor.** Every interactive control has an accessible name (`aria-label` or visible label). Tests target controls by role/label, so good a11y and good tests come together.
 
