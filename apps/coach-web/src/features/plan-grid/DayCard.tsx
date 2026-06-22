@@ -17,12 +17,13 @@ export function DayCard({ workout, selected, isToday, onClick, onCopy, canPaste,
   workout: Workout | null; selected: boolean; isToday?: boolean; onClick: () => void; onCopy: () => void
   canPaste?: boolean; onPaste?: () => void; date?: string; dow?: string
 }) {
-  // Today's bright ring wins; otherwise the completion-status ring; otherwise selection.
-  const ring = isToday ? 'ring-2 ring-text' : workout ? STATUS_RING[workout.status] : ''
-  const selRing = selected && !isToday ? 'ring-2 ring-text/30' : ''
+  // Selection wins (clear lime outline), then today's bright ring, then status.
+  const ring = selected
+    ? 'ring-2 ring-accent ring-offset-2 ring-offset-bg'
+    : isToday ? 'ring-2 ring-text' : workout ? STATUS_RING[workout.status] : ''
   return (
     <div onClick={onClick}
-      className={`rb-card rb-card-sm flex h-[128px] cursor-pointer flex-col p-3 ${selRing} ${workout ? STATUS_BG[workout.status] : 'border-dashed'} ${ring}`}>
+      className={`rb-card rb-card-sm flex h-[128px] cursor-pointer flex-col p-3 ${workout ? STATUS_BG[workout.status] : 'border-dashed'} ${ring}`}>
       {workout ? (
         <>
           <div className="mb-1 flex items-start justify-between gap-2">

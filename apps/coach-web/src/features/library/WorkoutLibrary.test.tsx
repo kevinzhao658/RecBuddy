@@ -28,13 +28,15 @@ test('New workout opens the inline builder form', () => {
   expect(screen.getByRole('button', { name: /add to library/i })).toBeInTheDocument()
 })
 
-test('custom workouts expose edit and delete; built-in ones do not', () => {
+test('every workout (default or custom) exposes edit and delete', () => {
   const { del } = setup([
     { id: 'l1', type: 'easy', title: 'Built In', dist: 5, pace: '9:45/mi', custom: false, sets: [] },
     { id: 'l2', type: 'tempo', title: 'My Tempo', dist: 6, pace: '8:00/mi', custom: true, sets: [] },
   ])
-  // Only the custom row exposes manage actions
-  expect(screen.getAllByRole('button', { name: /delete workout/i })).toHaveLength(1)
-  fireEvent.click(screen.getByRole('button', { name: /delete workout/i }))
-  expect(del.mutate).toHaveBeenCalledWith('l2')
+  // Defaults are editable too, so both rows expose manage actions
+  expect(screen.getAllByRole('button', { name: /edit workout/i })).toHaveLength(2)
+  expect(screen.getAllByRole('button', { name: /delete workout/i })).toHaveLength(2)
+  // Deleting the first (default) row hits the right id
+  fireEvent.click(screen.getAllByRole('button', { name: /delete workout/i })[0])
+  expect(del.mutate).toHaveBeenCalledWith('l1')
 })

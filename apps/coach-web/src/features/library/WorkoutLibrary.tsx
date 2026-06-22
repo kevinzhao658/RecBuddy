@@ -26,19 +26,14 @@ function LibraryCard({ t, onEdit, onDelete }: { t: LibraryWorkout; onEdit: () =>
       </button>
       <TypeIcon type={t.type} className="mt-0.5 shrink-0 text-text-mute" />
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
-          <span className="truncate font-semibold">{t.title}</span>
-          {t.custom && <span className="rounded bg-surface2 px-1 text-[10px] font-semibold uppercase tracking-wide text-accent">custom</span>}
-        </div>
+        <div className="truncate font-semibold">{t.title}</div>
         {t.dist != null && <div className="font-num text-xs text-text-mute">{t.dist} mi · {t.pace}</div>}
         {setsLine && <div className="mt-0.5 truncate font-num text-[11px] text-text-faint">{setsLine}</div>}
       </div>
-      {t.custom && (
-        <div className="flex shrink-0 gap-1.5 opacity-0 transition group-hover:opacity-100">
-          <button aria-label="Edit workout" onClick={onEdit} className="text-text-faint hover:text-text"><PencilIcon /></button>
-          <button aria-label="Delete workout" onClick={onDelete} className="text-text-faint hover:text-missed"><TrashIcon /></button>
-        </div>
-      )}
+      <div className="flex shrink-0 gap-1.5 opacity-0 transition group-hover:opacity-100">
+        <button aria-label="Edit workout" onClick={onEdit} className="text-text-faint hover:text-text"><PencilIcon /></button>
+        <button aria-label="Delete workout" onClick={onDelete} className="text-text-faint hover:text-missed"><TrashIcon /></button>
+      </div>
     </div>
   )
 }
