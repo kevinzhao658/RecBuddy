@@ -5,6 +5,7 @@ import { RosterSidebar } from '../features/roster/RosterSidebar'
 import { TopBar } from '../features/plan-grid/TopBar'
 import { WeekStats } from '../features/plan-grid/WeekStats'
 import { WeekGrid } from '../features/plan-grid/WeekGrid'
+import { MonthGrid } from '../features/plan-grid/MonthGrid'
 import { WorkoutKey } from '../features/plan-grid/WorkoutKey'
 import { WorkoutEditor } from '../features/editor/WorkoutEditor'
 import { WorkoutLibrary } from '../features/library/WorkoutLibrary'
@@ -13,14 +14,15 @@ import { Toast } from '../components/ui/Toast'
 import { useRoster } from '../lib/queries/roster'
 import { useTeam } from '../lib/queries/team'
 import { useLibrary } from '../lib/queries/library'
-import { useAthletePlan, useUpsertWorkout, useClearDay, useMoveWorkout, usePasteWorkout, useDuplicateWeek } from '../lib/queries/plan'
+import { useAthletePlan, useAthleteMonth, useUpsertWorkout, useClearDay, useMoveWorkout, usePasteWorkout, useDuplicateWeek } from '../lib/queries/plan'
 import { useClipboard } from '../features/plan-grid/useClipboard'
 import { useRealtimePlan } from '../lib/useRealtimePlan'
-import { mondayOf, addDays, fmtShortDate } from '../lib/week'
+import { mondayOf, addDays, fmtShortDate, firstOfMonth, addMonths, fmtMonthYear } from '../lib/week'
 import { useAuth } from '../auth/AuthProvider'
 import type { Workout } from '../lib/types'
 
 const todayISO = () => new Date().toISOString().slice(0, 10)
+type View = 'week' | 'month'
 
 function ChatIcon({ className = '' }: { className?: string }) {
   return (
@@ -34,6 +36,8 @@ export default function CoachPage() {
   const { session } = useAuth()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [monday, setMonday] = useState<string>(() => mondayOf(todayISO()))
+  const [monthAnchor, setMonthAnchor] = useState<string>(() => firstOfMonth(todayISO()))
+  const [view, setView] = useState<View>('week')
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const clipboard = useClipboard()
@@ -47,7 +51,8 @@ export default function CoachPage() {
       {selectedId
         ? <AthleteDashboard
             key={selectedId} athleteId={selectedId} coachId={session!.user.id}
-            monday={monday} setMonday={setMonday}
+            monday={monday} setMonday={setMonday} monthAnchor={monthAnchor} setMonthAnchor={setMonthAnchor}
+            view={view} setView={setView}
             selectedDate={selectedDate} setSelectedDate={setSelectedDate}
             clipboard={clipboard} sensors={sensors} flash={flash} />
         : <main className="grid flex-1 place-items-center px-6 py-32 text-center">
@@ -62,8 +67,11 @@ export default function CoachPage() {
   )
 }
 
-function AthleteDashboard({ athleteId, coachId, monday, setMonday, selectedDate, setSelectedDate, clipboard, sensors, flash }: {
-  athleteId: string; coachId: string; monday: string; setMonday: (m: string) => void
+function AthleteDashboard({ athleteId, coachId, monday, setMonday, monthAnchor, setMonthAnchor, view, setView, selectedDate, setSelectedDate, clipboard, sensors, flash }: {
+  athleteId: string; coachId: string
+  monday: string; setMonday: (m: string) => void
+  monthAnchor: string; setMonthAnchor: (m: string) => void
+  view: View; setView: (v: View) => void
   selectedDate: string | null; setSelectedDate: (d: string | null) => void
   clipboard: ReturnType<typeof useClipboard>; sensors: ReturnType<typeof useSensors>; flash: (m: string) => void
 }) {
@@ -72,6 +80,7 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, selectedDate,
   const team = useTeam(athleteId)
   const library = useLibrary()
   const planQ = useAthletePlan(athleteId, monday)
+  const monthQ = useAthleteMonth(athleteId, monthAnchor, view === 'month')
   const upsert = useUpsertWorkout(athleteId, monday)
   const clearDay = useClearDay(athleteId, monday)
   const move = useMoveWorkout(athleteId, monday)
@@ -82,6 +91,7 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, selectedDate,
   const week = planQ.data ?? Array(7).fill(null)
   const isHead = (team.data ?? []).some((m) => m.coach_id === coachId && m.relationship === 'head')
   const isThisWeek = monday === mondayOf(todayISO())
+  const isThisMonth = monthAnchor === firstOfMonth(todayISO())
   const selectedWorkout = selectedDate ? (week.find((w) => w?.date === selectedDate) ?? null) : null
 
   const [activeId, setActiveId] = useState<string | null>(null)
@@ -90,6 +100,12 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, selectedDate,
       ? (library.data ?? []).find((t) => `lib:${t.id}` === activeId) ?? null
       : week.find((w) => w?.date === activeId) ?? null
     : null
+
+  const goMonth = () => { setMonthAnchor(firstOfMonth(monday)); setView('month') }
+  const prev = () => view === 'week' ? setMonday(addDays(monday, -7)) : setMonthAnchor(addMonths(monthAnchor, -1))
+  const next = () => view === 'week' ? setMonday(addDays(monday, 7)) : setMonthAnchor(addMonths(monthAnchor, 1))
+  // From the month overview, clicking a day jumps to that week's editor.
+  const pickMonthDay = (date: string) => { setMonday(mondayOf(date)); setSelectedDate(date); setView('week') }
 
   const onDragStart = (e: DragStartEvent) => setActiveId(String(e.active.id))
   const onDragEnd = (e: DragEndEvent) => {
@@ -106,10 +122,29 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, selectedDate,
 
   if (!entry) return <main className="flex-1 p-6 text-text-mute">Loading…</main>
 
+  const toggle = (
+    <div className="inline-flex rounded-[10px] bg-surface2 p-1">
+      <button onClick={() => setView('week')}
+        className={`rounded-[8px] px-4 py-1.5 text-sm transition ${view === 'week' ? 'bg-surface font-semibold text-text shadow-sm' : 'font-medium text-text-faint hover:text-text'}`}>Week</button>
+      <button onClick={goMonth}
+        className={`rounded-[8px] px-4 py-1.5 text-sm transition ${view === 'month' ? 'bg-surface font-semibold text-text shadow-sm' : 'font-medium text-text-faint hover:text-text'}`}>Month</button>
+    </div>
+  )
+  const nav = (
+    <div className="flex items-center gap-2">
+      <button aria-label={view === 'week' ? 'Previous week' : 'Previous month'} onClick={prev} className="text-2xl leading-none text-text-mute hover:text-text">‹</button>
+      <span className="font-num text-sm font-medium tabular-nums text-text">
+        {view === 'week' ? `${fmtShortDate(monday)} – ${fmtShortDate(addDays(monday, 6))}` : fmtMonthYear(monthAnchor)}
+      </span>
+      <button aria-label={view === 'week' ? 'Next week' : 'Next month'} onClick={next} className="text-2xl leading-none text-text-mute hover:text-text">›</button>
+      {view === 'week' && isThisWeek && <span className="ml-1 text-xs text-text-faint">This week</span>}
+      {view === 'month' && isThisMonth && <span className="ml-1 text-xs text-text-faint">This month</span>}
+    </div>
+  )
+
   return (
     <DndContext sensors={sensors} collisionDetection={pointerWithin} onDragStart={onDragStart} onDragEnd={onDragEnd}>
       <main className="flex min-h-screen min-w-0 flex-1">
-        {/* Center column: identity, controls, the week grid */}
         <div className="flex min-w-0 flex-1 flex-col">
           <TopBar
             athlete={entry.athlete}
@@ -130,39 +165,35 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, selectedDate,
           />
 
           <div className="flex items-center justify-between gap-4 px-6 py-3">
-            <div className="flex items-center gap-4">
-              <div className="inline-flex rounded-[10px] bg-surface2 p-1">
-                <span className="rounded-[8px] bg-surface px-4 py-1.5 text-sm font-semibold text-text shadow-sm">Week</span>
-                <button disabled title="Month view coming next" className="rounded-[8px] px-4 py-1.5 text-sm font-medium text-text-faint">Month</button>
-              </div>
-              <div className="flex items-center gap-2">
-                <button aria-label="Previous week" onClick={() => setMonday(addDays(monday, -7))} className="text-2xl leading-none text-text-mute hover:text-text">‹</button>
-                <span className="font-num text-sm font-medium tabular-nums text-text">{fmtShortDate(monday)} – {fmtShortDate(addDays(monday, 6))}</span>
-                <button aria-label="Next week" onClick={() => setMonday(addDays(monday, 7))} className="text-2xl leading-none text-text-mute hover:text-text">›</button>
-                {isThisWeek && <span className="ml-1 text-xs text-text-faint">This week</span>}
-              </div>
-            </div>
-            <WeekStats week={week} />
+            <div className="flex items-center gap-4">{toggle}{nav}</div>
+            {view === 'week' && <WeekStats week={week} />}
           </div>
 
-          {/* Clicking blank space here exits the editor (day cards stop propagation) */}
-          <div className="flex-1 px-6 pb-6" onClick={() => selectedDate && setSelectedDate(null)}>
-            <WeekGrid monday={monday} week={week} selectedDate={selectedDate}
-              onSelectDate={(d) => setSelectedDate(d)}
-              onCopy={(w) => { clipboard.copy(w); flash('Workout copied') }}
-              canPaste={!!clipboard.clip}
-              onPaste={(d) => clipboard.clip && paste.mutate({ date: d, source: clipboard.clip }, { onError: (err: any) => flash(err.message) })} />
-            <WorkoutKey />
-            <p className="mt-3 px-1 text-xs text-text-faint">Drag from the workout library or move cards between days · Click any day to edit</p>
-          </div>
+          {view === 'week' ? (
+            // Clicking blank space exits the editor (day cards stop propagation)
+            <div className="flex-1 px-6 pb-6" onClick={() => selectedDate && setSelectedDate(null)}>
+              <WeekGrid monday={monday} week={week} selectedDate={selectedDate}
+                onSelectDate={(d) => setSelectedDate(d)}
+                onCopy={(w) => { clipboard.copy(w); flash('Workout copied') }}
+                canPaste={!!clipboard.clip}
+                onPaste={(d) => clipboard.clip && paste.mutate({ date: d, source: clipboard.clip }, { onError: (err: any) => flash(err.message) })} />
+              <WorkoutKey />
+              <p className="mt-3 px-1 text-xs text-text-faint">Drag from the workout library or move cards between days · Click any day to edit</p>
+            </div>
+          ) : (
+            <div className="flex-1 px-6 pb-6">
+              <MonthGrid anchor={monthAnchor} byDate={monthQ.data ?? {}} selectedDate={selectedDate} onPick={pickMonthDay} />
+              <p className="mt-3 px-1 text-xs text-text-faint">Click any day to open that week and edit it.</p>
+            </div>
+          )}
         </div>
 
-        {/* Right column: editor (a day is selected) or the library — full height */}
-        {selectedDate
+        {/* Right column: week view shows the editor (a day is selected) or the library */}
+        {view === 'week' && (selectedDate
           ? <WorkoutEditor key={selectedDate} date={selectedDate} workout={selectedWorkout}
               onSave={(draft) => { upsert.mutate({ date: selectedDate, draft }, { onSuccess: () => setSelectedDate(null), onError: (err: any) => flash(err.message) }) }}
               onClear={() => { clearDay.mutate(selectedDate, { onSuccess: () => setSelectedDate(null), onError: (err: any) => flash(err.message) }) }} />
-          : <WorkoutLibrary />}
+          : <WorkoutLibrary />)}
       </main>
 
       <DragOverlay dropAnimation={null}>

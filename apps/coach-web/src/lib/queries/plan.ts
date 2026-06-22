@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabase } from '../supabase'
 import type { Workout } from '../types'
-import { weekDates, addDays } from '../week'
+import { weekDates, addDays, monthGridDates } from '../week'
 
 /** Returns a 7-slot array (Mon..Sun); null for empty days. */
 export async function fetchWeek(client: SupabaseClient, athleteId: string, monday: string): Promise<(Workout | null)[]> {
@@ -21,6 +21,24 @@ export function useAthletePlan(athleteId: string | null, monday: string) {
   })
 }
 export function planQueryKey(athleteId: string | null, monday: string) { return ['week', athleteId, monday] as const }
+
+/** Workouts for a whole calendar-month grid, keyed by date. */
+export async function fetchMonth(client: SupabaseClient, athleteId: string, anchor: string): Promise<Record<string, Workout>> {
+  const dates = monthGridDates(anchor)
+  const { data, error } = await client.from('workouts').select('*')
+    .eq('athlete_id', athleteId).gte('date', dates[0]).lte('date', dates[dates.length - 1])
+  if (error) throw error
+  const byDate: Record<string, Workout> = {}
+  for (const w of data as Workout[]) byDate[w.date] = w
+  return byDate
+}
+export function useAthleteMonth(athleteId: string | null, anchor: string, enabled = true) {
+  return useQuery({
+    queryKey: ['month', athleteId, anchor],
+    queryFn: () => fetchMonth(supabase, athleteId!, anchor),
+    enabled: !!athleteId && enabled,
+  })
+}
 
 export interface WorkoutDraft {
   type: Workout['type']; title: string; dist: number | null; pace: string | null
