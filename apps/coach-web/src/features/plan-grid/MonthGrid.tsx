@@ -20,7 +20,8 @@ function DayCell({ date, w, inMonth, isToday, isSel, onPick }: {
 }) {
   const day = Number(date.slice(8, 10))
   const isRest = w?.type === 'rest' || w?.status === 'rest'
-  const ring = isSel || isToday ? 'ring-2 ring-inset ring-accent' : w?.status === 'done' ? 'ring-1 ring-inset ring-accent/40' : ''
+  // Today/selected get a ring; "Done" is shown by the lime status text only.
+  const ring = isSel || isToday ? 'ring-2 ring-inset ring-accent' : ''
   return (
     <button onClick={() => onPick(date)}
       className={`flex min-h-[92px] flex-col border-b border-r border-line p-2 text-left transition hover:bg-surface2 ${inMonth ? '' : 'opacity-35'} ${ring}`}>
@@ -45,17 +46,21 @@ function WeekSummary({ days, isCurrent }: { days: (Workout | null)[]; isCurrent:
   const scheduled = present.reduce((s, w) => s + (w.dist ?? 0), 0)
   const completed = present.filter((w) => w.status === 'done').reduce((s, w) => s + (w.dist ?? 0), 0)
   const pct = scheduled > 0 ? Math.round((completed / scheduled) * 100) : 0
+  // Floats as its own rounded card (padded cell) so the KPI column reads as
+  // separate from the calendar grid rather than merged into it.
   return (
-    <div className={`flex flex-col justify-center gap-1.5 border-b border-line p-2 ${isCurrent ? 'ring-2 ring-inset ring-text/40' : ''}`}>
-      <div className="font-num text-sm">
-        <span className="font-bold text-text">{mi(completed)}</span>
-        <span className="text-text-faint"> / {mi(scheduled)} </span>
-        <span className="text-xs text-text-faint">mi</span>
+    <div className="p-1.5">
+      <div className={`rb-card-sm flex h-full flex-col justify-center gap-1.5 p-2.5 ${isCurrent ? 'ring-1 ring-text/30' : ''}`}>
+        <div className="font-num text-sm">
+          <span className="font-bold text-text">{mi(completed)}</span>
+          <span className="text-text-faint"> / {mi(scheduled)} </span>
+          <span className="text-xs text-text-faint">mi</span>
+        </div>
+        <div className="h-1.5 overflow-hidden rounded-full bg-black/30">
+          <div className="h-full rounded-full bg-accent" style={{ width: `${Math.min(100, pct)}%` }} />
+        </div>
+        <div className="text-[10px] text-text-faint">{completed > 0 ? `${pct}% complete` : 'Upcoming'}</div>
       </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-surface2">
-        <div className="h-full rounded-full bg-accent" style={{ width: `${Math.min(100, pct)}%` }} />
-      </div>
-      <div className="text-[10px] text-text-faint">{completed > 0 ? `${pct}% complete` : 'Upcoming'}</div>
     </div>
   )
 }
