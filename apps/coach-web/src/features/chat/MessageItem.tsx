@@ -1,9 +1,26 @@
-import type { Message, RunCard, AdjustCard } from '../../lib/types'
+import type { Message, RunCard, AdjustCard, WorkoutCard } from '../../lib/types'
+import { TypeIcon } from '../../components/ui/Icon'
+import { fmtShortDate } from '../../lib/week'
 
 function timeLabel(iso: string) {
   const d = new Date(iso)
   if (isNaN(d.getTime())) return ''
   return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+}
+
+function WorkoutCardView({ p, onOpen }: { p: WorkoutCard; onOpen?: () => void }) {
+  return (
+    <button onClick={onOpen} disabled={!onOpen}
+      className="rb-card rb-card-sm flex w-full max-w-[85%] items-center gap-2 p-3 text-left transition enabled:hover:border-text-mute">
+      <TypeIcon type={p.type} className="shrink-0 text-text-mute" />
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-accent">Workout · {fmtShortDate(p.date)}</p>
+        <p className="truncate font-semibold">{p.title}</p>
+        {p.dist != null && <p className="font-num text-xs text-text-mute">{p.dist} mi · {p.pace}</p>}
+      </div>
+      {onOpen && <span className="text-text-faint" aria-hidden>›</span>}
+    </button>
+  )
 }
 
 function RunCardView({ p }: { p: RunCard }) {
@@ -31,8 +48,9 @@ function AdjustCardView({ p }: { p: AdjustCard }) {
   )
 }
 
-/** One message row. `mine` = sent by the signed-in coach (right-aligned, lime). */
-export function MessageItem({ m, mine }: { m: Message; mine: boolean }) {
+/** One message row. `mine` = sent by the signed-in coach (right-aligned, lime).
+ *  `onOpenWorkout` makes shared-workout cards clickable (jump to that day). */
+export function MessageItem({ m, mine, onOpenWorkout }: { m: Message; mine: boolean; onOpenWorkout?: (date: string) => void }) {
   const align = mine ? 'items-end' : 'items-start'
   return (
     <div className={`flex flex-col gap-0.5 ${align}`}>
@@ -40,6 +58,8 @@ export function MessageItem({ m, mine }: { m: Message; mine: boolean }) {
         <div className={`max-w-[85%] rounded-[14px] px-3 py-2 text-sm ${mine ? 'bg-accent text-on-accent' : 'bg-surface2 text-text'}`}>{m.body}</div>
       ) : m.kind === 'runcard' ? (
         <RunCardView p={m.payload as RunCard} />
+      ) : m.kind === 'workout' ? (
+        <WorkoutCardView p={m.payload as WorkoutCard} onOpen={onOpenWorkout ? () => onOpenWorkout((m.payload as WorkoutCard).date) : undefined} />
       ) : (
         <AdjustCardView p={m.payload as AdjustCard} />
       )}

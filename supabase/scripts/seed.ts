@@ -173,6 +173,9 @@ async function main() {
     { thread_id: jt, from_user_id: jordan, kind: 'runcard', payload: { title: 'Long Run 9 mi', dist: '9.1 mi', pace: '9:22/mi', time: '1:25:14', hr: 152 }, read: true },
     { thread_id: jt, from_user_id: mara, kind: 'adjust', payload: { from: '6 × 400m', to: '5 × 800m @ 3:45', reason: 'Stronger threshold stimulus' }, read: true },
   ])
+  // A shared scheduled workout (hybrid card: snapshot + link to the live row).
+  const jLong = (await sql.from('workouts').select('id, date, type, title, dist, pace').eq('athlete_id', jordan).eq('date', ISO(addDays(CUR_MON, 5))).maybeSingle()).data
+  if (jLong) await sql.from('messages').insert({ thread_id: jt, from_user_id: mara, kind: 'workout', workout_id: jLong.id, payload: { date: jLong.date, type: jLong.type, title: jLong.title, dist: jLong.dist, pace: jLong.pace }, read: true })
   const pt = await thread(priya)
   await sql.from('messages').insert([
     { thread_id: pt, from_user_id: mara, kind: 'text', body: 'Great first speed session! How did the 400s feel?', read: true },

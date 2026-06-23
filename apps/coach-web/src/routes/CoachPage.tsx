@@ -19,6 +19,7 @@ import { useRoster } from '../lib/queries/roster'
 import { useTeam } from '../lib/queries/team'
 import { useLibrary } from '../lib/queries/library'
 import { useAthletePlan, useAthleteMonth, useUpsertWorkout, useClearDay, useMoveWorkout, usePasteWorkout, useDuplicateWeek } from '../lib/queries/plan'
+import { useShareWorkout } from '../lib/queries/chat'
 import { useClipboard } from '../features/plan-grid/useClipboard'
 import { useRealtimePlan } from '../lib/useRealtimePlan'
 import { mondayOf, addDays, fmtShortDate, firstOfMonth, addMonths, fmtMonthYear } from '../lib/week'
@@ -88,6 +89,7 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, monthAnchor, 
   const move = useMoveWorkout(athleteId, monday)
   const paste = usePasteWorkout(athleteId, monday)
   const duplicate = useDuplicateWeek(athleteId, monday)
+  const shareWorkout = useShareWorkout(athleteId)
 
   const entry = (roster.data ?? []).find((r) => r.athlete.id === athleteId)
   const week = planQ.data ?? Array(7).fill(null)
@@ -162,13 +164,15 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, monthAnchor, 
         {view === 'week' && selectedDate
           ? <WorkoutEditor key={selectedDate} date={selectedDate} workout={selectedWorkout}
               onSave={(draft) => { upsert.mutate({ date: selectedDate, draft }, { onSuccess: () => setSelectedDate(null), onError }) }}
-              onClear={() => { clearDay.mutate(selectedDate, { onSuccess: () => setSelectedDate(null), onError }) }} />
+              onClear={() => { clearDay.mutate(selectedDate, { onSuccess: () => setSelectedDate(null), onError }) }}
+              onShare={selectedWorkout ? () => shareWorkout.mutate(selectedWorkout, { onSuccess: () => flash('Shared to chat'), onError }) : undefined} />
           : <WorkoutLibrary />}
       </main>
 
       <DragOverlay dropAnimation={null}><DragGhost workout={dnd.activeGhost} /></DragOverlay>
 
-      {chatOpen && <ChatPanel athleteId={athleteId} athleteName={entry.athlete.name} onClose={() => setChatOpen(false)} />}
+      {chatOpen && <ChatPanel athleteId={athleteId} athleteName={entry.athlete.name} onClose={() => setChatOpen(false)}
+        onOpenDay={(date) => { setMonday(mondayOf(date)); setView('week'); setSelectedDate(date); setChatOpen(false) }} />}
     </DndContext>
   )
 }

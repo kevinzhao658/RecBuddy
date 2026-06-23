@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { MessageItem } from './MessageItem'
 
 const base = { id: '1', thread_id: 't', from_user_id: 'a', read: true, created_at: '2026-06-01T10:00:00Z' }
@@ -20,4 +20,14 @@ test('renders an adjust card with from/to/reason', () => {
   expect(screen.getByText('6 × 400m')).toBeInTheDocument()
   expect(screen.getByText('5 × 800m')).toBeInTheDocument()
   expect(screen.getByText('threshold')).toBeInTheDocument()
+})
+
+test('renders a shared-workout card and opens its day on click', () => {
+  const onOpenWorkout = vi.fn()
+  render(<MessageItem mine={true} onOpenWorkout={onOpenWorkout}
+    m={{ ...base, kind: 'workout', body: null, workout_id: 'w9', payload: { date: '2026-08-23', type: 'long', title: 'Long Run 11 mi', dist: 11, pace: '9:25/mi' } } as any} />)
+  expect(screen.getByText('Long Run 11 mi')).toBeInTheDocument()
+  expect(screen.getByText(/Aug 23/)).toBeInTheDocument()
+  fireEvent.click(screen.getByText('Long Run 11 mi'))
+  expect(onOpenWorkout).toHaveBeenCalledWith('2026-08-23')
 })

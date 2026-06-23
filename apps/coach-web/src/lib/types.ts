@@ -27,13 +27,17 @@ export interface Invite {
 }
 export interface RosterEntry { relationship: 'head' | 'assistant'; athlete: Profile; plans: Plan[] }
 
-export type MessageKind = 'text' | 'runcard' | 'adjust'
+export type MessageKind = 'text' | 'runcard' | 'adjust' | 'workout'
 /** payload for kind='runcard' (a completed run the athlete logged). */
 export interface RunCard { title: string; dist: string; pace: string; time: string; hr: number }
 /** payload for kind='adjust' (a workout change the coach pushed). */
 export interface AdjustCard { from: string; to: string; reason: string }
+/** payload for kind='workout' (a scheduled workout the coach shared). Snapshot
+ *  for display; the message's workout_id links the live row for click-through. */
+export interface WorkoutCard { date: string; type: WorkoutType; title: string; dist: number | null; pace: string | null }
 export interface Thread { id: string; athlete_id: string; coach_id: string }
 export interface Message {
   id: string; thread_id: string; from_user_id: string; kind: MessageKind
-  body: string | null; payload: RunCard | AdjustCard | null; read: boolean; created_at: string
+  body: string | null; payload: RunCard | AdjustCard | WorkoutCard | null
+  workout_id: string | null; read: boolean; created_at: string
 }

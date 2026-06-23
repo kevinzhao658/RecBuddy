@@ -3,7 +3,9 @@ import { useAuth } from '../../auth/AuthProvider'
 import { useThread, useMessages, useSendMessage, useMarkThreadRead, useRealtimeThread } from '../../lib/queries/chat'
 import { MessageItem } from './MessageItem'
 
-export function ChatPanel({ athleteId, athleteName, onClose }: { athleteId: string; athleteName: string; onClose: () => void }) {
+export function ChatPanel({ athleteId, athleteName, onClose, onOpenDay }: {
+  athleteId: string; athleteName: string; onClose: () => void; onOpenDay?: (date: string) => void
+}) {
   const { session } = useAuth()
   const meId = session!.user.id
   const threadQ = useThread(athleteId)
@@ -46,7 +48,7 @@ export function ChatPanel({ athleteId, athleteName, onClose }: { athleteId: stri
           {!messagesQ.isLoading && messages.length === 0 && (
             <p className="m-auto max-w-[80%] text-center text-sm text-text-faint">No messages yet. Say hello to {athleteName.split(' ')[0]}.</p>
           )}
-          {messages.map((m) => <MessageItem key={m.id} m={m} mine={m.from_user_id === meId} />)}
+          {messages.map((m) => <MessageItem key={m.id} m={m} mine={m.from_user_id === meId} onOpenWorkout={onOpenDay} />)}
         </div>
 
         <div className="flex items-end gap-2 border-t border-line p-3">

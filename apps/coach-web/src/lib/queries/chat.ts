@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabase } from '../supabase'
-import type { Message, Thread } from '../types'
+import type { Message, Thread, Workout } from '../types'
 
 /** Get (or create) the coach↔athlete thread. RLS surfaces the head coach's
  *  thread to assistants, so we reuse an existing one before creating. */
@@ -41,6 +41,25 @@ export function useSendMessage(threadId: string | null) {
   return useMutation({
     mutationFn: (body: string) => sendMessage(supabase, threadId!, body),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['messages', threadId] }),
+  })
+}
+
+/** Share a scheduled workout into the athlete's thread (hybrid: snapshot in
+ *  payload for display + workout_id linking the live row for click-through). */
+export async function shareWorkoutToChat(client: SupabaseClient, athleteId: string, w: Workout): Promise<void> {
+  const thread = await fetchThread(client, athleteId)
+  const { data: me } = await client.auth.getUser()
+  const payload = { date: w.date, type: w.type, title: w.title, dist: w.dist, pace: w.pace }
+  const { error } = await client.from('messages')
+    .insert({ thread_id: thread.id, from_user_id: me.user!.id, kind: 'workout', workout_id: w.id, payload })
+  if (error) throw error
+  await client.from('message_threads').update({ updated_at: new Date().toISOString() }).eq('id', thread.id)
+}
+export function useShareWorkout(athleteId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (w: Workout) => shareWorkoutToChat(supabase, athleteId, w),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['messages'] }),
   })
 }
 

@@ -22,8 +22,8 @@ function eyebrow(iso: string) {
   return `${WEEKDAY[dt.getUTCDay()]} · ${fmtShortDate(iso)}`
 }
 
-export function WorkoutEditor({ date, workout, onSave, onClear }: {
-  date: string; workout: Workout | null; onSave: (d: WorkoutDraft) => void; onClear: () => void
+export function WorkoutEditor({ date, workout, onSave, onClear, onShare }: {
+  date: string; workout: Workout | null; onSave: (d: WorkoutDraft) => void; onClear: () => void; onShare?: () => void
 }) {
   const [d, setD] = useState<WorkoutDraft>(() => ({
     type: workout?.type ?? 'easy', title: workout?.title ?? 'Easy Run',
@@ -39,9 +39,14 @@ export function WorkoutEditor({ date, workout, onSave, onClear }: {
   return (
     <aside className="rb-surface flex w-80 shrink-0 flex-col border-l border-line">
       <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-4">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">{workout ? 'Edit day' : 'New workout'}</p>
-          <p className="font-display text-lg font-bold tracking-tight text-text">{eyebrow(date)}</p>
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">{workout ? 'Edit day' : 'New workout'}</p>
+            <p className="font-display text-lg font-bold tracking-tight text-text">{eyebrow(date)}</p>
+          </div>
+          {onShare && (
+            <button onClick={onShare} className="mt-0.5 shrink-0 rounded-[9px] border border-line px-2 py-1 text-xs font-semibold text-text-mute transition hover:border-text-mute hover:text-text">↗ Share to chat</button>
+          )}
         </div>
 
         {/* Type chip grid */}
