@@ -24,4 +24,6 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run build
-      - run: npm test
+      # Unit tests only. lib/queries/*.test.ts are integration tests that need a
+      # live Supabase + service-role (run locally via `npm test`).
+      - run: npm run test:unit
