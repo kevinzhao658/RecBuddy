@@ -19,8 +19,12 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
       { auth: { autoRefreshToken: false, persistSession: false } },
     )
+    // Do NOT auto-confirm. The user must verify ownership of this email via the
+    // confirmation link (the client triggers it with auth.resend) before they
+    // can sign in — this prevents creating usable accounts for unowned emails
+    // (account squatting). Role is still assigned server-side below.
     const { data, error } = await admin.auth.admin.createUser({
-      email, password, email_confirm: true, user_metadata: { name },
+      email, password, email_confirm: false, user_metadata: { name },
     })
     if (error) return json({ error: error.message }, 400)
     const { error: pErr } = await admin.from('profiles').update({ role: 'coach', title }).eq('id', data.user!.id)
