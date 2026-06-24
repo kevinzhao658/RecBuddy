@@ -46,6 +46,13 @@ styles/        theme.css (Tailwind tokens + helpers)
 - Co-locate tests as `*.test.tsx` / `*.test.ts` next to the unit. Every component with logic and every pure helper is tested.
 - Mock query hooks (`vi.spyOn(mod, 'useX')`) rather than the network. Keep the suite green before every commit: `npm test && npm run build && npm run lint`.
 
+## Git & collaboration (precedent)
+
+- **Branching:** feature branch → PR → `dev`; `dev` → `main` for prod. `main` is protected/prod.
+- **Merges:** use **normal merge commits** (preserve history) — **not** squash merges.
+- **Never delete branches.** The user manages all branch cleanup (local and remote). Do not run `git branch -d/-D`, `git push --delete`, or `gh pr merge --delete-branch`.
+- Commit/push only when asked; never force-push without explicit request.
+
 ## Backend touchpoints (see `/supabase`)
 
 - RLS is enabled on **every** table; privileged operations are `SECURITY DEFINER` RPCs with `set search_path = public, pg_temp`. Never widen access from the client.
