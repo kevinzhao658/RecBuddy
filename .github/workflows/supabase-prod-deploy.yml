@@ -1,0 +1,49 @@
+# Deploys Supabase changes to PROD on merge to main: applies pending migrations
+# AND deploys edge functions (so schema + functions stay in sync with the app).
+#
+# Required GitHub repo secrets (Settings → Secrets and variables → Actions):
+#   SUPABASE_ACCESS_TOKEN      Personal access token (Supabase dashboard → Account → Access Tokens)
+#   SUPABASE_PROD_PROJECT_REF  The prod project ref (NOT dev)
+#   SUPABASE_PROD_DB_PASSWORD  The prod database password
+#
+# Connection (the deployed app's env vars on Vercel) is separate from this; this
+# job only syncs schema + functions, and never touches dev.
+name: Deploy to prod (Supabase)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/migrations/**'
+      - 'supabase/functions/**'
+      - 'supabase/config.toml'
+  workflow_dispatch: {} # allow manual runs from the Actions tab
+
+concurrency:
+  group: supabase-prod-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_PROD_DB_PASSWORD }}
+      PROJECT_REF: ${{ secrets.SUPABASE_PROD_PROJECT_REF }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link to prod project
+        run: supabase link --project-ref "$PROJECT_REF"
+
+      - name: Apply pending migrations
+        run: supabase db push
+
+      - name: Deploy edge functions
+        # Deploys every function in supabase/functions; per-function settings
+        # (e.g. coach-signup verify_jwt=false) come from supabase/config.toml.
+        run: supabase functions deploy --project-ref "$PROJECT_REF"

@@ -382,6 +382,15 @@ inspector_port = 8083
 # The Deno major version to use.
 deno_version = 2
 
+# Coach self-signup is a PUBLIC endpoint (no user exists yet), so it must not
+# require a JWT. It creates an UNCONFIRMED user (email_confirm=false) and assigns
+# coach role; the client then sends the confirmation email, so an account is
+# unusable until the email owner clicks the link (no account squatting).
+# TODO(pre-prod): add abuse protection (e.g. Turnstile/captcha or an app-check
+# secret) since this public endpoint uses the service-role key to create users.
+[functions.coach-signup]
+verify_jwt = false
+
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
