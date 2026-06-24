@@ -20,15 +20,25 @@ export default function SignupPage() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault(); setErr(null); setBusy(true)
-    const res = await fetch(FN, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', apikey: import.meta.env.VITE_SUPABASE_ANON_KEY },
-      body: JSON.stringify({ ...form, title }),
-    })
-    if (!res.ok) { setBusy(false); setErr((await res.json().catch(() => ({}))).error ?? 'Sign-up failed'); return }
-    const { error } = await supabase.auth.signInWithPassword({ email: form.email, password: form.password })
-    setBusy(false)
-    if (error) setErr(error.message); else nav('/coach')
+    try {
+      const res = await fetch(FN, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: import.meta.env.VITE_SUPABASE_ANON_KEY },
+        body: JSON.stringify({ ...form, title }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        setErr(body.error ?? `Sign-up failed (${res.status})`)
+        return
+      }
+      const { error } = await supabase.auth.signInWithPassword({ email: form.email, password: form.password })
+      if (error) setErr(error.message)
+      else nav('/coach')
+    } catch {
+      setErr('Could not reach the sign-up service. Is the coach-signup function deployed?')
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (

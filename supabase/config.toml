@@ -382,6 +382,12 @@ inspector_port = 8083
 # The Deno major version to use.
 deno_version = 2
 
+# Coach self-signup is a PUBLIC endpoint (no user exists yet), so it must not
+# require a JWT. It validates input itself and uses the service-role key
+# (auto-injected) to create the user + promote them to coach.
+[functions.coach-signup]
+verify_jwt = false
+
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
