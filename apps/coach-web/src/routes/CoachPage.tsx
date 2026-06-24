@@ -19,7 +19,8 @@ import { useRoster } from '../lib/queries/roster'
 import { useTeam } from '../lib/queries/team'
 import { useLibrary } from '../lib/queries/library'
 import { useAthletePlan, useAthleteMonth, useUpsertWorkout, useClearDay, useMoveWorkout, usePasteWorkout, useDuplicateWeek } from '../lib/queries/plan'
-import { useShareWorkout, useShareAdjust } from '../lib/queries/chat'
+import { useShareWorkout, useShareAdjust, useUnreadCounts, useUnreadRealtime } from '../lib/queries/chat'
+import { UnreadBadge } from '../components/ui/UnreadBadge'
 import { useClipboard } from '../features/plan-grid/useClipboard'
 import { useRealtimePlan } from '../lib/useRealtimePlan'
 import { mondayOf, addDays, fmtShortDate, firstOfMonth, addMonths, fmtMonthYear } from '../lib/week'
@@ -49,6 +50,7 @@ export default function CoachPage() {
   const [toast, setToast] = useState<string | null>(null)
   const clipboard = useClipboard()
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
+  useUnreadRealtime() // keep unread badges live across the whole coach view
 
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(null), 2200) }
 
@@ -95,6 +97,7 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, monthAnchor, 
   const duplicate = useDuplicateWeek(athleteId, monday)
   const shareWorkout = useShareWorkout(athleteId)
   const shareAdjust = useShareAdjust(athleteId)
+  const unread = useUnreadCounts()
 
   const entry = (roster.data ?? []).find((r) => r.athlete.id === athleteId)
   const week = planQ.data ?? Array(7).fill(null)
@@ -131,6 +134,7 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, monthAnchor, 
                 <button onClick={() => setChatOpen(true)}
                   className="flex items-center gap-1.5 rounded-[12px] bg-accent px-4 py-2 text-sm font-semibold text-on-accent hover:brightness-110">
                   <ChatIcon className="h-4 w-4" /> Message
+                  <UnreadBadge count={unread.data?.[athleteId] ?? 0} className="ml-0.5" />
                 </button>
                 <button onClick={() => duplicate.mutate(undefined, { onSuccess: () => flash('Week duplicated to next week'), onError })}
                   className="flex items-center gap-1.5 rounded-[12px] border border-line bg-surface2 px-4 py-2 text-sm font-semibold text-text hover:border-text-mute">

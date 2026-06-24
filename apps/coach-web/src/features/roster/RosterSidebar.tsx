@@ -2,7 +2,9 @@ import { useState } from 'react'
 import { useRoster, useRemoveAthlete } from '../../lib/queries/roster'
 import { usePendingInvites, useRevokeInvite } from '../../lib/queries/invites'
 import { useMe } from '../../lib/queries/me'
+import { useUnreadCounts } from '../../lib/queries/chat'
 import { Avatar } from '../../components/ui/Avatar'
+import { UnreadBadge } from '../../components/ui/UnreadBadge'
 import { Wordmark } from '../../components/ui/Wordmark'
 import { TypeIcon } from '../../components/ui/Icon'
 import { AddAthleteModal } from './AddAthleteModal'
@@ -20,6 +22,7 @@ export function RosterSidebar({ selectedId, onSelect }: { selectedId: string | n
   const pending = usePendingInvites()
   const remove = useRemoveAthlete()
   const revoke = useRevokeInvite()
+  const unread = useUnreadCounts()
   const [addOpen, setAddOpen] = useState(false)
   const [removeId, setRemoveId] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -53,6 +56,7 @@ export function RosterSidebar({ selectedId, onSelect }: { selectedId: string | n
                 <span className="block truncate font-semibold text-text">{r.athlete.name}</span>
                 <span className="block truncate text-xs text-text-mute">{sub}</span>
               </span>
+              <UnreadBadge count={unread.data?.[r.athlete.id] ?? 0} className="shrink-0" />
               {needsCheckin && <span title="Needs check-in" className="h-1.5 w-1.5 shrink-0 rounded-full bg-text-faint" />}
               <span role="button" aria-label={`Remove ${r.athlete.name}`} onClick={(e) => { e.stopPropagation(); setRemoveId(r.athlete.id) }}
                 className="hidden shrink-0 text-text-faint hover:text-missed group-hover:block">🗑</span>

@@ -90,8 +90,34 @@ export function useMarkThreadRead(threadId: string | null) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (meId: string) => markThreadRead(supabase, threadId!, meId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['messages', threadId] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['messages', threadId] })
+      qc.invalidateQueries({ queryKey: ['unread'] })
+    },
   })
+}
+
+/** Unread message counts per athlete for the signed-in coach (badge data). */
+export async function fetchUnreadCounts(client: SupabaseClient): Promise<Record<string, number>> {
+  const { data, error } = await client.rpc('unread_message_counts')
+  if (error) throw error
+  const map: Record<string, number> = {}
+  for (const r of (data as { athlete_id: string; unread: number }[])) map[r.athlete_id] = r.unread
+  return map
+}
+export function useUnreadCounts() {
+  return useQuery({ queryKey: ['unread'], queryFn: () => fetchUnreadCounts(supabase) })
+}
+/** Refresh unread badges live as messages arrive / are read anywhere. */
+export function useUnreadRealtime() {
+  const qc = useQueryClient()
+  useEffect(() => {
+    const ch = supabase.channel('unread')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' },
+        () => qc.invalidateQueries({ queryKey: ['unread'] }))
+      .subscribe()
+    return () => { supabase.removeChannel(ch) }
+  }, [qc])
 }
 
 /** Stream new messages for a thread into the cache. */
