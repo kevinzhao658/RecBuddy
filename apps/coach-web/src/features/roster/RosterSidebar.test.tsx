@@ -4,6 +4,7 @@ import { RosterSidebar } from './RosterSidebar'
 import * as roster from '../../lib/queries/roster'
 import * as invites from '../../lib/queries/invites'
 import * as meMod from '../../lib/queries/me'
+import * as chatMod from '../../lib/queries/chat'
 import * as authMod from '../../auth/AuthProvider'
 
 function wrap(ui: React.ReactNode) {
@@ -18,9 +19,11 @@ test('shows active athletes and dimmed pending invite rows', () => {
   vi.spyOn(invites, 'useRevokeInvite').mockReturnValue({ mutate: vi.fn() } as any)
   vi.spyOn(invites, 'useCreateInvite').mockReturnValue({ mutate: vi.fn(), isPending: false } as any)
   vi.spyOn(meMod, 'useMe').mockReturnValue({ data: { name: 'Mara Whitlock', initials: 'MW', title: 'Head Coach' }, isLoading: false } as any)
+  vi.spyOn(chatMod, 'useUnreadCounts').mockReturnValue({ data: { a1: 3 } } as any)
 
   wrap(<RosterSidebar selectedId={'a1'} onSelect={() => {}} />)
   expect(screen.getByText('Rita Real')).toBeInTheDocument()
   expect(screen.getByText('Pending Pat')).toBeInTheDocument()
   expect(screen.getByText('ABCD2345')).toBeInTheDocument()
+  expect(screen.getByLabelText('3 unread')).toBeInTheDocument() // unread badge
 })
