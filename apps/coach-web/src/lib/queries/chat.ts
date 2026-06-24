@@ -63,6 +63,23 @@ export function useShareWorkout(athleteId: string) {
   })
 }
 
+/** Post a workout-change notification (kind='adjust') so the athlete sees the edit. */
+export async function shareAdjustToChat(client: SupabaseClient, athleteId: string, from: string, to: string, reason = ''): Promise<void> {
+  const thread = await fetchThread(client, athleteId)
+  const { data: me } = await client.auth.getUser()
+  const { error } = await client.from('messages')
+    .insert({ thread_id: thread.id, from_user_id: me.user!.id, kind: 'adjust', payload: { from, to, reason } })
+  if (error) throw error
+  await client.from('message_threads').update({ updated_at: new Date().toISOString() }).eq('id', thread.id)
+}
+export function useShareAdjust(athleteId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (v: { from: string; to: string; reason?: string }) => shareAdjustToChat(supabase, athleteId, v.from, v.to, v.reason),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['messages'] }),
+  })
+}
+
 /** Mark the other party's unread messages in this thread as read. */
 export async function markThreadRead(client: SupabaseClient, threadId: string, meId: string): Promise<void> {
   const { error } = await client.from('messages').update({ read: true })

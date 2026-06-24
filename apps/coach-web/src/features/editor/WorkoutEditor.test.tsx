@@ -11,6 +11,16 @@ test('edits fields and calls onSave with the workout', () => {
   expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ title: 'Tempo 4 mi' }))
 })
 
+test('share button rewords to "Share changes" once the workout is edited', () => {
+  const onShare = vi.fn()
+  render(<WorkoutEditor date="2026-09-08" workout={base} onSave={() => {}} onClear={() => {}} onShare={onShare} />)
+  expect(screen.getByRole('button', { name: /share to chat/i })).toBeInTheDocument()
+  fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Tempo 5 mi' } })
+  const changedBtn = screen.getByRole('button', { name: /share changes in chat/i })
+  fireEvent.click(changedBtn)
+  expect(onShare).toHaveBeenCalledWith(true, expect.objectContaining({ title: 'Tempo 5 mi' }))
+})
+
 test('adds a workout-structure phase and includes it on save', () => {
   const onSave = vi.fn()
   render(<WorkoutEditor date="2026-09-08" workout={{ ...base, type: 'speed', title: 'Intervals' }} onSave={onSave} onClear={() => {}} />)

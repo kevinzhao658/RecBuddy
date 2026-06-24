@@ -23,7 +23,8 @@ function eyebrow(iso: string) {
 }
 
 export function WorkoutEditor({ date, workout, onSave, onClear, onShare }: {
-  date: string; workout: Workout | null; onSave: (d: WorkoutDraft) => void; onClear: () => void; onShare?: () => void
+  date: string; workout: Workout | null; onSave: (d: WorkoutDraft) => void; onClear: () => void
+  onShare?: (changed: boolean, draft: WorkoutDraft) => void
 }) {
   const [d, setD] = useState<WorkoutDraft>(() => ({
     type: workout?.type ?? 'easy', title: workout?.title ?? 'Easy Run',
@@ -32,6 +33,13 @@ export function WorkoutEditor({ date, workout, onSave, onClear, onShare }: {
     note: workout?.note ?? '', sets: workout?.sets ?? [],
   }))
   const set = (patch: Partial<WorkoutDraft>) => setD({ ...d, ...patch })
+  // Has the coach edited the saved workout? Drives the share button's emphasis.
+  const changed = !!workout && (
+    d.type !== workout.type || d.title !== workout.title || d.dist !== workout.dist ||
+    d.pace !== workout.pace || (d.note ?? '') !== (workout.note ?? '') ||
+    d.est_minutes !== workout.est_minutes || d.dur !== workout.dur ||
+    JSON.stringify(d.sets) !== JSON.stringify(workout.sets)
+  )
   const autoEst = estMinutes(d as Pick<Workout, 'type' | 'est_minutes' | 'dist' | 'pace' | 'dur'>)
   const editPhase = (i: number, which: 0 | 1, val: string) =>
     set({ sets: d.sets.map((p, j) => (j === i ? (which === 0 ? [val, p[1]] : [p[0], val]) : p)) })
@@ -45,7 +53,11 @@ export function WorkoutEditor({ date, workout, onSave, onClear, onShare }: {
             <p className="font-display text-lg font-bold tracking-tight text-text">{eyebrow(date)}</p>
           </div>
           {onShare && (
-            <button onClick={onShare} className="mt-0.5 shrink-0 rounded-[9px] border border-line px-2 py-1 text-xs font-semibold text-text-mute transition hover:border-text-mute hover:text-text">↗ Share to chat</button>
+            <button onClick={() => onShare(changed, d)}
+              className={`mt-0.5 shrink-0 rounded-[9px] border px-2 py-1 text-xs font-semibold transition ${
+                changed ? 'rb-glow border-accent bg-accent/10 text-accent' : 'border-line text-text-mute hover:border-text-mute hover:text-text'}`}>
+              ↗ {changed ? 'Share changes in chat' : 'Share to chat'}
+            </button>
           )}
         </div>
 

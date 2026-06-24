@@ -19,13 +19,17 @@ import { useRoster } from '../lib/queries/roster'
 import { useTeam } from '../lib/queries/team'
 import { useLibrary } from '../lib/queries/library'
 import { useAthletePlan, useAthleteMonth, useUpsertWorkout, useClearDay, useMoveWorkout, usePasteWorkout, useDuplicateWeek } from '../lib/queries/plan'
-import { useShareWorkout } from '../lib/queries/chat'
+import { useShareWorkout, useShareAdjust } from '../lib/queries/chat'
 import { useClipboard } from '../features/plan-grid/useClipboard'
 import { useRealtimePlan } from '../lib/useRealtimePlan'
 import { mondayOf, addDays, fmtShortDate, firstOfMonth, addMonths, fmtMonthYear } from '../lib/week'
 import { useAuth } from '../auth/AuthProvider'
 
 const todayISO = () => new Date().toISOString().slice(0, 10)
+
+/** Short one-line summary of a workout for chat adjust cards (from → to). */
+const wSummary = (w: { title: string; dist: number | null; pace: string | null }) =>
+  w.dist != null ? `${w.title} · ${w.dist} mi @ ${w.pace}` : w.title
 
 function ChatIcon({ className = '' }: { className?: string }) {
   return (
@@ -90,6 +94,7 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, monthAnchor, 
   const paste = usePasteWorkout(athleteId, monday)
   const duplicate = useDuplicateWeek(athleteId, monday)
   const shareWorkout = useShareWorkout(athleteId)
+  const shareAdjust = useShareAdjust(athleteId)
 
   const entry = (roster.data ?? []).find((r) => r.athlete.id === athleteId)
   const week = planQ.data ?? Array(7).fill(null)
@@ -165,7 +170,10 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, monthAnchor, 
           ? <WorkoutEditor key={selectedDate} date={selectedDate} workout={selectedWorkout}
               onSave={(draft) => { upsert.mutate({ date: selectedDate, draft }, { onSuccess: () => setSelectedDate(null), onError }) }}
               onClear={() => { clearDay.mutate(selectedDate, { onSuccess: () => setSelectedDate(null), onError }) }}
-              onShare={selectedWorkout ? () => shareWorkout.mutate(selectedWorkout, { onSuccess: () => flash('Shared to chat'), onError }) : undefined} />
+              onShare={selectedWorkout ? (changed, draft) => {
+                if (changed) shareAdjust.mutate({ from: wSummary(selectedWorkout), to: wSummary(draft) }, { onSuccess: () => flash('Change shared to chat'), onError })
+                else shareWorkout.mutate(selectedWorkout, { onSuccess: () => flash('Shared to chat'), onError })
+              } : undefined} />
           : <WorkoutLibrary />}
       </main>
 

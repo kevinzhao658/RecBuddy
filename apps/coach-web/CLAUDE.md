@@ -51,6 +51,27 @@ styles/        theme.css (Tailwind tokens + helpers)
 - RLS is enabled on **every** table; privileged operations are `SECURITY DEFINER` RPCs with `set search_path = public, pg_temp`. Never widen access from the client.
 - Schema changes are migrations in `supabase/migrations/` (timestamped). The service-role key is server-only — never imported into this app.
 
+## Environments & Supabase
+
+One Supabase **project = one database = one environment**. We run two projects:
+
+- **dev** (`bawezljwxehadmkjeydw`) — develop, seed, reset freely.
+- **prod** — real users only; never seeded.
+
+**Two orthogonal tracks make up a release** — keep them separate:
+- **Connection** = env vars (`VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY`, baked at build time). Determines *which DB the app talks to*.
+- **Schema** = migrations applied via `supabase db push`. Determines *whether that DB has the right tables*. Env never migrates schema — pushing is a deliberate step.
+
+**Env var rules:**
+- Local dev → `apps/coach-web/.env.local` (gitignored), pointed at the **dev** project.
+- Prod → set `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` in the **host** (Vercel) env settings, pointed at **prod**. Never in a committed file.
+- The **anon** key is public (RLS-protected, ships in the browser bundle) — fine to expose. The **`service_role`** key bypasses RLS: server/admin scripts only, never in the client or committed. `.env.cloud` (service-role, dev) drives `npm run seed:cloud` and is gitignored.
+
+**Migration workflow:**
+- `supabase db push` targets the currently **linked** project (`supabase link --project-ref <ref>`); only one link at a time. After pushing to prod, **re-link to dev** so routine pushes don't hit prod.
+- Develop/verify against dev → apply the same migrations to prod at release (manual `link → push → re-link` now; a CI job on merge to `main` later).
+- If the app 404s a column that exists in the dashboard, suspect an **env/DB mismatch** (app pointed at a different project than where you pushed), not a code bug.
+
 ## Commands
 
 ```
