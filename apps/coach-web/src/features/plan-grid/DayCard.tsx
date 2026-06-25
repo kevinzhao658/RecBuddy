@@ -1,5 +1,7 @@
 import type { Workout } from '../../lib/types'
 import { TypeIcon } from '../../components/ui/Icon'
+import { useUnit } from '../../lib/useUnit'
+import { fmtDist, fmtPace } from '../../lib/units'
 
 // Completion status is the ONLY thing that colors a card (lime=done, red=missed).
 // The current day is outlined by DATE (isToday), independent of status. Workout
@@ -17,6 +19,7 @@ export function DayCard({ workout, selected, isToday, onClick, onCopy, canPaste,
   workout: Workout | null; selected: boolean; isToday?: boolean; onClick: () => void; onCopy: () => void
   canPaste?: boolean; onPaste?: () => void; date?: string; dow?: string
 }) {
+  const { unit } = useUnit()
   // Selection wins (clear lime outline), then today's bright ring, then status.
   const ring = selected
     ? 'ring-2 ring-accent ring-offset-2 ring-offset-bg'
@@ -30,7 +33,7 @@ export function DayCard({ workout, selected, isToday, onClick, onCopy, canPaste,
             <div className="line-clamp-2 text-[14px] font-semibold leading-tight">{workout.title}</div>
             <TypeIcon type={workout.type} className="mt-0.5 shrink-0 text-text-mute" />
           </div>
-          {workout.dist != null && <div className="font-num text-xs text-text-mute">{workout.dist} mi · {workout.pace}</div>}
+          {workout.dist != null && <div className="font-num text-xs text-text-mute">{fmtDist(workout.dist, unit)} {unit} · {fmtPace(workout.pace, unit)}</div>}
           <div className="mt-auto flex items-center justify-between pt-2">
             <span className={`text-sm leading-none ${STATUS_DOT[workout.status]}`} aria-label={STATUS_LABEL[workout.status]}>
               {workout.status === 'done' ? '✓' : workout.status === 'missed' ? '✕' : ''}

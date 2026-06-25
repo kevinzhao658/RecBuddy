@@ -1,6 +1,8 @@
 import type { Message, RunCard, AdjustCard, WorkoutCard } from '../../lib/types'
 import { TypeIcon } from '../../components/ui/Icon'
 import { fmtShortDate } from '../../lib/week'
+import { useUnit } from '../../lib/useUnit'
+import { fmtDist, fmtPace } from '../../lib/units'
 
 function timeLabel(iso: string) {
   const d = new Date(iso)
@@ -9,6 +11,7 @@ function timeLabel(iso: string) {
 }
 
 function WorkoutCardView({ p, onOpen }: { p: WorkoutCard; onOpen?: () => void }) {
+  const { unit } = useUnit()
   return (
     <button onClick={onOpen} disabled={!onOpen}
       className="rb-card rb-card-sm flex w-full max-w-[85%] items-center gap-2 p-3 text-left transition enabled:hover:border-text-mute">
@@ -16,7 +19,7 @@ function WorkoutCardView({ p, onOpen }: { p: WorkoutCard; onOpen?: () => void })
       <div className="min-w-0 flex-1">
         <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-accent">Workout · {fmtShortDate(p.date)}</p>
         <p className="truncate font-semibold">{p.title}</p>
-        {p.dist != null && <p className="font-num text-xs text-text-mute">{p.dist} mi · {p.pace}</p>}
+        {p.dist != null && <p className="font-num text-xs text-text-mute">{fmtDist(p.dist, unit)} {unit} · {fmtPace(p.pace, unit)}</p>}
       </div>
       {onOpen && <span className="text-text-faint" aria-hidden>›</span>}
     </button>

@@ -2,10 +2,11 @@ import { Fragment } from 'react'
 import type { Workout, WorkoutStatus } from '../../lib/types'
 import { DOW, monthGridDates, monthOf } from '../../lib/week'
 import { TypeIcon } from '../../components/ui/Icon'
+import { useUnit } from '../../lib/useUnit'
+import { fmtDist } from '../../lib/units'
 
 const today = () => new Date().toISOString().slice(0, 10)
 const chunk = <T,>(arr: T[], n: number) => Array.from({ length: Math.ceil(arr.length / n) }, (_, i) => arr.slice(i * n, i * n + n))
-const mi = (n: number) => (n % 1 ? n.toFixed(1) : String(n))
 
 const STATUS: Record<WorkoutStatus, { label: string; cls: string }> = {
   done: { label: '✓ Done', cls: 'text-accent' },
@@ -18,6 +19,7 @@ const STATUS: Record<WorkoutStatus, { label: string; cls: string }> = {
 function DayCell({ date, w, inMonth, isToday, isSel, onPick }: {
   date: string; w: Workout | undefined; inMonth: boolean; isToday: boolean; isSel: boolean; onPick: (d: string) => void
 }) {
+  const { unit } = useUnit()
   const day = Number(date.slice(8, 10))
   const isRest = w?.type === 'rest' || w?.status === 'rest'
   // Today/selected get a ring; "Done" is shown by the lime status text only.
@@ -33,7 +35,7 @@ function DayCell({ date, w, inMonth, isToday, isSel, onPick }: {
         <span className="m-auto text-xs text-text-faint">Rest</span>
       ) : (
         <div className="mt-auto">
-          {w.dist != null && <div className="font-num text-sm text-text">{mi(w.dist)} <span className="text-xs text-text-faint">mi</span></div>}
+          {w.dist != null && <div className="font-num text-sm text-text">{fmtDist(w.dist, unit)} <span className="text-xs text-text-faint">{unit}</span></div>}
           <div className={`text-[11px] ${STATUS[w.status]?.cls ?? 'text-text-faint'}`}>{STATUS[w.status]?.label}</div>
         </div>
       ))}
@@ -42,6 +44,7 @@ function DayCell({ date, w, inMonth, isToday, isSel, onPick }: {
 }
 
 function WeekSummary({ days, isCurrent }: { days: (Workout | null)[]; isCurrent: boolean }) {
+  const { unit } = useUnit()
   const present = days.filter(Boolean) as Workout[]
   const scheduled = present.reduce((s, w) => s + (w.dist ?? 0), 0)
   const completed = present.filter((w) => w.status === 'done').reduce((s, w) => s + (w.dist ?? 0), 0)
@@ -52,9 +55,9 @@ function WeekSummary({ days, isCurrent }: { days: (Workout | null)[]; isCurrent:
     <div className="p-1.5">
       <div className={`rb-card-sm flex h-full flex-col justify-center gap-1.5 p-2.5 ${isCurrent ? 'ring-1 ring-text/30' : ''}`}>
         <div className="font-num text-sm">
-          <span className="font-bold text-text">{mi(completed)}</span>
-          <span className="text-text-faint"> / {mi(scheduled)} </span>
-          <span className="text-xs text-text-faint">mi</span>
+          <span className="font-bold text-text">{fmtDist(completed, unit)}</span>
+          <span className="text-text-faint"> / {fmtDist(scheduled, unit)} </span>
+          <span className="text-xs text-text-faint">{unit}</span>
         </div>
         <div className="h-1.5 overflow-hidden rounded-full bg-black/30">
           <div className="h-full rounded-full bg-accent" style={{ width: `${Math.min(100, pct)}%` }} />
