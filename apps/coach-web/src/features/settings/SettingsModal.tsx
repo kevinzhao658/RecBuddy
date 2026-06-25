@@ -19,6 +19,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   const [name, setName] = useState('')
   const [title, setTitle] = useState<CoachTitle>('Head Coach')
   const [email, setEmail] = useState('')
+  const [oldPassword, setOldPassword] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
@@ -27,7 +28,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   useEffect(() => {
     if (open && me.data) {
       setName(me.data.name); setTitle((me.data.title as CoachTitle) ?? 'Head Coach')
-      setEmail(me.data.email); setPassword(''); setMsg(null)
+      setEmail(me.data.email); setOldPassword(''); setPassword(''); setMsg(null)
     }
   }, [open, me.data])
 
@@ -47,12 +48,16 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   }
 
   const changePassword = async () => {
-    if (password.length < 6) return flash(false, 'Password must be at least 6 characters.')
+    if (!oldPassword) return flash(false, 'Enter your current password.')
+    if (password.length < 6) return flash(false, 'New password must be at least 6 characters.')
     setBusy(true)
+    // Verify the current password by re-authenticating before changing it.
+    const { error: vErr } = await supabase.auth.signInWithPassword({ email: me.data?.email ?? '', password: oldPassword })
+    if (vErr) { setBusy(false); return flash(false, 'Current password is incorrect.') }
     const { error } = await supabase.auth.updateUser({ password })
     setBusy(false)
     if (error) flash(false, error.message)
-    else { setPassword(''); flash(true, 'Password updated.') }
+    else { setOldPassword(''); setPassword(''); flash(true, 'Password updated.') }
   }
 
   return (
@@ -99,8 +104,9 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
         {/* Password */}
         <section>
           <p className={eyebrow}>Password</p>
+          <input aria-label="Current password" type="password" value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} placeholder="Current password" className={`${field} mb-2`} />
           <input aria-label="New password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="New password (min 6 chars)" className={field} />
-          <Button variant="ghost" onClick={changePassword} disabled={busy || !password} className="mt-2">Change password</Button>
+          <Button variant="ghost" onClick={changePassword} disabled={busy || !oldPassword || !password} className="mt-2">Change password</Button>
         </section>
 
         {msg && <p className={`text-sm ${msg.ok ? 'text-accent' : 'text-missed'}`}>{msg.text}</p>}
