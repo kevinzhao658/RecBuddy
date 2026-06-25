@@ -4,6 +4,7 @@ import { Modal } from '../../components/ui/Modal'
 import { Button } from '../../components/ui/Button'
 import { supabase } from '../../lib/supabase'
 import { useMe, useUpdateProfile } from '../../lib/queries/me'
+import { EyeIcon, EyeOffIcon } from '../../components/ui/FormIcons'
 import { useUnit } from '../../lib/useUnit'
 import type { CoachTitle } from '../../lib/types'
 
@@ -85,7 +86,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
 
   const eye = (
     <button type="button" aria-label="Toggle password visibility" onClick={() => setShowPw((s) => !s)}
-      className="absolute right-2 top-1/2 -translate-y-1/2 text-text-faint hover:text-text-mute">{showPw ? '🙈' : '👁'}</button>
+      className="absolute right-2 top-1/2 -translate-y-1/2 text-text-faint hover:text-text-mute">{showPw ? <EyeOffIcon /> : <EyeIcon />}</button>
   )
 
   return (

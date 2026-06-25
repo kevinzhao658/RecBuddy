@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { Button } from '../components/ui/Button'
 import { Wordmark } from '../components/ui/Wordmark'
 import { IconField } from '../components/ui/IconField'
-import { MailIcon, LockIcon, GoogleIcon } from '../components/ui/FormIcons'
+import { MailIcon, LockIcon, GoogleIcon, EyeIcon, EyeOffIcon } from '../components/ui/FormIcons'
 
 export default function LoginPage() {
   const nav = useNavigate()
@@ -52,7 +52,7 @@ export default function LoginPage() {
               value={email} onChange={(e) => setEmail(e.target.value)} />
             <IconField label="Password" type={show ? 'text' : 'password'} required icon={<LockIcon />}
               value={password} onChange={(e) => setPassword(e.target.value)}
-              trailing={<button type="button" aria-label="Toggle visibility" onClick={() => setShow((s) => !s)} className="text-text-faint hover:text-text-mute">{show ? '🙈' : '👁'}</button>} />
+              trailing={<button type="button" aria-label="Toggle visibility" onClick={() => setShow((s) => !s)} className="text-text-faint hover:text-text-mute">{show ? <EyeOffIcon /> : <EyeIcon />}</button>} />
             {err && <p className="text-sm text-missed">{err}</p>}
             <Button type="submit" disabled={busy} className="w-full">{busy ? 'Signing in…' : 'Log in'}</Button>
 
