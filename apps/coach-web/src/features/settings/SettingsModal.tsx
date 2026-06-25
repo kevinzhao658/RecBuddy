@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Modal } from '../../components/ui/Modal'
 import { Button } from '../../components/ui/Button'
 import { supabase } from '../../lib/supabase'
@@ -13,14 +14,19 @@ const eyebrow = 'mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-acc
 
 export function SettingsModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const me = useMe()
+  const qc = useQueryClient()
   const updateProfile = useUpdateProfile()
   const { unit, setUnit } = useUnit()
 
   const [name, setName] = useState('')
   const [title, setTitle] = useState<CoachTitle>('Head Coach')
   const [email, setEmail] = useState('')
+  const [emailStage, setEmailStage] = useState<'idle' | 'code'>('idle')
+  const [code, setCode] = useState('')
+  const [cooldown, setCooldown] = useState(0)
   const [oldPassword, setOldPassword] = useState('')
   const [password, setPassword] = useState('')
+  const [showPw, setShowPw] = useState(false)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
@@ -28,9 +34,17 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   useEffect(() => {
     if (open && me.data) {
       setName(me.data.name); setTitle((me.data.title as CoachTitle) ?? 'Head Coach')
-      setEmail(me.data.email); setOldPassword(''); setPassword(''); setMsg(null)
+      setEmail(me.data.email); setEmailStage('idle'); setCode(''); setCooldown(0)
+      setOldPassword(''); setPassword(''); setShowPw(false); setMsg(null)
     }
   }, [open, me.data])
+
+  // Resend cooldown tick.
+  useEffect(() => {
+    if (cooldown <= 0) return
+    const t = setTimeout(() => setCooldown((c) => c - 1), 1000)
+    return () => clearTimeout(t)
+  }, [cooldown])
 
   const flash = (ok: boolean, text: string) => setMsg({ ok, text })
 
@@ -40,18 +54,27 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
       onError: (e: any) => flash(false, e.message),
     })
 
-  const changeEmail = async () => {
+  // Email change via OTP code (no link / no leaving the modal).
+  const sendEmailCode = async () => {
     setBusy(true)
     const { error } = await supabase.auth.updateUser({ email: email.trim() })
     setBusy(false)
-    flash(!error, error ? error.message : `Confirmation sent to ${email.trim()} — click the link to finish.`)
+    if (error) return flash(false, error.message)
+    setEmailStage('code'); setCooldown(60); flash(true, `Code sent to ${email.trim()}.`)
+  }
+  const verifyEmailCode = async () => {
+    setBusy(true)
+    const { error } = await supabase.auth.verifyOtp({ email: email.trim(), token: code.trim(), type: 'email_change' })
+    if (!error && me.data) await supabase.from('profiles').update({ email: email.trim() }).eq('id', me.data.id)
+    setBusy(false)
+    if (error) return flash(false, error.message || 'Invalid or expired code.')
+    setEmailStage('idle'); setCode(''); qc.invalidateQueries({ queryKey: ['me'] }); flash(true, 'Email updated.')
   }
 
   const changePassword = async () => {
     if (!oldPassword) return flash(false, 'Enter your current password.')
     if (password.length < 6) return flash(false, 'New password must be at least 6 characters.')
     setBusy(true)
-    // Verify the current password by re-authenticating before changing it.
     const { error: vErr } = await supabase.auth.signInWithPassword({ email: me.data?.email ?? '', password: oldPassword })
     if (vErr) { setBusy(false); return flash(false, 'Current password is incorrect.') }
     const { error } = await supabase.auth.updateUser({ password })
@@ -59,6 +82,11 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
     if (error) flash(false, error.message)
     else { setOldPassword(''); setPassword(''); flash(true, 'Password updated.') }
   }
+
+  const eye = (
+    <button type="button" aria-label="Toggle password visibility" onClick={() => setShowPw((s) => !s)}
+      className="absolute right-2 top-1/2 -translate-y-1/2 text-text-faint hover:text-text-mute">{showPw ? '🙈' : '👁'}</button>
+  )
 
   return (
     <Modal open={open} onClose={onClose}>
@@ -96,16 +124,41 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
         {/* Email */}
         <section>
           <p className={eyebrow}>Email</p>
-          <input aria-label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={field} />
-          <Button variant="ghost" onClick={changeEmail} disabled={busy || !email.trim() || email.trim() === me.data?.email} className="mt-2">Change email</Button>
-          <p className="mt-1 text-xs text-text-faint">We’ll email a confirmation link to the new address.</p>
+          {emailStage === 'idle' ? (
+            <>
+              <input aria-label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={field} />
+              <Button variant="ghost" onClick={sendEmailCode} disabled={busy || !email.trim() || email.trim() === me.data?.email} className="mt-2">Send code</Button>
+              <p className="mt-1 text-xs text-text-faint">We’ll email a 6-digit code to the new address.</p>
+            </>
+          ) : (
+            <>
+              <p className="mb-2 text-xs text-text-faint">Enter the code sent to <span className="text-text">{email.trim()}</span>.</p>
+              <input aria-label="Email code" inputMode="numeric" value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="6-digit code" className={`${field} font-num tracking-[0.3em]`} />
+              <div className="mt-2 flex items-center gap-3">
+                <Button variant="ghost" onClick={verifyEmailCode} disabled={busy || code.length < 6}>Verify & update</Button>
+                <button type="button" onClick={sendEmailCode} disabled={cooldown > 0 || busy}
+                  className="text-xs font-semibold text-accent disabled:text-text-faint disabled:hover:brightness-100">
+                  {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend code'}
+                </button>
+                <button type="button" onClick={() => { setEmailStage('idle'); setCode('') }} className="ml-auto text-xs text-text-faint hover:text-text">Cancel</button>
+              </div>
+            </>
+          )}
         </section>
 
         {/* Password */}
         <section>
           <p className={eyebrow}>Password</p>
-          <input aria-label="Current password" type="password" value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} placeholder="Current password" className={`${field} mb-2`} />
-          <input aria-label="New password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="New password (min 6 chars)" className={field} />
+          <div className="relative mb-2">
+            <input aria-label="Current password" type={showPw ? 'text' : 'password'} value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} placeholder="Current password" className={`${field} pr-10`} />
+            {eye}
+          </div>
+          <div className="relative">
+            <input aria-label="New password" type={showPw ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="New password (min 6 chars)" className={`${field} pr-10`} />
+            {eye}
+          </div>
           <Button variant="ghost" onClick={changePassword} disabled={busy || !oldPassword || !password} className="mt-2">Change password</Button>
         </section>
 
