@@ -53,7 +53,7 @@ Apply these on **each** project (dev and prod) — they're per-project. Authenti
 - **Email template → "Change Email Address"** must include the code token, e.g. `Your email change code is {{ .Token }}`. The default template sends a `{{ .ConfirmationURL }}` link instead of a code; without `{{ .Token }}` the modal has no code to verify.
 
 **Password protection** (Authentication → Sign In / Providers → Email):
-- **Prevent use of leaked passwords → ON.** Checks new passwords against HaveIBeenPwned (k-anonymity) and rejects breached ones. No code change — our signup/settings already surface the rejection message.
+- **Prevent use of leaked passwords** — **Pro-plan only**, so **keep OFF for now**. (When on Pro: turn it ON — it checks new passwords against HaveIBeenPwned via k-anonymity and rejects breached ones; no code change, our UI already surfaces the rejection.)
 - **Secure password change / "Require current password when updating"** — optional, server-side enforcement. The Settings modal already verifies the current password client-side (re-auth before `updateUser`). If you enable the toggle, **smoke-test the change-password flow**: it relies on the fresh re-auth counting as recent; if `updateUser` errors with "reauthentication required", switch the modal to the official `supabase.auth.reauthenticate()` → nonce flow (an emailed code) instead of the current-password field.
 
 ## 4. Pre-prod hardening checklist
@@ -64,7 +64,8 @@ Apply these on **each** project (dev and prod) — they're per-project. Authenti
 - [ ] Vercel prod env vars point at prod Supabase
 - [ ] Auth Site URL / redirect URLs set for the prod domain
 - [ ] Secure email change OFF + "Change Email Address" template includes `{{ .Token }}` (in-app code flow)
-- [ ] Prevent use of leaked passwords ON; change-password flow smoke-tested if "secure password change" is on
+- [ ] Prevent use of leaked passwords ON — **deferred (Pro plan only)**; enable when upgraded
+- [ ] Change-password flow smoke-tested if "secure password change" is on
 
 ## CI workflows
 
