@@ -129,14 +129,14 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
             <>
               <input aria-label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={field} />
               <Button variant="ghost" onClick={sendEmailCode} disabled={busy || !email.trim() || email.trim() === me.data?.email} className="mt-2">Send code</Button>
-              <p className="mt-1 text-xs text-text-faint">We’ll email a verification code to the new address.</p>
+              <p className="mt-1 text-xs text-text-faint">We’ll email a 6-digit code to the new address.</p>
             </>
           ) : (
             <>
               <p className="mb-2 text-xs text-text-faint">Enter the code sent to <span className="text-text">{email.trim()}</span>.</p>
               <input aria-label="Email code" inputMode="numeric" value={code}
-                onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                placeholder="Verification code" className={`${field} font-num tracking-[0.3em]`} />
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="6-digit code" className={`${field} font-num tracking-[0.3em]`} />
               <div className="mt-2 flex items-center gap-3">
                 <Button variant="ghost" onClick={verifyEmailCode} disabled={busy || code.length < 6}>Verify & update</Button>
                 <button type="button" onClick={sendEmailCode} disabled={cooldown > 0 || busy}
