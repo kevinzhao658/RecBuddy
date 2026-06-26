@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { Button } from '../components/ui/Button'
 import { Wordmark } from '../components/ui/Wordmark'
 import { IconField } from '../components/ui/IconField'
+import { Turnstile } from '../components/ui/Turnstile'
 import { UserIcon, MailIcon, LockIcon, EyeIcon, EyeOffIcon } from '../components/ui/FormIcons'
 import type { CoachTitle } from '../lib/types'
 
@@ -17,6 +18,7 @@ export default function SignupPage() {
   const [err, setErr] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [sent, setSent] = useState(false)
+  const [captcha, setCaptcha] = useState('')
 
   async function submit(e: React.FormEvent) {
     e.preventDefault(); setErr(null); setBusy(true)
@@ -24,7 +26,7 @@ export default function SignupPage() {
       const res = await fetch(FN, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', apikey: import.meta.env.VITE_SUPABASE_ANON_KEY },
-        body: JSON.stringify({ ...form, title }),
+        body: JSON.stringify({ ...form, title, captchaToken: captcha }),
       })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
@@ -107,8 +109,10 @@ export default function SignupPage() {
                 </div>
               </div>
 
+              <Turnstile onToken={setCaptcha} />
+
               {err && <p className="text-sm text-missed">{err}</p>}
-              <Button type="submit" disabled={busy} className="w-full">{busy ? 'Creating…' : 'Create account'}</Button>
+              <Button type="submit" disabled={busy || !captcha} className="w-full">{busy ? 'Creating…' : 'Create account'}</Button>
               <p className="text-center text-xs leading-relaxed text-text-faint">
                 By creating an account you agree to RecBuddy’s Terms of Service and Privacy Policy.
               </p>

@@ -6,13 +6,29 @@ const cors = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 const TITLES = ['Head Coach', 'Assistant Coach', 'Strength Coach', 'Physio']
+// Defaults to Cloudflare's public TEST secret (always passes) so signup works
+// with no setup; set TURNSTILE_SECRET_KEY to the real secret to enforce in prod.
+const TURNSTILE_SECRET = Deno.env.get('TURNSTILE_SECRET_KEY') || '1x0000000000000000000000000000000AA'
+
+async function captchaOk(token: string): Promise<boolean> {
+  const form = new FormData()
+  form.append('secret', TURNSTILE_SECRET)
+  form.append('response', token ?? '')
+  const r = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', { method: 'POST', body: form })
+  const out = await r.json().catch(() => ({ success: false }))
+  return !!out.success
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   try {
-    const { name, email, password, title } = await req.json()
+    const { name, email, password, title, captchaToken } = await req.json()
     if (!name || !email || !password || !TITLES.includes(title)) {
       return json({ error: 'name, email, password, and a valid title are required' }, 400)
+    }
+    // Verify the human-check before doing any privileged work.
+    if (!(await captchaOk(captchaToken))) {
+      return json({ error: 'Captcha verification failed — please try again.' }, 400)
     }
     const admin = createClient(
       Deno.env.get('SUPABASE_URL')!,

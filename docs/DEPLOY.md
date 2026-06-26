@@ -56,10 +56,24 @@ Apply these on **each** project (dev and prod) — they're per-project. Authenti
 - **Prevent use of leaked passwords** — **Pro-plan only**, so **keep OFF for now**. (When on Pro: turn it ON — it checks new passwords against HaveIBeenPwned via k-anonymity and rejects breached ones; no code change, our UI already surfaces the rejection.)
 - **Secure password change / "Require current password when updating"** — optional, server-side enforcement. The Settings modal already verifies the current password client-side (re-auth before `updateUser`). If you enable the toggle, **smoke-test the change-password flow**: it relies on the fresh re-auth counting as recent; if `updateUser` errors with "reauthentication required", switch the modal to the official `supabase.auth.reauthenticate()` → nonce flow (an emailed code) instead of the current-password field.
 
-## 4. Pre-prod hardening checklist
+## 4. Signup captcha (Cloudflare Turnstile)
+
+Coach signup is protected by Turnstile. It ships with Cloudflare's public **test
+keys** (always pass) so dev works with no setup; for prod, use real keys from a
+(free) Cloudflare account → **Turnstile → Add site** (add your Vercel domain):
+
+- **Site key** (public) → frontend: set `VITE_TURNSTILE_SITE_KEY` in Vercel (prod)
+  / `.env.local` (dev).
+- **Secret key** (private) → edge function: `supabase secrets set TURNSTILE_SECRET_KEY=<secret>`
+  (run linked to each project — dev and prod separately; it's a per-project secret).
+
+Without real keys the widget still renders and the function still verifies, but
+against the always-pass test keys (no real protection) — so set real keys before launch.
+
+## 5. Pre-prod hardening checklist
 
 - [ ] Custom SMTP configured (above)
-- [ ] Abuse protection on `coach-signup` (captcha/app-check) — see TODO in `supabase/config.toml`
+- [ ] Real Turnstile keys set (`VITE_TURNSTILE_SITE_KEY` in Vercel + `TURNSTILE_SECRET_KEY` via `supabase secrets set` on prod) — defaults are always-pass test keys
 - [ ] GitHub secrets set; first prod deploy CI run green
 - [ ] Vercel prod env vars point at prod Supabase
 - [ ] Auth Site URL / redirect URLs set for the prod domain
