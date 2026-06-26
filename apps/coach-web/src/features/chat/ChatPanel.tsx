@@ -52,17 +52,24 @@ export function ChatPanel({ athleteId, athleteName, onClose, onOpenDay }: {
           <button aria-label="Close chat" onClick={onClose} className="text-text-faint hover:text-text">✕</button>
         </header>
 
-        <div ref={scrollRef} className="flex flex-1 flex-col gap-3 overflow-y-auto p-4">
+        <div ref={scrollRef} className="flex flex-1 flex-col overflow-y-auto p-4">
           {messagesQ.isLoading && <p className="text-sm text-text-faint">Loading…</p>}
           {!messagesQ.isLoading && messages.length === 0 && (
             <p className="m-auto max-w-[80%] text-center text-sm text-text-faint">No messages yet. Say hello to {athleteName.split(' ')[0]}.</p>
           )}
-          {messages.map((m, i) => (
-            <MessageItem key={m.id} m={m} mine={m.from_user_id === meId}
-              sender={senders[m.from_user_id] ?? { name: 'Coach', initials: '·' }}
-              showSender={i === 0 || messages[i - 1].from_user_id !== m.from_user_id}
-              onOpenWorkout={onOpenDay} />
-          ))}
+          {messages.map((m, i) => {
+            const prev = messages[i - 1]
+            const next = messages[i + 1]
+            const grouped = !!prev && prev.from_user_id === m.from_user_id // same sender → tight stack
+            // Show the timestamp only at the end of a same-sender, same-minute run.
+            const showTime = !next || next.from_user_id !== m.from_user_id || next.created_at.slice(0, 16) !== m.created_at.slice(0, 16)
+            return (
+              <MessageItem key={m.id} m={m} mine={m.from_user_id === meId}
+                sender={senders[m.from_user_id] ?? { name: 'Coach', initials: '·' }}
+                showSender={!grouped} grouped={grouped} showTime={showTime}
+                onOpenWorkout={onOpenDay} />
+            )
+          })}
         </div>
 
         <div className="flex items-end gap-2 border-t border-line p-3">

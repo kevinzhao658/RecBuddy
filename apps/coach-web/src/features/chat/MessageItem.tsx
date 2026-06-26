@@ -57,12 +57,12 @@ function AdjustCardView({ p }: { p: AdjustCard }) {
 /** One message row. `mine` = sent by the signed-in coach (right-aligned, lime).
  *  `sender` + `showSender` render an avatar + name above the message (so co-coaches
  *  and the athlete are distinguishable). `onOpenWorkout` makes workout cards clickable. */
-export function MessageItem({ m, mine, sender, showSender, onOpenWorkout }: {
-  m: Message; mine: boolean; sender?: Sender; showSender?: boolean; onOpenWorkout?: (date: string) => void
+export function MessageItem({ m, mine, sender, showSender, grouped, showTime = true, onOpenWorkout }: {
+  m: Message; mine: boolean; sender?: Sender; showSender?: boolean; grouped?: boolean; showTime?: boolean; onOpenWorkout?: (date: string) => void
 }) {
   const align = mine ? 'items-end' : 'items-start'
   return (
-    <div className={`flex flex-col gap-0.5 ${align}`}>
+    <div className={`flex flex-col gap-0.5 ${align} ${grouped ? 'mt-0.5' : 'mt-3'}`}>
       {showSender && sender && (
         <div className={`mb-0.5 flex items-center gap-1.5 px-0.5 ${mine ? 'flex-row-reverse' : ''}`}>
           <Avatar initials={sender.initials} size="sm" />
@@ -78,7 +78,7 @@ export function MessageItem({ m, mine, sender, showSender, onOpenWorkout }: {
       ) : (
         <AdjustCardView p={m.payload as AdjustCard} />
       )}
-      <span className="px-1 text-[10px] text-text-faint">{timeLabel(m.created_at)}</span>
+      {showTime && <span className="px-1 text-[10px] text-text-faint">{timeLabel(m.created_at)}</span>}
     </div>
   )
 }
