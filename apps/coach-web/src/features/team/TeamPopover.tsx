@@ -21,7 +21,7 @@ export function TeamPopover({ athleteId, isHead }: { athleteId: string; isHead: 
   return (
     <div className="relative">
       <div className="flex items-center -space-x-2">
-        {members.map((m) => <Avatar key={m.coach_id} initials={m.coach?.initials ?? '?'} className="ring-1 ring-line" />)}
+        {members.map((m) => <Avatar key={m.coach_id} initials={m.coach?.initials ?? '?'} url={m.coach?.avatar_url} className="ring-1 ring-line" />)}
         {isHead && <button aria-label="Manage coaching team" onClick={() => setOpen((o) => !o)}
           className="ml-3 grid h-9 w-9 place-items-center rounded-full border border-dashed border-line text-text-mute hover:border-text-mute hover:text-text">+</button>}
       </div>
@@ -30,7 +30,7 @@ export function TeamPopover({ athleteId, isHead }: { athleteId: string; isHead: 
           <div className="mb-2 font-display text-[11px] font-bold uppercase tracking-[0.18em] text-text-mute">Coaching team</div>
           {members.map((m) => (
             <div key={m.coach_id} className="flex items-center gap-2 py-1">
-              <Avatar initials={m.coach?.initials ?? '?'} />
+              <Avatar initials={m.coach?.initials ?? '?'} url={m.coach?.avatar_url} />
               <span className="flex-1 text-sm">{m.coach?.name ?? 'Coach'}<span className="block text-xs text-text-mute">{m.relationship}</span></span>
               {m.relationship === 'assistant' && <button aria-label={`Remove ${m.coach?.name ?? 'coach'}`} onClick={() => remove.mutate(m.coach_id)} className="text-text-faint hover:text-text">✕</button>}
             </div>
@@ -40,7 +40,7 @@ export function TeamPopover({ athleteId, isHead }: { athleteId: string; isHead: 
           {results.filter((r) => !members.some((m) => m.coach_id === r.id)).map((r) => (
             <button key={r.id} onClick={() => { add.mutate(r.id); setQ(''); setResults([]) }}
               className="flex w-full items-center gap-2 py-1 text-left text-sm hover:text-accent">
-              <Avatar initials={r.initials} /> <span className="flex-1">{r.name}<span className="block text-xs text-text-mute">{r.title}</span></span> +
+              <Avatar initials={r.initials} url={r.avatar_url} /> <span className="flex-1">{r.name}<span className="block text-xs text-text-mute">{r.title}</span></span> +
             </button>
           ))}
         </div>

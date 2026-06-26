@@ -5,7 +5,7 @@ import { fmtShortDate } from '../../lib/week'
 import { useUnit } from '../../lib/useUnit'
 import { fmtDist, fmtPace } from '../../lib/units'
 
-export type Sender = { name: string; initials: string }
+export type Sender = { name: string; initials: string; avatarUrl?: string | null }
 
 function WorkoutCardView({ p, onOpen }: { p: WorkoutCard; onOpen?: () => void }) {
   const { unit } = useUnit()
@@ -73,7 +73,7 @@ export function MessageItem({ m, mine, sender, showName, showAvatar, grouped, on
   }
   return (
     <div className={`flex items-end gap-2 ${grouped ? 'mt-0.5' : 'mt-3'}`}>
-      <div className="w-5 shrink-0">{showAvatar && sender && <Avatar initials={sender.initials} size="sm" />}</div>
+      <div className="w-5 shrink-0">{showAvatar && sender && <Avatar initials={sender.initials} url={sender.avatarUrl} size="sm" />}</div>
       <div className="flex min-w-0 flex-col items-start">
         {showName && sender && <span className="mb-0.5 px-0.5 text-[11px] font-semibold text-text-mute">{sender.name}</span>}
         {body}

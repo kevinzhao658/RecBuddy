@@ -40,7 +40,7 @@ export function ChatPanel({ athleteId, athleteName, onClose, onOpenDay }: {
 
   // Resolve each from_user_id → name/initials: every coach on the team + the athlete.
   const senders: Record<string, Sender> = { [athleteId]: { name: athleteName, initials: initialsOf(athleteName) } }
-  for (const m of team.data ?? []) senders[m.coach_id] = { name: m.coach.name, initials: m.coach.initials }
+  for (const m of team.data ?? []) senders[m.coach_id] = { name: m.coach.name, initials: m.coach.initials, avatarUrl: m.coach.avatar_url }
 
   // Mark the athlete's unread messages read once the thread opens.
   useEffect(() => { if (threadId) markRead.mutate(meId) }, [threadId]) // eslint-disable-line react-hooks/exhaustive-deps
