@@ -89,7 +89,7 @@ export function RosterSidebar({ selectedId, onSelect }: { selectedId: string | n
       {/* Coach profile + preview */}
       <div className="border-t border-line p-3">
         <div className="relative flex items-center gap-3 rounded-[14px] px-2 py-2">
-          <Avatar initials={me.data?.initials ?? '·'} />
+          <Avatar initials={me.data?.initials ?? '·'} url={me.data?.avatar_url} />
           <span className="min-w-0 flex-1">
             <span className="block truncate font-semibold text-text">{me.data?.name ?? 'Coach'}</span>
             <span className="block truncate text-xs text-text-mute">{me.data?.title ?? ''}</span>

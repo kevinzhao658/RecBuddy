@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Modal } from '../../components/ui/Modal'
 import { Button } from '../../components/ui/Button'
+import { Avatar } from '../../components/ui/Avatar'
 import { supabase } from '../../lib/supabase'
-import { useMe, useUpdateProfile } from '../../lib/queries/me'
+import { useMe, useUpdateProfile, useUploadAvatar } from '../../lib/queries/me'
 import { EyeIcon, EyeOffIcon } from '../../components/ui/FormIcons'
 import { useUnit } from '../../lib/useUnit'
 import type { CoachTitle } from '../../lib/types'
@@ -17,6 +18,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   const me = useMe()
   const qc = useQueryClient()
   const updateProfile = useUpdateProfile()
+  const uploadAvatar = useUploadAvatar()
   const { unit, setUnit } = useUnit()
 
   const [name, setName] = useState('')
@@ -53,6 +55,24 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
     updateProfile.mutate({ name: name.trim(), title }, {
       onSuccess: () => flash(true, 'Profile updated.'),
       onError: (e: any) => flash(false, e.message),
+    })
+
+  // Profile photo: validate, upload to storage, persist its URL on the profile.
+  const onPickPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = '' // let the same file be re-picked after an error
+    if (!file) return
+    if (!file.type.startsWith('image/')) return flash(false, 'Please choose an image file.')
+    if (file.size > 5 * 1024 * 1024) return flash(false, 'Image must be under 5 MB.')
+    uploadAvatar.mutate(file, {
+      onSuccess: () => flash(true, 'Photo updated.'),
+      onError: (err: any) => flash(false, err.message),
+    })
+  }
+  const removePhoto = () =>
+    updateProfile.mutate({ avatar_url: null }, {
+      onSuccess: () => flash(true, 'Photo removed.'),
+      onError: (err: any) => flash(false, err.message),
     })
 
   // Email change via OTP code (no link / no leaving the modal).
@@ -93,6 +113,25 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
     <Modal open={open} onClose={onClose}>
       <h3 className="mb-4 font-display text-xl font-bold">Settings</h3>
       <div className="flex max-h-[70vh] flex-col gap-5 overflow-y-auto pr-1">
+        {/* Photo */}
+        <section>
+          <p className={eyebrow}>Photo</p>
+          <div className="flex items-center gap-4">
+            <Avatar initials={me.data?.initials ?? '·'} url={me.data?.avatar_url} size="lg" />
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="cursor-pointer rounded-[10px] border border-line bg-surface2 px-3 py-1.5 text-sm font-semibold text-text-mute transition hover:border-text-mute hover:text-text">
+                {uploadAvatar.isPending ? 'Uploading…' : me.data?.avatar_url ? 'Change photo' : 'Upload photo'}
+                <input type="file" accept="image/*" aria-label="Upload photo" className="hidden" onChange={onPickPhoto} disabled={uploadAvatar.isPending} />
+              </label>
+              {me.data?.avatar_url && (
+                <button type="button" onClick={removePhoto} disabled={updateProfile.isPending}
+                  className="text-sm font-semibold text-text-faint transition hover:text-missed">Remove</button>
+              )}
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-text-faint">JPG, PNG, or GIF, up to 5 MB.</p>
+        </section>
+
         {/* Profile */}
         <section>
           <p className={eyebrow}>Profile</p>
