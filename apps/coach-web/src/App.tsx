@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import LoginPage from './routes/LoginPage'
 import SignupPage from './routes/SignupPage'
+import ResetPasswordPage from './routes/ResetPasswordPage'
 import CoachPage from './routes/CoachPage'
 import { RequireCoach, RedirectIfCoach } from './auth/RequireCoach'
 
@@ -9,6 +10,7 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<RedirectIfCoach><LoginPage /></RedirectIfCoach>} />
       <Route path="/signup" element={<RedirectIfCoach><SignupPage /></RedirectIfCoach>} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/coach" element={<RequireCoach><CoachPage /></RequireCoach>} />
       <Route path="*" element={<Navigate to="/coach" replace />} />
     </Routes>
