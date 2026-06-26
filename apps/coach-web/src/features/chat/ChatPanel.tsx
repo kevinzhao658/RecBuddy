@@ -7,9 +7,9 @@ import { MessageItem, type Sender } from './MessageItem'
 const initialsOf = (name: string) =>
   name.split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '·'
 
-// A new "session" header is shown when the chat went quiet for over an hour
+// A new "session" header is shown when the chat went quiet for over two hours
 // (or it's a new day) — otherwise messages flow without timestamps.
-const SESSION_GAP_MS = 60 * 60 * 1000
+const SESSION_GAP_MS = 2 * 60 * 60 * 1000
 const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString()
 function sessionLabel(iso: string): string {
   const d = new Date(iso)
