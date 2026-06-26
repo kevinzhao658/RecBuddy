@@ -6,6 +6,7 @@ export type CoachTitle = 'Head Coach' | 'Assistant Coach' | 'Strength Coach' | '
 export interface Profile {
   id: string; role: Role; name: string; email: string; initials: string
   experience_level: string | null; primary_goal: string | null; title: CoachTitle | null
+  avatar_url: string | null
 }
 export interface Plan {
   id: string; athlete_id: string; goal_race: string | null; goal_date: string | null

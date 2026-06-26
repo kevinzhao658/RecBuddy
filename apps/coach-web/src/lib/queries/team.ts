@@ -3,8 +3,8 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabase } from '../supabase'
 import type { CoachTitle } from '../types'
 
-export interface CoachHit { id: string; name: string; title: CoachTitle; initials: string }
-export interface TeamMember { coach_id: string; relationship: 'head' | 'assistant'; coach: { name: string; title: CoachTitle; initials: string } }
+export interface CoachHit { id: string; name: string; title: CoachTitle; initials: string; avatar_url: string | null }
+export interface TeamMember { coach_id: string; relationship: 'head' | 'assistant'; coach: { name: string; title: CoachTitle; initials: string; avatar_url: string | null } }
 
 export async function searchCoaches(client: SupabaseClient, query: string): Promise<CoachHit[]> {
   const { data, error } = await client.rpc('search_coaches', { p_query: query }); if (error) throw error; return data as CoachHit[]
@@ -17,7 +17,7 @@ export async function fetchTeam(client: SupabaseClient, athleteId: string): Prom
   return (data as any[]).map((r) => ({
     coach_id: r.coach_id,
     relationship: r.relationship,
-    coach: { name: r.name, title: r.title, initials: r.initials },
+    coach: { name: r.name, title: r.title, initials: r.initials, avatar_url: r.avatar_url ?? null },
   }))
 }
 export async function addAssistant(client: SupabaseClient, { coachId, athleteId }: { coachId: string; athleteId: string }) {

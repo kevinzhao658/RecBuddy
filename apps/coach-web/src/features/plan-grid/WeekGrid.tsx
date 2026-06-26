@@ -1,9 +1,7 @@
 import { useDraggable, useDroppable } from '@dnd-kit/core'
 import type { Workout } from '../../lib/types'
 import { DayCard } from './DayCard'
-import { DOW, weekDates, fmtShortDate } from '../../lib/week'
-
-const today = () => new Date().toISOString().slice(0, 10)
+import { DOW, weekDates, fmtShortDate, todayISO } from '../../lib/week'
 
 function DayCell({ date, dow, workout, selected, onSelectDate, onCopy, canPaste, onPaste }: {
   date: string; dow: string; workout: Workout | null; selected: boolean
@@ -11,7 +9,7 @@ function DayCell({ date, dow, workout, selected, onSelectDate, onCopy, canPaste,
 }) {
   const drop = useDroppable({ id: date })
   const drag = useDraggable({ id: date, disabled: !workout })
-  const isToday = date === today()
+  const isToday = date === todayISO()
   return (
     <div className="flex flex-col">
       {/* Fixed-height, single-line header so every card starts at the same Y */}

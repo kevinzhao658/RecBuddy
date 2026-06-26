@@ -5,7 +5,7 @@ import { Button } from '../components/ui/Button'
 import { Wordmark } from '../components/ui/Wordmark'
 import { IconField } from '../components/ui/IconField'
 import { Turnstile } from '../components/ui/Turnstile'
-import { UserIcon, MailIcon, LockIcon } from '../components/ui/FormIcons'
+import { UserIcon, MailIcon, LockIcon, EyeIcon, EyeOffIcon } from '../components/ui/FormIcons'
 import type { CoachTitle } from '../lib/types'
 
 const TITLES: CoachTitle[] = ['Head Coach', 'Assistant Coach', 'Strength Coach', 'Physio']
@@ -97,7 +97,7 @@ export default function SignupPage() {
                 value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
               <IconField label="Password" type={show ? 'text' : 'password'} icon={<LockIcon />} placeholder="At least 6 characters" required
                 value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })}
-                trailing={<button type="button" aria-label="Toggle visibility" onClick={() => setShow((s) => !s)} className="text-text-faint hover:text-text-mute">{show ? '🙈' : '👁'}</button>} />
+                trailing={<button type="button" aria-label="Toggle visibility" onClick={() => setShow((s) => !s)} className="text-text-faint hover:text-text-mute">{show ? <EyeOffIcon /> : <EyeIcon />}</button>} />
 
               <div className="flex flex-col gap-1.5">
                 <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-text-mute">Coaching title</span>

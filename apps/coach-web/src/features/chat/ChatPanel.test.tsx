@@ -2,6 +2,7 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query'
 import { ChatPanel } from './ChatPanel'
 import * as chat from '../../lib/queries/chat'
+import * as teamMod from '../../lib/queries/team'
 import * as authMod from '../../auth/AuthProvider'
 
 function setup() {
@@ -16,6 +17,7 @@ function setup() {
   vi.spyOn(chat, 'useSendMessage').mockReturnValue(send as any)
   vi.spyOn(chat, 'useMarkThreadRead').mockReturnValue(markRead as any)
   vi.spyOn(chat, 'useRealtimeThread').mockReturnValue(undefined as any)
+  vi.spyOn(teamMod, 'useTeam').mockReturnValue({ data: [{ coach_id: 'coach1', relationship: 'head', coach: { name: 'Mara Whitlock', title: 'Head Coach', initials: 'MW' } }] } as any)
   return { send, markRead }
 }
 

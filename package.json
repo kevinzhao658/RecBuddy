@@ -13,6 +13,7 @@
     "migrate:new": "supabase migration new",
     "seed": "tsx supabase/scripts/seed.ts",
     "seed:cloud": "dotenv -e .env.cloud -- tsx supabase/scripts/seed.ts",
+    "set-email": "dotenv -e .env.cloud -- tsx supabase/scripts/set-email.ts",
     "dev:coach": "npm --prefix apps/coach-web run dev",
     "test": "vitest run"
   },

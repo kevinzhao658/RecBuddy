@@ -23,10 +23,8 @@ import { useShareWorkout, useShareAdjust, useUnreadCounts, useUnreadRealtime } f
 import { UnreadBadge } from '../components/ui/UnreadBadge'
 import { useClipboard } from '../features/plan-grid/useClipboard'
 import { useRealtimePlan } from '../lib/useRealtimePlan'
-import { mondayOf, addDays, fmtShortDate, firstOfMonth, addMonths, fmtMonthYear } from '../lib/week'
+import { mondayOf, addDays, fmtShortDate, firstOfMonth, addMonths, fmtMonthYear, todayISO } from '../lib/week'
 import { useAuth } from '../auth/AuthProvider'
-
-const todayISO = () => new Date().toISOString().slice(0, 10)
 
 /** Short one-line summary of a workout for chat adjust cards (from → to). */
 const wSummary = (w: { title: string; dist: number | null; pace: string | null }) =>

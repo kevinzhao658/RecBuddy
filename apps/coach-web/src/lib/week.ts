@@ -32,6 +32,13 @@ export function monthGridDates(anchor: string): string[] {
   return Array.from({ length: span }, (_, i) => addDays(start, i))
 }
 
+/** Today's calendar date 'YYYY-MM-DD' in the user's LOCAL timezone (so the
+ *  "today" highlight matches what the user sees, not the UTC date). */
+export function todayISO(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 export function monthOf(iso: string): number { return new Date(iso + 'T00:00:00Z').getUTCMonth() }
 /** '2026-06-21' -> 'June 2026'. */
 export function fmtMonthYear(iso: string): string {

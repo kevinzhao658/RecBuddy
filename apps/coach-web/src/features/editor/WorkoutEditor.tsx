@@ -6,6 +6,8 @@ import { Button } from '../../components/ui/Button'
 import { TypeIcon } from '../../components/ui/Icon'
 import { PaceField } from '../../components/ui/PaceField'
 import { NumberField } from '../../components/ui/NumberField'
+import { useUnit } from '../../lib/useUnit'
+import { fromMiles, toMiles } from '../../lib/units'
 import type { WorkoutDraft } from '../../lib/queries/plan'
 
 const TYPES: WorkoutType[] = ['easy', 'long', 'speed', 'tempo', 'recovery', 'cross', 'rest']
@@ -32,6 +34,7 @@ export function WorkoutEditor({ date, workout, onSave, onClear, onShare }: {
     est_minutes: workout?.est_minutes ?? null, dur: workout?.dur ?? null,
     note: workout?.note ?? '', sets: workout?.sets ?? [],
   }))
+  const { unit } = useUnit()
   const set = (patch: Partial<WorkoutDraft>) => setD({ ...d, ...patch })
   // Has the coach edited the saved workout? Drives the share button's emphasis.
   const changed = !!workout && (
@@ -79,12 +82,14 @@ export function WorkoutEditor({ date, workout, onSave, onClear, onShare }: {
 
         <div className="flex gap-2">
           <div className="flex-1">
-            <span className={labelEyebrow}>Distance (mi)</span>
-            <NumberField value={d.dist} onChange={(v) => set({ dist: v })} step={0.5} ariaLabel="Distance" />
+            <span className={labelEyebrow}>Distance ({unit})</span>
+            <NumberField ariaLabel="Distance" step={0.5}
+              value={d.dist != null ? Math.round(fromMiles(d.dist, unit) * 10) / 10 : null}
+              onChange={(v) => set({ dist: v != null ? Math.round(toMiles(v, unit) * 100) / 100 : null })} />
           </div>
           <div className="flex-1">
             <span className={labelEyebrow}>Pace</span>
-            <PaceField value={d.pace} onChange={(v) => set({ pace: v })} />
+            <PaceField value={d.pace} onChange={(v) => set({ pace: v })} unit={unit} />
           </div>
         </div>
 
