@@ -7,9 +7,11 @@ import { fmtDist } from '../../lib/units'
 
 const chunk = <T,>(arr: T[], n: number) => Array.from({ length: Math.ceil(arr.length / n) }, (_, i) => arr.slice(i * n, i * n + n))
 
+// 'today' isn't a meaningful persisted status (today is date-driven, shown by the
+// ring) — render it as Planned, matching DayCard.
 const STATUS: Record<WorkoutStatus, { label: string; cls: string }> = {
   done: { label: '✓ Done', cls: 'text-accent' },
-  today: { label: '● Today', cls: 'text-text' },
+  today: { label: '● Planned', cls: 'text-text-faint' },
   planned: { label: '● Planned', cls: 'text-text-faint' },
   missed: { label: '● Missed', cls: 'text-missed' },
   rest: { label: 'Rest', cls: 'text-text-faint' },

@@ -1,8 +1,11 @@
 import type { Message, RunCard, AdjustCard, WorkoutCard } from '../../lib/types'
 import { TypeIcon } from '../../components/ui/Icon'
+import { Avatar } from '../../components/ui/Avatar'
 import { fmtShortDate } from '../../lib/week'
 import { useUnit } from '../../lib/useUnit'
 import { fmtDist, fmtPace } from '../../lib/units'
+
+export type Sender = { name: string; initials: string }
 
 function timeLabel(iso: string) {
   const d = new Date(iso)
@@ -52,11 +55,20 @@ function AdjustCardView({ p }: { p: AdjustCard }) {
 }
 
 /** One message row. `mine` = sent by the signed-in coach (right-aligned, lime).
- *  `onOpenWorkout` makes shared-workout cards clickable (jump to that day). */
-export function MessageItem({ m, mine, onOpenWorkout }: { m: Message; mine: boolean; onOpenWorkout?: (date: string) => void }) {
+ *  `sender` + `showSender` render an avatar + name above the message (so co-coaches
+ *  and the athlete are distinguishable). `onOpenWorkout` makes workout cards clickable. */
+export function MessageItem({ m, mine, sender, showSender, onOpenWorkout }: {
+  m: Message; mine: boolean; sender?: Sender; showSender?: boolean; onOpenWorkout?: (date: string) => void
+}) {
   const align = mine ? 'items-end' : 'items-start'
   return (
     <div className={`flex flex-col gap-0.5 ${align}`}>
+      {showSender && sender && (
+        <div className={`mb-0.5 flex items-center gap-1.5 px-0.5 ${mine ? 'flex-row-reverse' : ''}`}>
+          <Avatar initials={sender.initials} size="sm" />
+          <span className="text-[11px] font-semibold text-text-mute">{sender.name}</span>
+        </div>
+      )}
       {m.kind === 'text' ? (
         <div className={`max-w-[85%] rounded-[14px] px-3 py-2 text-sm ${mine ? 'bg-accent text-on-accent' : 'bg-surface2 text-text'}`}>{m.body}</div>
       ) : m.kind === 'runcard' ? (

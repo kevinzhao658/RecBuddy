@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../../auth/AuthProvider'
 import { useThread, useMessages, useSendMessage, useMarkThreadRead, useRealtimeThread } from '../../lib/queries/chat'
-import { MessageItem } from './MessageItem'
+import { useTeam } from '../../lib/queries/team'
+import { MessageItem, type Sender } from './MessageItem'
+
+const initialsOf = (name: string) =>
+  name.split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '·'
 
 export function ChatPanel({ athleteId, athleteName, onClose, onOpenDay }: {
   athleteId: string; athleteName: string; onClose: () => void; onOpenDay?: (date: string) => void
@@ -15,9 +19,14 @@ export function ChatPanel({ athleteId, athleteName, onClose, onOpenDay }: {
   const markRead = useMarkThreadRead(threadId)
   useRealtimeThread(threadId)
 
+  const team = useTeam(athleteId)
   const [text, setText] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
   const messages = messagesQ.data ?? []
+
+  // Resolve each from_user_id → name/initials: every coach on the team + the athlete.
+  const senders: Record<string, Sender> = { [athleteId]: { name: athleteName, initials: initialsOf(athleteName) } }
+  for (const m of team.data ?? []) senders[m.coach_id] = { name: m.coach.name, initials: m.coach.initials }
 
   // Mark the athlete's unread messages read once the thread opens.
   useEffect(() => { if (threadId) markRead.mutate(meId) }, [threadId]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -48,7 +57,12 @@ export function ChatPanel({ athleteId, athleteName, onClose, onOpenDay }: {
           {!messagesQ.isLoading && messages.length === 0 && (
             <p className="m-auto max-w-[80%] text-center text-sm text-text-faint">No messages yet. Say hello to {athleteName.split(' ')[0]}.</p>
           )}
-          {messages.map((m) => <MessageItem key={m.id} m={m} mine={m.from_user_id === meId} onOpenWorkout={onOpenDay} />)}
+          {messages.map((m, i) => (
+            <MessageItem key={m.id} m={m} mine={m.from_user_id === meId}
+              sender={senders[m.from_user_id] ?? { name: 'Coach', initials: '·' }}
+              showSender={i === 0 || messages[i - 1].from_user_id !== m.from_user_id}
+              onOpenWorkout={onOpenDay} />
+          ))}
         </div>
 
         <div className="flex items-end gap-2 border-t border-line p-3">
