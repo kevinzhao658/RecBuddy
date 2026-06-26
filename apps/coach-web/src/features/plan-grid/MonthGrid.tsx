@@ -1,11 +1,10 @@
 import { Fragment } from 'react'
 import type { Workout, WorkoutStatus } from '../../lib/types'
-import { DOW, monthGridDates, monthOf } from '../../lib/week'
+import { DOW, monthGridDates, monthOf, todayISO } from '../../lib/week'
 import { TypeIcon } from '../../components/ui/Icon'
 import { useUnit } from '../../lib/useUnit'
 import { fmtDist } from '../../lib/units'
 
-const today = () => new Date().toISOString().slice(0, 10)
 const chunk = <T,>(arr: T[], n: number) => Array.from({ length: Math.ceil(arr.length / n) }, (_, i) => arr.slice(i * n, i * n + n))
 
 const STATUS: Record<WorkoutStatus, { label: string; cls: string }> = {
@@ -73,7 +72,7 @@ export function MonthGrid({ anchor, byDate, selectedDate, onPick }: {
 }) {
   const weeks = chunk(monthGridDates(anchor), 7)
   const m = monthOf(anchor)
-  const todayIso = today()
+  const todayIso = todayISO()
   return (
     <div className="rb-card overflow-hidden p-0">
       <div className="grid grid-cols-8 border-b border-line">
