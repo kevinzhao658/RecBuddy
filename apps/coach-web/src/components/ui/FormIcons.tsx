@@ -23,6 +23,21 @@ export function UserIcon({ className = '' }: P) {
     </svg>
   )
 }
+export function EyeIcon({ className = '' }: P) {
+  return (
+    <svg viewBox="0 0 24 24" className={`${base} ${className}`} fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" />
+    </svg>
+  )
+}
+export function EyeOffIcon({ className = '' }: P) {
+  return (
+    <svg viewBox="0 0 24 24" className={`${base} ${className}`} fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9.9 5.2A9.6 9.6 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.6 6.6A17 17 0 0 0 2 12s3.5 7 10 7a9.6 9.6 0 0 0 4-.9" />
+      <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" /><path d="m3 3 18 18" />
+    </svg>
+  )
+}
 export function GoogleIcon({ className = '' }: P) {
   // Multi-color Google G (keeps brand colors; intentional exception to the mono palette).
   return (

@@ -3,6 +3,8 @@ import { useDraggable } from '@dnd-kit/core'
 import type { LibraryWorkout } from '../../lib/types'
 import { useLibrary, useCreateLibraryWorkout, useUpdateLibraryWorkout, useDeleteLibraryWorkout } from '../../lib/queries/library'
 import { TypeIcon } from '../../components/ui/Icon'
+import { useUnit } from '../../lib/useUnit'
+import { fmtDist, fmtPace } from '../../lib/units'
 import { LibraryForm } from './LibraryForm'
 
 function GripIcon({ className = '' }: { className?: string }) {
@@ -16,6 +18,7 @@ function TrashIcon({ className = '' }: { className?: string }) {
 }
 
 function LibraryCard({ t, onEdit, onDelete }: { t: LibraryWorkout; onEdit: () => void; onDelete: () => void }) {
+  const { unit } = useUnit()
   const drag = useDraggable({ id: `lib:${t.id}` })
   const setsLine = (t.sets ?? []).map((s) => s[0]).filter(Boolean).join(' · ')
   return (
@@ -27,7 +30,7 @@ function LibraryCard({ t, onEdit, onDelete }: { t: LibraryWorkout; onEdit: () =>
       <TypeIcon type={t.type} className="mt-0.5 shrink-0 text-text-mute" />
       <div className="min-w-0 flex-1">
         <div className="truncate font-semibold">{t.title}</div>
-        {t.dist != null && <div className="font-num text-xs text-text-mute">{t.dist} mi · {t.pace}</div>}
+        {t.dist != null && <div className="font-num text-xs text-text-mute">{fmtDist(t.dist, unit)} {unit} · {fmtPace(t.pace, unit)}</div>}
         {setsLine && <div className="mt-0.5 truncate font-num text-[11px] text-text-faint">{setsLine}</div>}
       </div>
       <div className="flex shrink-0 gap-1.5 opacity-0 transition group-hover:opacity-100">

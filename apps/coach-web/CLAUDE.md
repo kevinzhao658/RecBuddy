@@ -39,12 +39,20 @@ styles/        theme.css (Tailwind tokens + helpers)
 - **Length expectations vary by file type.** Components are tightest (extract a hook/section past ~150–200). Query modules (`plan.ts`) may run longer if one domain — split across *unrelated* domains, not by query. Pure helpers and `types.ts` are judged by cohesion only; length is irrelevant. Route compositions are naturally longer (they wire many sections) — judge the *child* boundaries, not the parent.
 - **Backstop:** ESLint `max-lines` **warns** at 300 (blanks/comments excluded, tests exempt). It catches genuine monsters; it never blocks the build, and a passing warning count is not a goal.
 - **Reusable inputs are primitives.** Shared widgets live in `components/ui/` and are used everywhere — never re-implement them inline. The pace/distance fields share one `Stepper`; copy that pattern.
+- **Icons, not emojis.** Use inline SVG icons (`FormIcons.tsx`, `Icon.tsx`) for UI affordances, never emoji glyphs — they render consistently and inherit `currentColor`. Add a new icon to those files rather than reaching for an emoji.
 - **Accessibility = test anchor.** Every interactive control has an accessible name (`aria-label` or visible label). Tests target controls by role/label, so good a11y and good tests come together.
 
 ## Testing
 
 - Co-locate tests as `*.test.tsx` / `*.test.ts` next to the unit. Every component with logic and every pure helper is tested.
 - Mock query hooks (`vi.spyOn(mod, 'useX')`) rather than the network. Keep the suite green before every commit: `npm test && npm run build && npm run lint`.
+
+## Git & collaboration (precedent)
+
+- **Branching:** feature branch → PR → `dev`; `dev` → `main` for prod. `main` is protected/prod.
+- **Merges:** use **normal merge commits** (preserve history) — **not** squash merges.
+- **Never delete branches.** The user manages all branch cleanup (local and remote). Do not run `git branch -d/-D`, `git push --delete`, or `gh pr merge --delete-branch`.
+- Commit/push only when asked; never force-push without explicit request.
 
 ## Backend touchpoints (see `/supabase`)
 

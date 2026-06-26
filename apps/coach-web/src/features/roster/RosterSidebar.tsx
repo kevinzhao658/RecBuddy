@@ -9,6 +9,7 @@ import { Wordmark } from '../../components/ui/Wordmark'
 import { TypeIcon } from '../../components/ui/Icon'
 import { AddAthleteModal } from './AddAthleteModal'
 import { ConfirmDialog } from './ConfirmDialog'
+import { SettingsModal } from '../settings/SettingsModal'
 import { useAuth } from '../../auth/AuthProvider'
 import { supabase } from '../../lib/supabase'
 import { fmtShortDate } from '../../lib/week'
@@ -26,6 +27,7 @@ export function RosterSidebar({ selectedId, onSelect }: { selectedId: string | n
   const [addOpen, setAddOpen] = useState(false)
   const [removeId, setRemoveId] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const athletes = roster.data ?? []
 
   return (
@@ -87,7 +89,7 @@ export function RosterSidebar({ selectedId, onSelect }: { selectedId: string | n
       {/* Coach profile + preview */}
       <div className="border-t border-line p-3">
         <div className="relative flex items-center gap-3 rounded-[14px] px-2 py-2">
-          <Avatar initials={me.data?.initials ?? '·'} />
+          <Avatar initials={me.data?.initials ?? '·'} url={me.data?.avatar_url} />
           <span className="min-w-0 flex-1">
             <span className="block truncate font-semibold text-text">{me.data?.name ?? 'Coach'}</span>
             <span className="block truncate text-xs text-text-mute">{me.data?.title ?? ''}</span>
@@ -96,6 +98,8 @@ export function RosterSidebar({ selectedId, onSelect }: { selectedId: string | n
             className="grid h-7 w-7 place-items-center rounded-full text-text-faint hover:bg-chip hover:text-text">⋯</button>
           {menuOpen && (
             <div className="rb-card absolute bottom-full right-0 z-30 mb-2 w-36 p-1">
+              <button onClick={() => { setMenuOpen(false); setSettingsOpen(true) }}
+                className="w-full rounded-[10px] px-3 py-2 text-left text-sm text-text hover:bg-surface2">Settings</button>
               <button onClick={() => supabase.auth.signOut()}
                 className="w-full rounded-[10px] px-3 py-2 text-left text-sm text-text hover:bg-surface2">Log out</button>
             </div>
@@ -108,6 +112,7 @@ export function RosterSidebar({ selectedId, onSelect }: { selectedId: string | n
       </div>
 
       <AddAthleteModal open={addOpen} onClose={() => setAddOpen(false)} />
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <ConfirmDialog open={!!removeId} title="Remove this athlete from your roster?"
         onCancel={() => setRemoveId(null)}
         onConfirm={() => { remove.mutate({ coachId: session!.user.id, athleteId: removeId! }); setRemoveId(null) }} />

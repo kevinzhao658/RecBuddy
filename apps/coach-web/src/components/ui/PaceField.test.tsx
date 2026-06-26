@@ -16,6 +16,15 @@ test('steppers adjust pace by 15s and keep the /mi unit', () => {
   expect(onChange).toHaveBeenCalledWith('8:15/mi')
 })
 
+test('km mode displays per-km and emits a canonical /mi value', () => {
+  const onChange = vi.fn()
+  render(<PaceField value="8:30/mi" unit="km" onChange={onChange} />)
+  expect(screen.getByLabelText('Pace')).toHaveValue('5:17') // 8:30/mi shown as ~5:17/km
+  expect(screen.getByText('/km')).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: /increase pace by 15 seconds/i }))
+  expect(onChange).toHaveBeenCalledWith(expect.stringMatching(/\/mi$/)) // still canonical /mi
+})
+
 test('typed digits fill MM:SS from the right, spilling into minutes past 2', () => {
   const onChange = vi.fn()
   render(<PaceField value="8:30/mi" onChange={onChange} />)
