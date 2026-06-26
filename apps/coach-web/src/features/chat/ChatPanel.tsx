@@ -61,12 +61,15 @@ export function ChatPanel({ athleteId, athleteName, onClose, onOpenDay }: {
             const prev = messages[i - 1]
             const next = messages[i + 1]
             const grouped = !!prev && prev.from_user_id === m.from_user_id // same sender → tight stack
-            // Show the timestamp only at the end of a same-sender, same-minute run.
-            const showTime = !next || next.from_user_id !== m.from_user_id || next.created_at.slice(0, 16) !== m.created_at.slice(0, 16)
+            const endOfRun = !next || next.from_user_id !== m.from_user_id
             return (
               <MessageItem key={m.id} m={m} mine={m.from_user_id === meId}
                 sender={senders[m.from_user_id] ?? { name: 'Coach', initials: '·' }}
-                showSender={!grouped} grouped={grouped} showTime={showTime}
+                showName={!grouped}   // name above the first message of a sender run
+                showAvatar={endOfRun} // avatar beside the last message of a sender run
+                grouped={grouped}
+                // timestamp only at the end of a same-sender, same-minute run
+                showTime={endOfRun || next.created_at.slice(0, 16) !== m.created_at.slice(0, 16)}
                 onOpenWorkout={onOpenDay} />
             )
           })}
