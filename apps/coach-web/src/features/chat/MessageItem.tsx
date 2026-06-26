@@ -7,12 +7,6 @@ import { fmtDist, fmtPace } from '../../lib/units'
 
 export type Sender = { name: string; initials: string }
 
-function timeLabel(iso: string) {
-  const d = new Date(iso)
-  if (isNaN(d.getTime())) return ''
-  return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-}
-
 function WorkoutCardView({ p, onOpen }: { p: WorkoutCard; onOpen?: () => void }) {
   const { unit } = useUnit()
   return (
@@ -58,11 +52,11 @@ function AdjustCardView({ p }: { p: AdjustCard }) {
  *  - `mine` (signed-in coach): right-aligned lime bubble, no avatar/name.
  *  - others: avatar to the LEFT (on the last message of a run) + name ABOVE
  *    (on the first), so co-coaches and the athlete are distinguishable.
- *  `grouped` tightens same-sender stacking; `showTime` shows the timestamp only
- *  at the end of a same-minute run. */
-export function MessageItem({ m, mine, sender, showName, showAvatar, grouped, showTime = true, onOpenWorkout }: {
+ *  `grouped` tightens same-sender stacking. Timestamps live in the centered
+ *  session separators rendered by ChatPanel, not per message. */
+export function MessageItem({ m, mine, sender, showName, showAvatar, grouped, onOpenWorkout }: {
   m: Message; mine: boolean; sender?: Sender; showName?: boolean; showAvatar?: boolean
-  grouped?: boolean; showTime?: boolean; onOpenWorkout?: (date: string) => void
+  grouped?: boolean; onOpenWorkout?: (date: string) => void
 }) {
   const body = m.kind === 'text' ? (
     <div className={`max-w-[85%] rounded-[14px] px-3 py-2 text-sm ${mine ? 'bg-accent text-on-accent' : 'bg-surface2 text-text'}`}>{m.body}</div>
@@ -73,12 +67,9 @@ export function MessageItem({ m, mine, sender, showName, showAvatar, grouped, sh
   ) : (
     <AdjustCardView p={m.payload as AdjustCard} />
   )
-  const time = showTime ? <span className="px-1 text-[10px] text-text-faint">{timeLabel(m.created_at)}</span> : null
 
   if (mine) {
-    return (
-      <div className={`flex flex-col items-end ${grouped ? 'mt-0.5' : 'mt-3'}`}>{body}{time}</div>
-    )
+    return <div className={`flex flex-col items-end ${grouped ? 'mt-0.5' : 'mt-3'}`}>{body}</div>
   }
   return (
     <div className={`flex items-end gap-2 ${grouped ? 'mt-0.5' : 'mt-3'}`}>
@@ -86,7 +77,6 @@ export function MessageItem({ m, mine, sender, showName, showAvatar, grouped, sh
       <div className="flex min-w-0 flex-col items-start">
         {showName && sender && <span className="mb-0.5 px-0.5 text-[11px] font-semibold text-text-mute">{sender.name}</span>}
         {body}
-        {time}
       </div>
     </div>
   )

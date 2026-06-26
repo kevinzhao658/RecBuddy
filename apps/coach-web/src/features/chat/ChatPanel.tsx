@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { useAuth } from '../../auth/AuthProvider'
 import { useThread, useMessages, useSendMessage, useMarkThreadRead, useRealtimeThread } from '../../lib/queries/chat'
 import { useTeam } from '../../lib/queries/team'
@@ -6,6 +6,20 @@ import { MessageItem, type Sender } from './MessageItem'
 
 const initialsOf = (name: string) =>
   name.split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '·'
+
+// A new "session" header is shown when the chat went quiet for over an hour
+// (or it's a new day) — otherwise messages flow without timestamps.
+const SESSION_GAP_MS = 60 * 60 * 1000
+const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString()
+function sessionLabel(iso: string): string {
+  const d = new Date(iso)
+  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  const now = new Date()
+  const yest = new Date(now); yest.setDate(now.getDate() - 1)
+  if (sameDay(d, now)) return `Today ${time}`
+  if (sameDay(d, yest)) return `Yesterday ${time}`
+  return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} · ${time}`
+}
 
 export function ChatPanel({ athleteId, athleteName, onClose, onOpenDay }: {
   athleteId: string; athleteName: string; onClose: () => void; onOpenDay?: (date: string) => void
@@ -58,19 +72,25 @@ export function ChatPanel({ athleteId, athleteName, onClose, onOpenDay }: {
             <p className="m-auto max-w-[80%] text-center text-sm text-text-faint">No messages yet. Say hello to {athleteName.split(' ')[0]}.</p>
           )}
           {messages.map((m, i) => {
-            const prev = messages[i - 1]
-            const next = messages[i + 1]
-            const grouped = !!prev && prev.from_user_id === m.from_user_id // same sender → tight stack
-            const endOfRun = !next || next.from_user_id !== m.from_user_id
+            // A separator (new session) breaks the flow at a > 1h gap or a new day.
+            const sepBefore = (idx: number) => {
+              if (idx === 0) return true
+              const gap = new Date(messages[idx].created_at).getTime() - new Date(messages[idx - 1].created_at).getTime()
+              return gap > SESSION_GAP_MS || !sameDay(new Date(messages[idx].created_at), new Date(messages[idx - 1].created_at))
+            }
+            // A block starts on a sender change or after a separator.
+            const newBlock = (idx: number) => idx === 0 || messages[idx - 1].from_user_id !== messages[idx].from_user_id || sepBefore(idx)
+            const sep = sepBefore(i)
+            const startsBlock = newBlock(i)
+            const showAvatar = i === messages.length - 1 || newBlock(i + 1)
             return (
-              <MessageItem key={m.id} m={m} mine={m.from_user_id === meId}
-                sender={senders[m.from_user_id] ?? { name: 'Coach', initials: '·' }}
-                showName={!grouped}   // name above the first message of a sender run
-                showAvatar={endOfRun} // avatar beside the last message of a sender run
-                grouped={grouped}
-                // timestamp only at the end of a same-sender, same-minute run
-                showTime={endOfRun || next.created_at.slice(0, 16) !== m.created_at.slice(0, 16)}
-                onOpenWorkout={onOpenDay} />
+              <Fragment key={m.id}>
+                {sep && <div className="my-3 text-center text-[11px] text-text-faint">{sessionLabel(m.created_at)}</div>}
+                <MessageItem m={m} mine={m.from_user_id === meId}
+                  sender={senders[m.from_user_id] ?? { name: 'Coach', initials: '·' }}
+                  showName={startsBlock} showAvatar={showAvatar} grouped={!startsBlock}
+                  onOpenWorkout={onOpenDay} />
+              </Fragment>
             )
           })}
         </div>
