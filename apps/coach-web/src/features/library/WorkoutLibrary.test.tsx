@@ -21,11 +21,37 @@ test('lists templates and a New workout button', () => {
   expect(screen.getByRole('button', { name: /new workout/i })).toBeInTheDocument()
 })
 
-test('New workout opens the inline builder form', () => {
+test('New workout opens the full-panel editor (same view as the day editor)', () => {
   setup([])
   fireEvent.click(screen.getByRole('button', { name: /new workout/i }))
-  expect(screen.getByPlaceholderText(/workout title/i)).toBeInTheDocument()
+  expect(screen.getByLabelText('Title')).toBeInTheDocument()
+  expect(screen.getByText('Workout structure')).toBeInTheDocument() // shared editor body
   expect(screen.getByRole('button', { name: /add to library/i })).toBeInTheDocument()
+})
+
+test('type quick-filters narrow the list to one workout type', () => {
+  setup([
+    { id: 'l1', type: 'easy', title: 'Easy Run', dist: 5, pace: '9:45/mi', custom: false, sets: [] },
+    { id: 'l2', type: 'tempo', title: 'My Tempo', dist: 6, pace: '8:00/mi', custom: true, sets: [] },
+  ])
+  expect(screen.getByText('Easy Run')).toBeInTheDocument()
+  expect(screen.getByText('My Tempo')).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Tempo' })) // filter chip
+  expect(screen.queryByText('Easy Run')).not.toBeInTheDocument()
+  expect(screen.getByText('My Tempo')).toBeInTheDocument()
+})
+
+test('editing opens the workout in the editor and saves changes', () => {
+  const { update } = setup([{ id: 'l1', type: 'easy', title: 'Easy Run', dist: 5, pace: '9:45/mi', note: null, custom: false, sets: [] }])
+  fireEvent.click(screen.getByRole('button', { name: /edit workout/i }))
+  const title = screen.getByLabelText('Title')
+  expect(title).toHaveValue('Easy Run')
+  fireEvent.change(title, { target: { value: 'Easy Shakeout' } })
+  fireEvent.click(screen.getByRole('button', { name: /save changes/i }))
+  expect(update.mutate).toHaveBeenCalledWith(
+    expect.objectContaining({ id: 'l1', patch: expect.objectContaining({ title: 'Easy Shakeout' }) }),
+    expect.anything(),
+  )
 })
 
 test('every workout (default or custom) exposes edit and delete', () => {
