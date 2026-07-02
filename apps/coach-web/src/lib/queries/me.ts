@@ -47,3 +47,21 @@ export function useUploadAvatar() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['me'] }),
   })
 }
+
+/** Permanently delete the signed-in coach's account. The delete-account edge
+ *  function re-verifies the password server-side, then removes the auth user —
+ *  cascading away the profile and everything it owns. On success the caller is
+ *  signed out (session is gone) and RequireCoach routes to /login. */
+export async function deleteAccount(password: string): Promise<void> {
+  const { data, error } = await supabase.functions.invoke('delete-account', { body: { password } })
+  // invoke() surfaces non-2xx as FunctionsHttpError; pull the server's message.
+  if (error) {
+    const body = await (error as { context?: Response }).context?.json?.().catch(() => null)
+    throw new Error(body?.error ?? error.message)
+  }
+  if (data?.error) throw new Error(data.error)
+  await supabase.auth.signOut()
+}
+export function useDeleteAccount() {
+  return useMutation({ mutationFn: deleteAccount })
+}
