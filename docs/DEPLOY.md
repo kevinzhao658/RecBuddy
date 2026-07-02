@@ -44,7 +44,7 @@ supabase link --project-ref bawezljwxehadmkjeydw   # re-link to dev
 
 Apply these on **each** project (dev and prod) — they're per-project. Authentication →
 
-- **URL Configuration** → Site URL = your Vercel prod domain; add it to Redirect URLs (so confirmation/reset links return to the app). Dev uses `http://localhost:5176`.
+- **URL Configuration** → **Site URL** = your Vercel prod domain **with the `https://` scheme and no trailing slash** (e.g. `https://recbuddy.app`). ⚠️ A schemeless value (`recbuddy.app`) is treated as a *relative path* and silently becomes `https://<ref>.supabase.co/recbuddy.app` — confirmation/reset links then fail with `{"error":"requested path is invalid"}` or land on the wrong host. Add the domain plus a `https://your-domain.com/**` wildcard to **Redirect URLs** so confirmation/reset links return to the app. Dev uses `http://localhost:5176`.
 - **Confirm email** → keep **ON** (coach signup relies on it for email-ownership verification).
 - **SMTP**: the built-in sender is rate-limited and not for production. Configure **custom SMTP** (Resend / Postmark / SendGrid) under Auth → SMTP so confirmation/reset/email-change messages are reliable.
 
