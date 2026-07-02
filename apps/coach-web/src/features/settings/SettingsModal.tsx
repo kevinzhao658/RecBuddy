@@ -4,7 +4,8 @@ import { Modal } from '../../components/ui/Modal'
 import { Button } from '../../components/ui/Button'
 import { Avatar } from '../../components/ui/Avatar'
 import { supabase } from '../../lib/supabase'
-import { useMe, useUpdateProfile, useUploadAvatar } from '../../lib/queries/me'
+import { useMe, useUpdateProfile, useUploadAvatar, useDeleteAccount } from '../../lib/queries/me'
+import { useRoster } from '../../lib/queries/roster'
 import { EyeIcon, EyeOffIcon } from '../../components/ui/FormIcons'
 import { useUnit } from '../../lib/useUnit'
 import type { CoachTitle } from '../../lib/types'
@@ -19,6 +20,8 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   const qc = useQueryClient()
   const updateProfile = useUpdateProfile()
   const uploadAvatar = useUploadAvatar()
+  const deleteAccount = useDeleteAccount()
+  const roster = useRoster()
   const { unit, setUnit } = useUnit()
 
   const [name, setName] = useState('')
@@ -30,6 +33,8 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   const [oldPassword, setOldPassword] = useState('')
   const [password, setPassword] = useState('')
   const [showPw, setShowPw] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deletePw, setDeletePw] = useState('')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
@@ -39,6 +44,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
       setName(me.data.name); setTitle((me.data.title as CoachTitle) ?? 'Head Coach')
       setEmail(me.data.email); setEmailStage('idle'); setCode(''); setCooldown(0)
       setOldPassword(''); setPassword(''); setShowPw(false); setMsg(null)
+      setConfirmDelete(false); setDeletePw('')
     }
   }, [open, me.data])
 
@@ -200,6 +206,37 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
             {eye}
           </div>
           <Button variant="ghost" onClick={changePassword} disabled={busy || !oldPassword || !password} className="mt-2">Change password</Button>
+        </section>
+
+        {/* Danger zone */}
+        <section>
+          <p className={`${eyebrow} !text-missed`}>Danger zone</p>
+          {!confirmDelete ? (
+            <button type="button" onClick={() => setConfirmDelete(true)}
+              className="rounded-[10px] border border-missed/40 px-3 py-1.5 text-sm font-semibold text-missed transition hover:border-missed/60 hover:bg-missed/10">
+              Delete account…
+            </button>
+          ) : (
+            <div className="rounded-[12px] border border-missed/40 p-3">
+              <p className="text-sm text-text">
+                This permanently deletes your account — your profile, workout library, invites, and chats.
+                {(roster.data?.length ?? 0) > 0 && (
+                  <> Your <span className="font-semibold">{roster.data!.length} athlete{roster.data!.length === 1 ? '' : 's'}</span> will be unlinked (they keep their plans and workouts).</>
+                )}
+                <span className="block mt-1 text-xs text-text-faint">This cannot be undone. Enter your password to confirm.</span>
+              </p>
+              <input aria-label="Confirm password" type="password" value={deletePw} onChange={(e) => setDeletePw(e.target.value)}
+                placeholder="Current password" className={`${field} mt-2`} />
+              <div className="mt-2 flex items-center gap-3">
+                <button type="button" disabled={!deletePw || deleteAccount.isPending}
+                  onClick={() => deleteAccount.mutate(deletePw, { onError: (e: any) => flash(false, e.message) })}
+                  className="rounded-[10px] bg-missed px-3 py-1.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-50">
+                  {deleteAccount.isPending ? 'Deleting…' : 'Permanently delete'}
+                </button>
+                <button type="button" onClick={() => { setConfirmDelete(false); setDeletePw('') }} className="text-xs text-text-faint hover:text-text">Cancel</button>
+              </div>
+            </div>
+          )}
         </section>
 
         {msg && <p className={`text-sm ${msg.ok ? 'text-accent' : 'text-missed'}`}>{msg.text}</p>}

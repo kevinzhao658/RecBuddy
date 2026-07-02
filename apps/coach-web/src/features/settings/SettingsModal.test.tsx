@@ -3,6 +3,7 @@ import { QueryClientProvider, QueryClient } from '@tanstack/react-query'
 import { SettingsModal } from './SettingsModal'
 import { UnitProvider } from '../../lib/useUnit'
 import * as meMod from '../../lib/queries/me'
+import * as rosterMod from '../../lib/queries/roster'
 
 function wrap(ui: React.ReactNode) {
   return render(
@@ -12,13 +13,16 @@ function wrap(ui: React.ReactNode) {
   )
 }
 
-function mockMe(data: Record<string, unknown>) {
+function mockMe(data: Record<string, unknown>, athletes: unknown[] = []) {
   const update = { mutate: vi.fn(), isPending: false }
   const upload = { mutate: vi.fn(), isPending: false }
+  const del = { mutate: vi.fn(), isPending: false }
   vi.spyOn(meMod, 'useMe').mockReturnValue({ data, isLoading: false } as any)
   vi.spyOn(meMod, 'useUpdateProfile').mockReturnValue(update as any)
   vi.spyOn(meMod, 'useUploadAvatar').mockReturnValue(upload as any)
-  return { update, upload }
+  vi.spyOn(meMod, 'useDeleteAccount').mockReturnValue(del as any)
+  vi.spyOn(rosterMod, 'useRoster').mockReturnValue({ data: athletes, isLoading: false } as any)
+  return { update, upload, del }
 }
 
 test('shows profile/units/email/password and saves profile edits', () => {
@@ -47,6 +51,24 @@ test('uploads a chosen photo and offers removal only when one exists', () => {
 
   fireEvent.click(screen.getByRole('button', { name: /remove/i }))
   expect(update.mutate).toHaveBeenCalledWith({ avatar_url: null }, expect.anything())
+})
+
+test('delete account requires confirm + password and warns about linked athletes', () => {
+  const { del } = mockMe(
+    { name: 'Mara Whitlock', title: 'Head Coach', email: 'mara@recbuddy.app', initials: 'MW' },
+    [{ athlete: { id: 'a1' } }, { athlete: { id: 'a2' } }],
+  )
+  wrap(<SettingsModal open={true} onClose={() => {}} />)
+
+  // Collapsed by default; nothing deletes without the confirm step.
+  fireEvent.click(screen.getByRole('button', { name: /delete account/i }))
+  expect(screen.getByText(/2 athletes/)).toBeInTheDocument() // roster warning
+  const confirm = screen.getByRole('button', { name: /permanently delete/i })
+  expect(confirm).toBeDisabled() // no password yet
+
+  fireEvent.change(screen.getByLabelText('Confirm password'), { target: { value: 'hunter22' } })
+  fireEvent.click(confirm)
+  expect(del.mutate).toHaveBeenCalledWith('hunter22', expect.anything())
 })
 
 test('rejects non-image files without uploading', () => {
