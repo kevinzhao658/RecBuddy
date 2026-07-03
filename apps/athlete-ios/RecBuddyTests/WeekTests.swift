@@ -36,4 +36,19 @@ import Testing
     @Test func dowLabels() {
         #expect(Week.DOW == ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"])
     }
+    @Test func monthHelpers() {
+        #expect(Week.firstOfMonth("2026-06-21") == "2026-06-01")
+        #expect(Week.addMonths("2026-06-01", 1) == "2026-07-01")
+        #expect(Week.addMonths("2026-01-01", -1) == "2025-12-01")
+        #expect(Week.fmtMonthYear("2026-06-21") == "June 2026")
+    }
+    @Test func monthGridIsMonFirstWholeWeeks() {
+        let grid = Week.monthGridDates(anchor: "2026-06-15") // June 1 2026 is a Monday
+        #expect(grid.count % 7 == 0)
+        #expect(grid.first == "2026-06-01")
+        #expect(grid.contains("2026-06-30"))
+        let july = Week.monthGridDates(anchor: "2026-07-10") // July 1 2026 is a Wednesday
+        #expect(july.first == "2026-06-29")
+        #expect(july.contains("2026-07-31"))
+    }
 }

@@ -6,6 +6,8 @@ enum Week {
     static let DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
     private static let MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
                               "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    private static let FULLMON = ["January", "February", "March", "April", "May", "June",
+                                  "July", "August", "September", "October", "November", "December"]
 
     private static let utcCal: Calendar = {
         var c = Calendar(identifier: .gregorian)
@@ -37,6 +39,36 @@ enum Week {
 
     static func weekDates(mondayIso: String) -> [String] {
         (0..<7).map { addDays(mondayIso, $0) }
+    }
+
+    /// First day of the month containing `iso`: '2026-06-21' -> '2026-06-01'.
+    static func firstOfMonth(_ iso: String) -> String {
+        guard iso.count >= 8 else { return iso }
+        return String(iso.prefix(8)) + "01"
+    }
+
+    /// Add `n` calendar months (call on a day-01 date to avoid end-of-month rollover).
+    static func addMonths(_ iso: String, _ n: Int) -> String {
+        guard let d = parse(iso), let out = utcCal.date(byAdding: .month, value: n, to: d) else { return iso }
+        return format(out)
+    }
+
+    /// Mon-first calendar grid (35 or 42 days) covering the month containing `anchor`.
+    static func monthGridDates(anchor: String) -> [String] {
+        let first = firstOfMonth(anchor)
+        let start = mondayOf(first)
+        let lastDay = addDays(addMonths(first, 1), -1)
+        let end = addDays(mondayOf(lastDay), 6)
+        guard let startDate = parse(start), let endDate = parse(end) else { return [] }
+        let span = Int(endDate.timeIntervalSince(startDate) / 86400) + 1
+        return (0..<span).map { addDays(start, $0) }
+    }
+
+    /// '2026-06-21' -> 'June 2026'.
+    static func fmtMonthYear(_ iso: String) -> String {
+        guard let d = parse(iso) else { return iso }
+        let c = utcCal.dateComponents([.year, .month], from: d)
+        return "\(FULLMON[c.month! - 1]) \(c.year!)"
     }
 
     /// 'YYYY-MM-DD' -> 'Aug 23'. Empty for nil; passthrough if unparseable.

@@ -9,6 +9,8 @@ struct RecBuddyApp: App {
             RootView()
                 .environment(session)
                 .task { await session.start() }
+                .preferredColorScheme(.dark)
+                .tint(RB.accent)
         }
     }
 }
