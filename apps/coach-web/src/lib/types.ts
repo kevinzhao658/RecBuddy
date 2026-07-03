@@ -18,6 +18,12 @@ export interface Workout {
   title: string; dist: number | null; pace: string | null; est_minutes: number | null
   dur: number | null; note: string | null; sets: [string, string][]; status: WorkoutStatus
 }
+/** An athlete-logged result for a workout (workout_actuals row). */
+export interface Actual {
+  id: string; workout_id: string | null; athlete_id: string; dist: number | null
+  pace: string | null; time: string | null; hr: number | null; feel: number | null
+  note: string | null; source: string; recorded_at: string
+}
 export interface LibraryWorkout {
   id: string; coach_id: string; type: WorkoutType; title: string; dist: number | null
   pace: string | null; est_minutes: number | null; note: string | null; sets: [string, string][]; custom: boolean
