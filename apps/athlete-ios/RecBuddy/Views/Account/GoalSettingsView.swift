@@ -23,6 +23,10 @@ struct GoalSettingsView: View {
     @State private var busy = false
     @State private var saved = false
     @State private var error: String?
+    // Drums are collapsed by default; the field shows the composed value and
+    // tapping it expands the wheel belt beneath (iOS inline-picker pattern).
+    @State private var showDistDrums = false
+    @State private var showTimeDrums = false
 
     init(profile: Profile, plan: Plan?) {
         self.profile = profile
@@ -114,18 +118,24 @@ struct GoalSettingsView: View {
                                 .overlay(Capsule().stroke(active ? .clear : RB.line, lineWidth: 1))
                             }
                         }
-                        HStack(spacing: 0) {
-                            drum(0...99, selection: $distWhole, label: "Distance whole number")
-                            Text(".")
-                                .font(.title2.weight(.bold)).foregroundStyle(.white)
-                            drum(0...9, selection: $distTenth, label: "Distance tenths")
-                            Text(unit.rawValue)
-                                .font(.subheadline).foregroundStyle(RB.textMute)
-                                .padding(.leading, 8)
-                            Spacer()
+                        valueField(distanceString, expanded: showDistDrums, label: "Goal distance") {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { showDistDrums.toggle() }
                         }
-                        .frame(height: 110)
-                        .rbCard()
+                        if showDistDrums {
+                            HStack(spacing: 0) {
+                                drum(0...99, selection: $distWhole, label: "Distance whole number")
+                                Text(".")
+                                    .font(.title2.weight(.bold)).foregroundStyle(.white)
+                                drum(0...9, selection: $distTenth, label: "Distance tenths")
+                                Text(unit.rawValue)
+                                    .font(.subheadline).foregroundStyle(RB.textMute)
+                                    .padding(.leading, 8)
+                                Spacer()
+                            }
+                            .frame(height: 110)
+                            .rbCard()
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                        }
                     }
 
                     // Date
@@ -139,23 +149,25 @@ struct GoalSettingsView: View {
                             .onChange(of: goalDate) { _, _ in saved = false }
                     }
 
-                    // Goal time — H : MM : SS drums
+                    // Goal time — collapsed value field; H : MM : SS drums on tap
                     VStack(alignment: .leading, spacing: 8) {
                         RBLabel("GOAL TIME")
-                        HStack(spacing: 0) {
-                            drum(0...9, selection: $hours, label: "Goal hours")
-                            colon
-                            drum(0...59, selection: $minutes, pad: true, label: "Goal minutes")
-                            colon
-                            drum(0...59, selection: $seconds, pad: true, label: "Goal seconds")
-                            Spacer()
-                            Text(timeString)
-                                .font(.headline.monospacedDigit())
-                                .foregroundStyle(RB.accent)
-                                .padding(.trailing, 12)
+                        valueField(timeString, expanded: showTimeDrums, label: "Goal time") {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { showTimeDrums.toggle() }
                         }
-                        .frame(height: 110)
-                        .rbCard()
+                        if showTimeDrums {
+                            HStack(spacing: 0) {
+                                drum(0...9, selection: $hours, label: "Goal hours")
+                                colon
+                                drum(0...59, selection: $minutes, pad: true, label: "Goal minutes")
+                                colon
+                                drum(0...59, selection: $seconds, pad: true, label: "Goal seconds")
+                                Spacer()
+                            }
+                            .frame(height: 110)
+                            .rbCard()
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                        }
                     }
 
                     if let error {
@@ -184,6 +196,28 @@ struct GoalSettingsView: View {
 
     private var colon: some View {
         Text(":").font(.title3.weight(.bold)).foregroundStyle(RB.textMute)
+    }
+
+    /// Collapsed picker field: shows the composed value; tap to expand the drums.
+    private func valueField(_ value: String, expanded: Bool, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack {
+                Text(value)
+                    .font(.body.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(.white)
+                Spacer()
+                Image(systemName: "chevron.down")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(RB.textMute)
+                    .rotationEffect(.degrees(expanded ? 180 : 0))
+            }
+            .rbField()
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+        .accessibilityValue(value)
+        .accessibilityAddTraits(expanded ? .isSelected : [])
     }
 
     /// A compact vertical wheel ("belt") for one numeric field.
