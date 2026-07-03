@@ -26,6 +26,7 @@ enum Units {
     /// Stored "M:SS/mi" -> display pace in the unit, e.g. "5:17/km". "" for nil.
     static func fmtPace(_ pace: String?, _ unit: Unit) -> String {
         guard let pace else { return "" }
+        // graceful: show the stored value rather than "" if it doesn't parse
         guard var sec = Pace.toSeconds(pace) else { return pace }
         if unit == .km { sec = Int((Double(sec) / kmPerMi).rounded()) }
         return "\(sec / 60):" + String(format: "%02d", sec % 60) + "/\(unit.rawValue)"

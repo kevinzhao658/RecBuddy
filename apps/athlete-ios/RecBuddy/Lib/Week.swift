@@ -7,7 +7,7 @@ enum Week {
     private static let MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
                               "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
-    private static var utcCal: Calendar = {
+    private static let utcCal: Calendar = {
         var c = Calendar(identifier: .gregorian)
         c.timeZone = TimeZone(identifier: "UTC")!
         return c
@@ -48,8 +48,12 @@ enum Week {
     }
 
     /// Today's calendar date in the user's LOCAL timezone (matches what they see).
+    /// Explicit Gregorian: Calendar.current honors the device calendar setting
+    /// (e.g. Japanese era years), which would corrupt the ISO year.
     static func todayISO() -> String {
-        let c = Calendar.current.dateComponents([.year, .month, .day], from: Date())
+        var localCal = Calendar(identifier: .gregorian)
+        localCal.timeZone = .current
+        let c = localCal.dateComponents([.year, .month, .day], from: Date())
         return String(format: "%04d-%02d-%02d", c.year!, c.month!, c.day!)
     }
 }

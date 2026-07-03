@@ -22,9 +22,16 @@ import Testing
     @Test func todayISOIsLocalDate() {
         let expected = { () -> String in
             let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; f.timeZone = .current
+            f.calendar = Calendar(identifier: .gregorian) // guard against device-calendar era years
             return f.string(from: Date())
         }()
         #expect(Week.todayISO() == expected)
+    }
+    @Test func mondayOfAMonday() {
+        #expect(Week.mondayOf("2026-06-15") == "2026-06-15") // identity
+    }
+    @Test func mondayOfASunday() {
+        #expect(Week.mondayOf("2026-06-21") == "2026-06-15") // crosses to prior Monday
     }
     @Test func dowLabels() {
         #expect(Week.DOW == ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"])
