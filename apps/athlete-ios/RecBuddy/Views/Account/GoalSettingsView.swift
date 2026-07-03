@@ -148,9 +148,6 @@ struct GoalSettingsView: View {
                             drum(0...59, selection: $minutes, pad: true, label: "Goal minutes")
                             colon
                             drum(0...59, selection: $seconds, pad: true, label: "Goal seconds")
-                            VStack(alignment: .leading, spacing: 14) {
-                                Text("hr").font(.caption2).foregroundStyle(RB.textFaint)
-                            }
                             Spacer()
                             Text(timeString)
                                 .font(.headline.monospacedDigit())
