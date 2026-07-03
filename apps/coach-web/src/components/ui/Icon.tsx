@@ -58,9 +58,20 @@ const TYPE_GLYPH: Record<string, React.ReactNode> = {
   ),
 }
 
-export function TypeIcon({ type, className = '' }: { type: WorkoutType; className?: string }) {
+/** Per-type tints mirroring the athlete iOS app's TypeBadge (iOS system palette,
+ *  dark variants): effort types orange, long blue, aerobic green; rest inherits
+ *  the surrounding muted color. Pass tinted={false} to fall back to currentColor. */
+const TYPE_TINT: Record<string, string> = {
+  speed: '#FF9F0A', tempo: '#FF9F0A', race: '#FF9F0A',
+  long: '#0A84FF',
+  easy: '#30D158', recovery: '#30D158', cross: '#30D158',
+}
+
+export function TypeIcon({ type, className = '', tinted = true }: { type: WorkoutType; className?: string; tinted?: boolean }) {
+  const tint = tinted ? TYPE_TINT[type] : undefined
   return (
-    <svg viewBox="0 0 24 24" className={`h-4 w-4 ${className}`} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <svg viewBox="0 0 24 24" className={`h-4 w-4 ${className}`} style={tint ? { color: tint } : undefined}
+      fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       {TYPE_GLYPH[type] ?? TYPE_GLYPH.easy}
     </svg>
   )
