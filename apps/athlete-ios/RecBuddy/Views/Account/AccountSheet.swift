@@ -166,7 +166,6 @@ struct AccountSheet: View {
             .onAppear { name = profile.name }
             .task { await checkCoach() }
         }
-        .presentationBackground(RB.bg)
         .presentationDragIndicator(.visible)
     }
 

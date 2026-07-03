@@ -13,10 +13,11 @@ struct WorkoutDetailSheet: View {
     private var actual: WorkoutActual? { store.actualsByWorkout[workout.id] }
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            RB.bg.ignoresSafeArea()
-
-            ScrollView {
+        // NOTE: previously a ZStack with an ignoresSafeArea gradient overlay +
+        // .presentationBackground — that combination drove an AttributeGraph
+        // update cycle on iOS 17 (body re-evaluated forever; UI froze).
+        // ScrollView + safeAreaInset is the idiomatic, cycle-free structure.
+        ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     // Type chip + close button
                     HStack {
@@ -65,16 +66,13 @@ struct WorkoutDetailSheet: View {
                     if let error {
                         Text(error).foregroundStyle(.red).font(.footnote)
                     }
-
-                    // Spacer for pinned buttons
-                    Color.clear.frame(height: live.type != "rest" ? 110 : 20)
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 20)
                 .padding(.bottom, 20)
-            }
-
-            // Pinned bottom buttons
+        }
+        .background(RB.bg.ignoresSafeArea())
+        .safeAreaInset(edge: .bottom) {
             if live.type != "rest" {
                 VStack(spacing: 10) {
                     if live.status == "done" {
@@ -91,19 +89,11 @@ struct WorkoutDetailSheet: View {
                     }
                 }
                 .padding(.horizontal, 20)
-                .padding(.bottom, 28)
-                .padding(.top, 16)
-                .background(
-                    LinearGradient(
-                        colors: [RB.bg.opacity(0), RB.bg, RB.bg],
-                        startPoint: .top, endPoint: .bottom
-                    )
-                    .ignoresSafeArea()
-                )
+                .padding(.vertical, 14)
+                .background(RB.bg.opacity(0.96))
             }
         }
         .presentationDetents([.large])
-        .presentationBackground(RB.bg)
         .sheet(isPresented: $logOpen) {
             LogRunSheet(workout: live, store: store, unit: unit)
         }
