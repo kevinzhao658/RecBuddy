@@ -13,6 +13,7 @@ final class ChatStore {
     private(set) var messages: [Message] = []
     private(set) var senders: [String: Profile] = [:]   // from_user_id -> profile
     private var channel: RealtimeChannelV2?
+    private var subscriptionTask: Task<Void, Never>?
 
     func open(athleteId: String) async {
         phase = .loading
@@ -72,7 +73,7 @@ final class ChatStore {
         // subscribeWithError() replaces the deprecated @MainActor subscribe() in 2.48.
         try? await ch.subscribeWithError()
         channel = ch
-        Task { [weak self] in
+        subscriptionTask = Task { [weak self] in
             for await _ in changes {
                 guard let self else { break }
                 try? await self.load(threadId: threadId)
@@ -82,6 +83,8 @@ final class ChatStore {
     }
 
     func close() async {
+        subscriptionTask?.cancel()
+        subscriptionTask = nil
         if let channel { await Supa.shared.removeChannel(channel) }
         channel = nil
     }

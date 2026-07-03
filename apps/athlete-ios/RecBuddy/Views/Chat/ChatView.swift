@@ -5,6 +5,7 @@ struct ChatView: View {
     @State private var store = ChatStore()
     @State private var draft = ""
     @State private var busy = false
+    @State private var sendError: String?
 
     var body: some View {
         NavigationStack {
@@ -30,6 +31,9 @@ struct ChatView: View {
                     Label(msg, systemImage: "wifi.exclamationmark")
                         .font(.footnote).foregroundStyle(.red).padding(.bottom, 4)
                 }
+                if let sendError {
+                    Text(sendError).font(.footnote).foregroundStyle(.red).padding(.bottom, 2)
+                }
                 HStack(spacing: 8) {
                     TextField("Message your coach…", text: $draft, axis: .vertical).lineLimit(1...4)
                         .textFieldStyle(.roundedBorder)
@@ -52,8 +56,13 @@ struct ChatView: View {
         let body = draft.trimmingCharacters(in: .whitespaces)
         guard !body.isEmpty else { return }
         busy = true
-        try? await store.send(body, from: profile.id)
-        draft = ""
-        busy = false
+        sendError = nil
+        defer { busy = false }
+        do {
+            try await store.send(body, from: profile.id)
+            draft = "" // clear only on success — a failed send keeps the text
+        } catch {
+            sendError = "Couldn't send — try again."
+        }
     }
 }
