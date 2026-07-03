@@ -19,4 +19,15 @@ enum Pace {
         guard miles > 0, totalSeconds > 0 else { return nil }
         return fromSeconds(Int((Double(totalSeconds) / miles).rounded()))
     }
+    /// "45:00" or "1:25:14" -> total seconds. nil if unparseable.
+    static func timeToSeconds(_ time: String) -> Int? {
+        let parts = time.split(separator: ":").map(String.init)
+        guard !parts.isEmpty, parts.allSatisfy({ Int($0) != nil }) else { return nil }
+        let nums = parts.compactMap { Int($0) }
+        switch nums.count {
+        case 2: return nums[0] * 60 + nums[1]
+        case 3: return nums[0] * 3600 + nums[1] * 60 + nums[2]
+        default: return nil
+        }
+    }
 }
