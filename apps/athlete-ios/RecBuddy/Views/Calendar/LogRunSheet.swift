@@ -22,28 +22,115 @@ struct LogRunSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Your run") {
-                    TextField("Distance (\(unit.rawValue))", text: $dist).keyboardType(.decimalPad)
-                    TextField("Time (e.g. 45:00 or 1:25:14)", text: $time)
-                    if let p = derivedPace {
-                        LabeledContent("Pace", value: Units.fmtPace(p, unit))
+            ZStack {
+                RB.bg.ignoresSafeArea()
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+
+                        // Distance
+                        fieldGroup(label: "DISTANCE (\(unit.rawValue.uppercased()))") {
+                            TextField("4.5", text: $dist)
+                                .keyboardType(.decimalPad)
+                                .foregroundStyle(.white)
+                                .rbField()
+                        }
+
+                        // Time — auto-formatting number pad
+                        fieldGroup(label: "TIME") {
+                            TextField("45:00", text: $time)
+                                .keyboardType(.numberPad)
+                                .foregroundStyle(.white)
+                                .rbField()
+                                .onChange(of: time) { _, new in
+                                    time = formatTimeInput(new)
+                                }
+                        }
+
+                        // Derived pace (read-only display)
+                        if let p = derivedPace {
+                            VStack(alignment: .leading, spacing: 6) {
+                                RBLabel("PACE")
+                                Text(Units.fmtPace(p, unit))
+                                    .font(.body.weight(.semibold))
+                                    .foregroundStyle(.white)
+                            }
+                        }
+
+                        // Heart rate
+                        fieldGroup(label: "AVG HEART RATE (OPTIONAL)") {
+                            TextField("150", text: $hr)
+                                .keyboardType(.numberPad)
+                                .foregroundStyle(.white)
+                                .rbField()
+                        }
+
+                        // Feel picker
+                        VStack(alignment: .leading, spacing: 8) {
+                            RBLabel("HOW DID IT FEEL?")
+                            Picker("", selection: $feel) {
+                                ForEach(1...5, id: \.self) { i in
+                                    Text(String(repeating: "★", count: i)).tag(i)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                        }
+
+                        // Share toggle
+                        HStack {
+                            Text("Share to chat")
+                                .font(.subheadline)
+                                .foregroundStyle(.white)
+                            Spacer()
+                            Toggle("", isOn: $share).labelsHidden()
+                        }
+                        .padding(.vertical, 4)
+
+                        if let error {
+                            Text(error)
+                                .foregroundStyle(.red)
+                                .font(.footnote)
+                        }
+
+                        // Save button
+                        Button(busy ? "Saving…" : "Save run") { Task { await save() } }
+                            .buttonStyle(VoltButtonStyle())
+                            .disabled(busy || derivedPace == nil)
                     }
-                    TextField("Avg heart rate (optional)", text: $hr).keyboardType(.numberPad)
-                    Picker("How did it feel?", selection: $feel) {
-                        ForEach(1...5, id: \.self) { Text(String(repeating: "★", count: $0)).tag($0) }
-                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 20)
+                    .padding(.bottom, 32)
                 }
-                Section {
-                    Toggle("Share to chat", isOn: $share)
-                }
-                if let error { Text(error).foregroundStyle(.red).font(.footnote) }
-                Button(busy ? "Saving…" : "Save run") { Task { await save() } }
-                    .disabled(busy || derivedPace == nil)
             }
-            .navigationTitle("Log run")
+            .navigationTitle("Log Run")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { Button("Cancel") { dismiss() } }
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") { dismiss() }
+                        .foregroundStyle(RB.accent)
+                }
+            }
+        }
+    }
+
+    /// Auto-formats digit-only input right-to-left into H:MM:SS / MM:SS.
+    /// "4500" -> "45:00", "12514" -> "1:25:14".
+    private func formatTimeInput(_ raw: String) -> String {
+        let d = raw.filter(\.isNumber).suffix(6)
+        guard !d.isEmpty else { return "" }
+        let s = String(d)
+        if s.count <= 2 { return s }                          // "45" (seconds so far)
+        if s.count <= 4 {                                      // "4500" -> "45:00"
+            return "\(s.dropLast(2)):\(s.suffix(2))"
+        }
+        // 5-6 digits: "12514" -> "1:25:14"
+        return "\(s.dropLast(4)):\(s.dropLast(2).suffix(2)):\(s.suffix(2))"
+    }
+
+    @ViewBuilder
+    private func fieldGroup<Content: View>(label: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            RBLabel(label)
+            content()
         }
     }
 

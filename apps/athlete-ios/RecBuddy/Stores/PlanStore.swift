@@ -11,9 +11,27 @@ final class PlanStore {
     private(set) var phase: Phase = .idle
     private(set) var workoutsByDate: [String: Workout] = [:]  // date -> workout (one per day)
     private(set) var actualsByWorkout: [String: WorkoutActual] = [:]
+    private(set) var plan: Plan?
+    private(set) var monthWorkouts: [String: Workout] = [:]
     var weekMonday: String = Week.mondayOf(Week.todayISO())
 
     var weekDates: [String] { Week.weekDates(mondayIso: weekMonday) }
+
+    /// Sum of planned distances for all non-rest workouts in the displayed week.
+    var weekPlannedMiles: Double {
+        workoutsByDate.values
+            .filter { $0.type != "rest" }
+            .compactMap(\.dist)
+            .reduce(0, +)
+    }
+
+    /// Sum of planned distances for workouts marked done in the displayed week.
+    var weekDoneMiles: Double {
+        workoutsByDate.values
+            .filter { $0.status == "done" }
+            .compactMap(\.dist)
+            .reduce(0, +)
+    }
 
     func goToWeek(offset: Int) async {
         weekMonday = Week.addDays(weekMonday, offset * 7)
@@ -23,6 +41,14 @@ final class PlanStore {
     func refresh() async {
         phase = .loading
         do {
+            // Fetch the athlete's plan once (RLS scopes to the signed-in athlete).
+            // Plan is week-independent so we do this before the stale-week guard.
+            if plan == nil {
+                let plans: [Plan] = try await Supa.shared.from("plans")
+                    .select().limit(1).execute().value
+                if plan == nil { plan = plans.first }
+            }
+
             let from = weekMonday
             let to = Week.addDays(weekMonday, 6)
             let workouts: [Workout] = try await Supa.shared.from("workouts")
@@ -43,6 +69,22 @@ final class PlanStore {
             phase = .idle
         } catch {
             phase = .error("Couldn't load your plan. Pull to retry.")
+        }
+    }
+
+    /// Fetch all workouts in the calendar grid for the month containing `anchor`.
+    /// Updates monthWorkouts; silently ignores network errors (dots are best-effort).
+    func loadMonth(anchor: String) async {
+        let dates = Week.monthGridDates(anchor: anchor)
+        guard let first = dates.first, let last = dates.last else { return }
+        do {
+            let workouts: [Workout] = try await Supa.shared.from("workouts")
+                .select().gte("date", value: first).lte("date", value: last)
+                .order("date").execute().value
+            monthWorkouts = Dictionary(workouts.map { ($0.date, $0) },
+                                       uniquingKeysWith: { _, last in last })
+        } catch {
+            // Silently ignore — month grid dots are best-effort.
         }
     }
 

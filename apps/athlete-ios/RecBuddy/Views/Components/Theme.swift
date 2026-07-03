@@ -15,13 +15,20 @@ enum RB {
 }
 
 /// Uppercase letter-spaced section label ("EMAIL", "WEEKLY MILEAGE", "COACH'S NOTE").
+/// Pass `color` to override the default textMute tint (e.g. RB.accent for plan-week header).
 struct RBLabel: View {
     let text: String
+    var color: Color? = nil
+    /// Positional init so callers can write `RBLabel("TITLE")` or `RBLabel("TITLE", color: RB.accent)`.
+    init(_ text: String, color: Color? = nil) {
+        self.text = text
+        self.color = color
+    }
     var body: some View {
         Text(text.uppercased())
             .font(.caption2.weight(.semibold))
             .kerning(1.2)
-            .foregroundStyle(RB.textMute)
+            .foregroundStyle(color ?? RB.textMute)
     }
 }
 

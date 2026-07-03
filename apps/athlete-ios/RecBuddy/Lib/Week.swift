@@ -79,6 +79,14 @@ enum Week {
         return "\(MON[c.month! - 1]) \(c.day!)"
     }
 
+    /// 'YYYY-MM-DD' -> 'Tue, Jun 2' using Monday-first DOW labels.
+    static func fmtDayDate(_ iso: String) -> String {
+        let monday = mondayOf(iso)
+        let dates = weekDates(mondayIso: monday)
+        guard let idx = dates.firstIndex(of: iso) else { return fmtShortDate(iso) }
+        return "\(DOW[idx]), \(fmtShortDate(iso))"
+    }
+
     /// Today's calendar date in the user's LOCAL timezone (matches what they see).
     /// Explicit Gregorian: Calendar.current honors the device calendar setting
     /// (e.g. Japanese era years), which would corrupt the ISO year.
