@@ -26,6 +26,7 @@ targets:
         UILaunchScreen: {}
         SupabaseURL: $(SUPABASE_URL)
         SupabaseAnonKey: $(SUPABASE_ANON_KEY)
+        ResetPasswordRedirect: $(RESET_PASSWORD_REDIRECT)
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.recbuddy.athlete

@@ -6,6 +6,7 @@ struct AuthFlowView: View {
             VStack(spacing: 16) {
                 Spacer()
                 Image(systemName: "bolt.fill").font(.system(size: 56)).foregroundStyle(.green)
+                    .accessibilityHidden(true)
                 Text("RecBuddy").font(.largeTitle.bold())
                 Text("Your training plan, in your pocket.").foregroundStyle(.secondary)
                 Spacer()

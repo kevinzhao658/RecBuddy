@@ -16,6 +16,7 @@ struct InviteFlowView: View {
     @State private var phase: Phase = .code
     @State private var code = ""
     @State private var coachName = ""
+    @State private var coachInitials = ""
     @State private var name = ""
     @State private var email = ""
     @State private var password = ""
@@ -36,8 +37,14 @@ struct InviteFlowView: View {
 
             case .form:
                 Section {
-                    Label("You're joining \(coachName)", systemImage: "person.badge.shield.checkmark")
-                        .font(.headline)
+                    HStack(spacing: 10) {
+                        Text(coachInitials)
+                            .font(.caption.weight(.bold))
+                            .frame(width: 34, height: 34)
+                            .background(Color.green.opacity(0.2))
+                            .clipShape(RoundedRectangle(cornerRadius: 9))
+                        Text("You're joining \(coachName)").font(.headline)
+                    }
                 }
                 Section("Create your account") {
                     TextField("Your name", text: $name).textContentType(.name)
@@ -74,6 +81,7 @@ struct InviteFlowView: View {
                 .rpc("resolve_invite", params: ["p_code": trimmed]).execute().value
             if let hit = rows.first {
                 coachName = hit.coachName
+                coachInitials = hit.coachInitials
                 code = trimmed
                 phase = .form
             } else {
@@ -94,7 +102,9 @@ struct InviteFlowView: View {
             phase = .sent
         } catch {
             session.pendingInviteCode = nil
-            self.error = "Could not create the account: \(error.localizedDescription)"
+            self.error = error.localizedDescription.lowercased().contains("already registered")
+                ? "That email is already registered — try signing in instead."
+                : "Could not create the account. Check your details and try again."
         }
         busy = false
     }
