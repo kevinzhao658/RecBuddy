@@ -10,11 +10,12 @@ final class SessionStore {
     enum State: Equatable {
         case loading                 // app launch, restoring session
         case signedOut
+        case networkError            // valid session, profile fetch failed (offline?)
         case wrongRole               // signed in but not an athlete
         case athlete(Profile)
     }
     private(set) var state: State = .loading
-    /// Invite code held through the confirm-email gap; redeemed on first session.
+    /// Backed by UserDefaults — NOT tracked by @Observable; don't read it inside View bodies expecting reactive updates.
     var pendingInviteCode: String? {
         get { UserDefaults.standard.string(forKey: "pendingInviteCode") }
         set { UserDefaults.standard.set(newValue, forKey: "pendingInviteCode") }
@@ -37,7 +38,9 @@ final class SessionStore {
             } catch {
                 // A consumed code errors here but the profile still loads (athlete
                 // just stays unlinked); clear it so we don't retry forever.
-                if "\(error)".contains("already used") { pendingInviteCode = nil }
+                if (error as? PostgrestError)?.message.contains("already used") == true {
+                    pendingInviteCode = nil
+                }
             }
         }
         do {
@@ -47,11 +50,16 @@ final class SessionStore {
             let profile: Profile = try await Supa.shared.from("profiles")
                 .select().eq("id", value: uid).single().execute().value
             state = profile.role == "athlete" ? .athlete(profile) : .wrongRole
+        } catch is URLError {
+            // Transient network failure — the session is still valid; offer retry
+            // instead of dumping the user to the sign-in screen.
+            state = .networkError
         } catch {
             state = .signedOut
         }
     }
 
+    /// Re-fetches the profile; also re-attempts any un-cleared invite redemption (normally a no-op).
     func refreshProfile() async {
         await onSignedIn()
     }

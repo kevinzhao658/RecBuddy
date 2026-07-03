@@ -7,6 +7,15 @@ struct RootView: View {
         switch session.state {
         case .loading:
             ProgressView()
+        case .networkError:
+            VStack(spacing: 12) {
+                Image(systemName: "wifi.exclamationmark").font(.largeTitle).foregroundStyle(.secondary)
+                Text("Can't reach the server").font(.headline)
+                Button("Retry") { Task { await session.refreshProfile() } }
+                Button("Sign out") { Task { await session.signOut() } }
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+            .padding(32)
         case .signedOut:
             AuthFlowView()
         case .wrongRole:
