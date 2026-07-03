@@ -71,7 +71,7 @@ Sign-in and forgot-password mirror the web (`signInWithPassword`, `resetPassword
 ### Calendar tab
 - Today-centered **week strip** (Mon–Sun, matching the web's Monday-based week math) with paging to past/future weeks; each day shows its workout card (type icon, title, dist/pace) and status tint (done/today/planned/missed/rest — same statuses as the web).
 - Tap → **workout detail sheet**: type, title, distance + pace (unit-aware), est. duration, structure phases (`sets` label/detail rows), coach's note, and any logged actuals.
-- **Mark done**: sets `status = 'done'` — an UPDATE limited to the status column, which existing RLS explicitly permits athletes.
+- **Mark done**: calls the existing `mark_workout_status(p_workout_id, p_status)` SECURITY DEFINER RPC (athlete-settable values: `done`/`planned` — undo supported), which restricts the write to the caller's own workout and the status column.
 - **Log run**: form with distance, time, pace (auto-derived from distance+time, editable), avg HR, feel (1–5) → inserts `workout_actuals` (`source: 'manual'`) and marks the workout done. Optional **"Share to chat"** toggle posts a `runcard` message (`kind: 'runcard'`, payload `{title, dist, pace, time, hr}`) to the coach thread — the same shape the seed and coach app already render.
 - Empty states: no plan yet → "Your coach hasn't built your plan yet"; rest day → rest card.
 
@@ -93,7 +93,7 @@ Sign-in and forgot-password mirror the web (`signInWithPassword`, `resetPassword
 | Link to coach after confirm | `redeem_invite(text)` — authenticated RPC |
 | Read own profile / coaches | `profiles` RLS (self + linked coaches) |
 | Read plan + workouts | `plans_read` / `workouts_read` (`athlete_id = auth.uid()`) |
-| Mark done | `workouts` athlete status-only UPDATE policy |
+| Mark done / undo | `mark_workout_status(uuid, workout_status)` — authenticated RPC |
 | Log actuals | `actuals_write` (`athlete_id = auth.uid()`) |
 | Chat read/send/read-receipts | `threads_read` / messages policies (athlete + team) |
 | Realtime messages | Supabase Realtime on `messages` (already used by coach web) |
