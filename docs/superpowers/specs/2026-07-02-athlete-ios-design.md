@@ -63,7 +63,7 @@ Rules carried over from coach-web:
 2. Invite entry → `resolve_invite(code)` (anon-callable) → shows "You're joining {coach name}" with the coach's initials; invalid/consumed code shows an inline error.
 3. Signup form (name, email, password) → `auth.signUp` with `user_metadata: { name }` — the existing DB trigger creates the profile with role `athlete`. No custom endpoint, no captcha in v1 (signup is gated by possessing a valid invite code; revisit if abuse appears).
 4. "Check your email" screen with resend (same pattern as coach signup); Supabase **Confirm email** stays ON.
-5. After confirmation + sign-in → `redeem_invite(code)` links the athlete to the coach as head and consumes the code (the code is held locally through the confirm step). Redeem failure (e.g. consumed meanwhile) shows a retry/enter-new-code screen — the account exists but is unlinked until redemption succeeds.
+5. After confirmation + sign-in → `redeem_invite(code)` links the athlete to the coach as head and consumes the code (the code is held locally through the confirm step). Redeem failure (e.g. consumed meanwhile) leaves the account unlinked; recovery is the Account sheet's **"Join a coach"** section (shown whenever the athlete has no coach link), where a new code can be entered and redeemed — covering redeem failures and any other unlinked state.
 6. Land on Calendar.
 
 Sign-in and forgot-password mirror the web (`signInWithPassword`, `resetPasswordForEmail` → the web reset page).
