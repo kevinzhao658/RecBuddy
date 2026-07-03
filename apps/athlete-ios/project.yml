@@ -1,0 +1,47 @@
+name: RecBuddy
+options:
+  bundleIdPrefix: app.recbuddy
+  deploymentTarget:
+    iOS: "17.0"
+  xcodeVersion: "16.0"
+configFiles:
+  Debug: Config.xcconfig
+  Release: Config.xcconfig
+packages:
+  Supabase:
+    url: https://github.com/supabase/supabase-swift
+    from: 2.0.0
+targets:
+  RecBuddy:
+    type: application
+    platform: iOS
+    sources: [RecBuddy]
+    dependencies:
+      - package: Supabase
+        product: Supabase
+    info:
+      path: RecBuddy/Info.plist
+      properties:
+        CFBundleDisplayName: RecBuddy
+        UILaunchScreen: {}
+        SupabaseURL: $(SUPABASE_URL)
+        SupabaseAnonKey: $(SUPABASE_ANON_KEY)
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.recbuddy.athlete
+        SWIFT_VERSION: "5.10"
+  RecBuddyTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [RecBuddyTests]
+    dependencies:
+      - target: RecBuddy
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  RecBuddy:
+    build:
+      targets: { RecBuddy: all }
+    test:
+      targets: [RecBuddyTests]
