@@ -122,9 +122,9 @@ struct LogRunSheet: View {
                         VStack(alignment: .leading, spacing: 8) {
                             RBLabel("HOW DID IT FEEL? (OPTIONAL)")
                             HStack(spacing: 10) {
-                                feelChip(label: "Easy", icon: "tortoise.fill", value: 1)
-                                feelChip(label: "Moderate", icon: "figure.run", value: 3)
-                                feelChip(label: "Hard", icon: "flame.fill", value: 5)
+                                feelChip(label: "Easy", face: "😄", value: 1)
+                                feelChip(label: "Moderate", face: "🙂", value: 3)
+                                feelChip(label: "Hard", face: "☹️", value: 5)
                             }
                         }
 
@@ -187,13 +187,15 @@ struct LogRunSheet: View {
         dist.trimmingCharacters(in: .whitespaces).isEmpty && paceDigits.isEmpty
     }
 
-    private func feelChip(label: String, icon: String, value: Int) -> some View {
+    // Faces per user spec (easy = open-mouth happy, moderate = smile, hard =
+    // frown). Deliberate emoji: SF Symbols has no open-mouth/frowning faces.
+    private func feelChip(label: String, face: String, value: Int) -> some View {
         let selected = feel == value
         return Button {
             feel = selected ? nil : value // tap again to clear
         } label: {
             VStack(spacing: 5) {
-                Image(systemName: icon).font(.body)
+                Text(face).font(.body)
                 Text(label).font(.caption2.weight(.semibold))
             }
             .frame(maxWidth: .infinity)

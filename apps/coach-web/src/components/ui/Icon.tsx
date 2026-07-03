@@ -1,13 +1,67 @@
 import type { WorkoutType } from '../../lib/types'
-const TYPE_GLYPH: Record<string, string> = {
-  easy: 'M6 19l4-9 3 5 2-3 3 7', long: 'M3 18l5-9 4 6 3-4 6 7', speed: 'M13 2L4 14h6l-1 8 9-12h-6z',
-  tempo: 'M12 7v5l3 2M12 3a9 9 0 100 18 9 9 0 000-18z', recovery: 'M12 21s-7-4.35-7-10a4 4 0 017-2 4 4 0 017 2c0 5.65-7 10-7 10z',
-  cross: 'M5 5l14 14M19 5L5 19', rest: 'M4 12h6l-3 5h6', race: 'M5 3v18M5 4h11l-2 4 2 4H5',
+
+/** Workout-type icons aligned with the athlete iOS app's SF Symbol metaphors
+ *  (runner, arrow-to-line, bolt, gauge, heart-renewal, bicycle, crescent-zzz,
+ *  checkered flag) — redrawn as original line art (SF Symbols are
+ *  Apple-platform-only, so the glyphs themselves can't ship on the web). */
+const TYPE_GLYPH: Record<string, React.ReactNode> = {
+  // figure.run — stick runner mid-stride
+  easy: (
+    <>
+      <circle cx="13.5" cy="4.6" r="1.7" />
+      <path d="M12.8 7.4L11 12M8.6 9.8l3.4-1.6 2.6 1.4 2.4 2.6M11 12l-2.4 4.2L6 18.4M11 12l2.2 3.2 2.8 1.8" />
+    </>
+  ),
+  // arrow.right.to.line — long steady push to the finish
+  long: <path d="M3.5 12h12M11 7l5 5-5 5M20.5 6v12" />,
+  // bolt — intervals/speed
+  speed: <path d="M13 2L4 14h6l-1 8 9-12h-6z" />,
+  // gauge.with.needle — tempo effort
+  tempo: (
+    <>
+      <path d="M5 16.5a8 8 0 1114 0" />
+      <path d="M12 14.5l3.6-4.6" />
+      <circle cx="12" cy="15" r="1" />
+    </>
+  ),
+  // arrow.clockwise.heart — recovery/renewal
+  recovery: (
+    <>
+      <path d="M12 20.5s-6-3.9-6-8.4a3.4 3.4 0 016-2.2 3.4 3.4 0 016 2.2c0 4.5-6 8.4-6 8.4z" />
+      <path d="M8.5 4.5a5.5 5.5 0 017.6.9M16.5 3v2.8h-2.8" />
+    </>
+  ),
+  // bicycle — cross-training
+  cross: (
+    <>
+      <circle cx="6" cy="16.5" r="3.2" />
+      <circle cx="18" cy="16.5" r="3.2" />
+      <path d="M6 16.5l3.6-6.3h4.9l3.5 6.3M9.6 10.2L8.2 7.6h-2M13 7.2h2.6" />
+    </>
+  ),
+  // moon.zzz — rest day
+  rest: (
+    <>
+      <path d="M10.5 4.5a7.3 7.3 0 108.6 8.6 6 6 0 01-8.6-8.6z" />
+      <path d="M15.5 3.5h4l-4 4h4" />
+    </>
+  ),
+  // flag.checkered — race day
+  race: (
+    <>
+      <path d="M5 21V4M5 4h14v8H5" />
+      <rect x="7" y="5.5" width="2.6" height="2.6" fill="currentColor" stroke="none" />
+      <rect x="12.2" y="5.5" width="2.6" height="2.6" fill="currentColor" stroke="none" />
+      <rect x="9.6" y="8.1" width="2.6" height="2.6" fill="currentColor" stroke="none" />
+      <rect x="14.8" y="8.1" width="2.6" height="2.6" fill="currentColor" stroke="none" />
+    </>
+  ),
 }
+
 export function TypeIcon({ type, className = '' }: { type: WorkoutType; className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" className={`h-4 w-4 ${className}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d={TYPE_GLYPH[type] ?? TYPE_GLYPH.easy} />
+    <svg viewBox="0 0 24 24" className={`h-4 w-4 ${className}`} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      {TYPE_GLYPH[type] ?? TYPE_GLYPH.easy}
     </svg>
   )
 }
