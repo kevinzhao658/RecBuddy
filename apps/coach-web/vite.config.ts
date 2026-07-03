@@ -5,6 +5,11 @@ import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  // Pinned: the Supabase dev URL config (Site URL, redirect allow-list) and the
+  // athlete app's baked-in redirects all point at 5176. strictPort fails loudly
+  // if the port is taken instead of silently drifting to 5173 and breaking
+  // every emailed auth link.
+  server: { port: 5176, strictPort: true },
   test: {
     environment: 'jsdom',
     globals: true,
