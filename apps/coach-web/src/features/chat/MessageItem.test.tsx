@@ -1,5 +1,12 @@
 import { render, screen, fireEvent } from '@testing-library/react'
+import * as chatQueries from '../../lib/queries/chat'
 import { MessageItem } from './MessageItem'
+
+// useSignedImageUrl calls useQuery which needs a QueryClient context.
+// Mock it at module level so ImageView renders without a provider in unit tests.
+vi.mock('../../lib/queries/chat', () => ({
+  useSignedImageUrl: vi.fn(() => ({ data: undefined })),
+}))
 
 const base = { id: '1', thread_id: 't', from_user_id: 'a', read: true, created_at: '2026-06-01T10:00:00Z' }
 
@@ -32,10 +39,21 @@ test('renders a shared-workout card and opens its day on click', () => {
   expect(onOpenWorkout).toHaveBeenCalledWith('2026-08-23')
 })
 
-test('renders an image message with correct src and aspect ratio', () => {
+test('renders an image message via signed URL when path is provided', () => {
+  vi.mocked(chatQueries.useSignedImageUrl).mockReturnValue({ data: 'https://signed.example.com/img.jpg' } as any)
   render(<MessageItem mine={false}
-    m={{ ...base, kind: 'image', body: null, payload: { url: 'https://example.com/chat.jpg', w: 1280, h: 720 } } as any} />)
+    m={{ ...base, kind: 'image', body: null, payload: { path: 'thread-1/abc.jpg', w: 1280, h: 720 } } as any} />)
   const img = screen.getByRole('img')
-  expect(img).toHaveAttribute('src', 'https://example.com/chat.jpg')
+  expect(img).toHaveAttribute('src', 'https://signed.example.com/img.jpg')
   expect(img).toHaveStyle('aspect-ratio: 1280/720')
+  // The wrapping anchor must also point at the signed URL
+  expect(screen.getByRole('link')).toHaveAttribute('href', 'https://signed.example.com/img.jpg')
+})
+
+test('renders nothing for a legacy javascript: url (XSS guard)', () => {
+  // path is absent → useSignedImageUrl called with null → returns undefined (default mock)
+  render(<MessageItem mine={false}
+    m={{ ...base, kind: 'image', body: null, payload: { url: 'javascript:alert(1)', w: 100, h: 100 } } as any} />)
+  expect(screen.queryByRole('img')).toBeNull()
+  expect(screen.queryByRole('link')).toBeNull()
 })

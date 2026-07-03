@@ -169,8 +169,18 @@ struct MessageRow: View {
 
     // ── Image bubble ──────────────────────────────────────────────────────
 
+    /// Routes to ChatImageView (new path-based private bucket) or falls back to
+    /// the legacy url field — only if the url uses a strict https:// scheme.
     @ViewBuilder private var imageCard: some View {
-        if let urlStr = message.payloadString("url"), let url = URL(string: urlStr) {
+        if let path = message.payloadString("path") {
+            ChatImageView(
+                path: path,
+                w: message.payloadInt("w"),
+                h: message.payloadInt("h")
+            )
+        } else if let urlStr = message.payloadString("url"),
+                  urlStr.hasPrefix("https://"),
+                  let url = URL(string: urlStr) {
             let w = message.payloadInt("w")
             let h = message.payloadInt("h")
             if let w, let h, w > 0, h > 0 {
@@ -196,7 +206,7 @@ struct MessageRow: View {
         }
     }
 
-    // ── Dark card (coach messages / workout / adjust) ──────────────────────
+    // ── Dark card (coach messages / workout / adjust) ─────────────────────
 
     private func darkCard<C: View>(
         header: String,
@@ -215,5 +225,61 @@ struct MessageRow: View {
         .overlay(
             RoundedRectangle(cornerRadius: 14).stroke(RB.line, lineWidth: 1)
         )
+    }
+}
+
+// ── ChatImageView ─────────────────────────────────────────────────────────────
+/// Fetches a short-lived signed URL for a private-bucket chat image and renders
+/// it asynchronously.  Shows a neutral placeholder box (preserving aspect ratio)
+/// while the signed URL is loading.
+/// Uses `.task(id: path)` so the fetch re-runs automatically if the path changes.
+struct ChatImageView: View {
+    let path: String
+    let w: Int?
+    let h: Int?
+    @State private var signedURL: URL?
+
+    var body: some View {
+        imageContent
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .task(id: path) {
+                signedURL = try? await Supa.shared.storage
+                    .from("chat-images")
+                    .createSignedURL(path: path, expiresIn: 3600)
+            }
+    }
+
+    @ViewBuilder private var imageContent: some View {
+        if let wr = w, let hr = h, wr > 0, hr > 0 {
+            let ratio = CGFloat(wr) / CGFloat(hr)
+            if let url = signedURL {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let img): img.resizable().scaledToFit()
+                    default: RB.surface
+                    }
+                }
+                .frame(maxWidth: 220)
+                .aspectRatio(ratio, contentMode: .fit)
+            } else {
+                // Placeholder: preserve aspect ratio while the signed URL loads.
+                RB.surface
+                    .frame(maxWidth: 220)
+                    .aspectRatio(ratio, contentMode: .fit)
+            }
+        } else {
+            if let url = signedURL {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let img): img.resizable().scaledToFit()
+                    default: RB.surface.frame(height: 120)
+                    }
+                }
+                .frame(maxWidth: 220)
+            } else {
+                RB.surface
+                    .frame(maxWidth: 220, minHeight: 120)
+            }
+        }
     }
 }

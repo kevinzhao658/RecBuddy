@@ -42,8 +42,11 @@ export interface AdjustCard { from: string; to: string; reason: string }
 /** payload for kind='workout' (a scheduled workout the coach shared). Snapshot
  *  for display; the message's workout_id links the live row for click-through. */
 export interface WorkoutCard { date: string; type: WorkoutType; title: string; dist: number | null; pace: string | null }
-/** payload for kind='image' (a client-compressed JPEG uploaded to chat-images). */
-export interface ImageCard { url: string; w: number; h: number }
+/** payload for kind='image' (a client-compressed JPEG uploaded to chat-images).
+ *  `path` is the canonical storage path (<thread_id>/<uuid>.jpg) — clients exchange
+ *  it for a short-lived signed URL via the private bucket.
+ *  `url` is legacy-read-only (old public-bucket rows); never written to new rows. */
+export interface ImageCard { path?: string; url?: string; w: number; h: number }
 export interface Thread { id: string; athlete_id: string; coach_id: string }
 export interface Message {
   id: string; thread_id: string; from_user_id: string; kind: MessageKind
