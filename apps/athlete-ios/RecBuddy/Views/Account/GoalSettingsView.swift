@@ -1,16 +1,24 @@
 import SwiftUI
 
 /// Lets the athlete edit their race goal (name, distance, date, goal time).
-/// Writes via the update_my_goal security-definer RPC.
+/// Distance and time are WHEEL PICKERS (Timer-app style vertical drums) so
+/// malformed input is impossible. Writes via the update_my_goal RPC.
 struct GoalSettingsView: View {
     let profile: Profile
     let plan: Plan?
     @Environment(SessionStore.self) private var session
+    @AppStorage("unit") private var unitRaw = "mi"
+    private var unit: Unit { Unit(rawValue: unitRaw) ?? .mi }
 
     @State private var raceName: String
-    @State private var distance: String
     @State private var goalDate: Date
-    @State private var timeDigits: String   // raw digits, fills H:MM:SS from right
+    // Distance drums (display unit): whole 0–99 + tenths 0–9
+    @State private var distWhole: Int
+    @State private var distTenth: Int
+    // Time drums: hours 0–9, minutes/seconds 0–59
+    @State private var hours: Int
+    @State private var minutes: Int
+    @State private var seconds: Int
 
     @State private var busy = false
     @State private var saved = false
@@ -19,44 +27,61 @@ struct GoalSettingsView: View {
     init(profile: Profile, plan: Plan?) {
         self.profile = profile
         self.plan = plan
-        _raceName  = State(initialValue: plan?.goalRace ?? "")
-        _distance  = State(initialValue: plan?.goalDistance ?? "")
-        _goalDate  = State(initialValue: Self.parseDate(plan?.goalDate))
-        _timeDigits = State(initialValue: Self.digitsFromTime(plan?.goalTime))
+        _raceName = State(initialValue: plan?.goalRace ?? "")
+        _goalDate = State(initialValue: Self.parseDate(plan?.goalDate))
+        let (w, t) = Self.parseDistance(plan?.goalDistance)
+        _distWhole = State(initialValue: w)
+        _distTenth = State(initialValue: t)
+        let (h, m, s) = Self.parseTime(plan?.goalTime)
+        _hours = State(initialValue: h)
+        _minutes = State(initialValue: m)
+        _seconds = State(initialValue: s)
     }
 
-    // MARK: – Helpers
+    // MARK: – Parsing (prefill from the stored plan)
 
     private static func parseDate(_ iso: String?) -> Date {
         guard let iso, let d = Week.parse(iso) else { return Date() }
         return d
     }
 
-    /// "1:48:00" → "14800"
-    private static func digitsFromTime(_ time: String?) -> String {
-        guard let time, !time.isEmpty else { return "" }
-        return time.split(separator: ":").map(String.init).joined()
+    /// "13.1 mi" → (13, 1); tolerant of unit suffix / missing decimals.
+    private static func parseDistance(_ text: String?) -> (Int, Int) {
+        guard let text else { return (0, 0) }
+        let numeric = text.split(separator: " ").first.map(String.init) ?? text
+        let parts = numeric.split(separator: ".")
+        let whole = Int(parts.first ?? "") ?? 0
+        let tenth = parts.count > 1 ? (Int(parts[1].prefix(1)) ?? 0) : 0
+        return (min(whole, 99), tenth)
     }
 
-    /// Raw digit buffer → formatted "H:MM:SS" / "M:SS" display string
-    private var timeShown: String {
-        let d = timeDigits
-        guard !d.isEmpty else { return "" }
-        if d.count <= 2 { return d }
-        if d.count <= 4 {
-            let m = Int(d.dropLast(2)) ?? 0
-            let ss = String(format: "%02d", Int(d.suffix(2)) ?? 0)
-            return "\(m):\(ss)"
+    /// "1:48:00" → (1,48,0); "55:00" → (0,55,0).
+    private static func parseTime(_ time: String?) -> (Int, Int, Int) {
+        guard let time else { return (0, 0, 0) }
+        let n = time.split(separator: ":").compactMap { Int($0) }
+        switch n.count {
+        case 3: return (min(n[0], 9), min(n[1], 59), min(n[2], 59))
+        case 2: return (0, min(n[0], 59), min(n[1], 59))
+        default: return (0, 0, 0)
         }
-        // 5–6 digits → H:MM:SS
-        let h  = Int(d.prefix(d.count - 4)) ?? 0
-        let mm = String(format: "%02d", Int(String(d.dropFirst(d.count - 4).prefix(2))) ?? 0)
-        let ss = String(format: "%02d", Int(d.suffix(2)) ?? 0)
-        return "\(h):\(mm):\(ss)"
     }
 
-    /// Date → "YYYY-MM-DD" for the RPC
+    // MARK: – Derived output strings
+
+    private var distanceString: String { "\(distWhole).\(distTenth) \(unit.rawValue)" }
+    private var timeString: String {
+        hours > 0
+            ? "\(hours):" + String(format: "%02d:%02d", minutes, seconds)
+            : "\(minutes):" + String(format: "%02d", seconds)
+    }
     private var goalDateString: String { Week.format(goalDate) }
+
+    /// Common race distances in the current display unit → drum values.
+    private var quickPicks: [(String, Int, Int)] {
+        unit == .km
+            ? [("5K", 5, 0), ("10K", 10, 0), ("Half", 21, 1), ("Marathon", 42, 2)]
+            : [("5K", 3, 1), ("10K", 6, 2), ("Half", 13, 1), ("Marathon", 26, 2)]
+    }
 
     var body: some View {
         ZStack {
@@ -72,43 +97,68 @@ struct GoalSettingsView: View {
                             .onChange(of: raceName) { _, _ in saved = false }
                     }
 
-                    // Distance
-                    fieldGroup(label: "GOAL DISTANCE") {
-                        TextField("e.g. 26.2 mi", text: $distance)
-                            .foregroundStyle(.white)
-                            .rbField()
-                            .onChange(of: distance) { _, _ in saved = false }
+                    // Distance — quick picks + two vertical drums
+                    VStack(alignment: .leading, spacing: 8) {
+                        RBLabel("GOAL DISTANCE (\(unit.rawValue.uppercased()))")
+                        HStack(spacing: 8) {
+                            ForEach(quickPicks, id: \.0) { pick in
+                                let active = distWhole == pick.1 && distTenth == pick.2
+                                Button(pick.0) {
+                                    distWhole = pick.1; distTenth = pick.2; saved = false
+                                }
+                                .font(.caption.weight(.semibold))
+                                .padding(.horizontal, 12).padding(.vertical, 7)
+                                .foregroundStyle(active ? RB.onAccent : RB.textMute)
+                                .background(active ? AnyShapeStyle(RB.accent) : AnyShapeStyle(RB.metalSurface2))
+                                .clipShape(Capsule())
+                                .overlay(Capsule().stroke(active ? .clear : RB.line, lineWidth: 1))
+                            }
+                        }
+                        HStack(spacing: 0) {
+                            drum(0...99, selection: $distWhole, label: "Distance whole number")
+                            Text(".")
+                                .font(.title2.weight(.bold)).foregroundStyle(.white)
+                            drum(0...9, selection: $distTenth, label: "Distance tenths")
+                            Text(unit.rawValue)
+                                .font(.subheadline).foregroundStyle(RB.textMute)
+                                .padding(.leading, 8)
+                            Spacer()
+                        }
+                        .frame(height: 110)
+                        .rbCard()
                     }
 
                     // Date
                     VStack(alignment: .leading, spacing: 8) {
                         RBLabel("RACE DATE")
-                        DatePicker(
-                            "",
-                            selection: $goalDate,
-                            in: Date()...,
-                            displayedComponents: .date
-                        )
-                        .datePickerStyle(.compact)
-                        .labelsHidden()
-                        .colorScheme(.dark)
-                        .tint(RB.accent)
-                        .onChange(of: goalDate) { _, _ in saved = false }
+                        DatePicker("", selection: $goalDate, in: Date()..., displayedComponents: .date)
+                            .datePickerStyle(.compact)
+                            .labelsHidden()
+                            .colorScheme(.dark)
+                            .tint(RB.accent)
+                            .onChange(of: goalDate) { _, _ in saved = false }
                     }
 
-                    // Goal time — digit-buffered H:MM:SS
-                    fieldGroup(label: "GOAL TIME (H:MM:SS)") {
-                        TextField(
-                            "1:48:00",
-                            text: Binding(
-                                get: { timeShown },
-                                set: { timeDigits = String($0.filter(\.isNumber).suffix(6)) }
-                            )
-                        )
-                        .keyboardType(.numberPad)
-                        .foregroundStyle(.white)
-                        .rbField()
-                        .onChange(of: timeDigits) { _, _ in saved = false }
+                    // Goal time — H : MM : SS drums
+                    VStack(alignment: .leading, spacing: 8) {
+                        RBLabel("GOAL TIME")
+                        HStack(spacing: 0) {
+                            drum(0...9, selection: $hours, label: "Goal hours")
+                            colon
+                            drum(0...59, selection: $minutes, pad: true, label: "Goal minutes")
+                            colon
+                            drum(0...59, selection: $seconds, pad: true, label: "Goal seconds")
+                            VStack(alignment: .leading, spacing: 14) {
+                                Text("hr").font(.caption2).foregroundStyle(RB.textFaint)
+                            }
+                            Spacer()
+                            Text(timeString)
+                                .font(.headline.monospacedDigit())
+                                .foregroundStyle(RB.accent)
+                                .padding(.trailing, 12)
+                        }
+                        .frame(height: 110)
+                        .rbCard()
                     }
 
                     if let error {
@@ -133,7 +183,30 @@ struct GoalSettingsView: View {
         .toolbarColorScheme(.dark, for: .navigationBar)
     }
 
-    // MARK: – Helpers
+    // MARK: – Pieces
+
+    private var colon: some View {
+        Text(":").font(.title3.weight(.bold)).foregroundStyle(RB.textMute)
+    }
+
+    /// A compact vertical wheel ("belt") for one numeric field.
+    private func drum(_ range: ClosedRange<Int>, selection: Binding<Int>, pad: Bool = false, label: String) -> some View {
+        Picker(label, selection: Binding(
+            get: { selection.wrappedValue },
+            set: { selection.wrappedValue = $0; saved = false }
+        )) {
+            ForEach(Array(range), id: \.self) { n in
+                Text(pad ? String(format: "%02d", n) : "\(n)")
+                    .font(.title3.monospacedDigit())
+                    .foregroundStyle(.white)
+                    .tag(n)
+            }
+        }
+        .pickerStyle(.wheel)
+        .frame(width: 64)
+        .clipped()
+        .accessibilityLabel(label)
+    }
 
     @ViewBuilder
     private func fieldGroup<Content: View>(label: String, @ViewBuilder content: () -> Content) -> some View {
@@ -151,9 +224,9 @@ struct GoalSettingsView: View {
         do {
             try await Supa.shared.rpc("update_my_goal", params: [
                 "p_goal_race":     raceName.trimmingCharacters(in: .whitespaces),
-                "p_goal_distance": distance.trimmingCharacters(in: .whitespaces),
+                "p_goal_distance": distanceString,
                 "p_goal_date":     goalDateString,
-                "p_goal_time":     timeShown.isEmpty ? "" : timeShown
+                "p_goal_time":     timeString
             ]).execute()
             await session.refreshProfile()
             saved = true
