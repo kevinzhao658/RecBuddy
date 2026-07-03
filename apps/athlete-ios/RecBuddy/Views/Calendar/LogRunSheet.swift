@@ -122,9 +122,9 @@ struct LogRunSheet: View {
                         VStack(alignment: .leading, spacing: 8) {
                             RBLabel("HOW DID IT FEEL? (OPTIONAL)")
                             HStack(spacing: 10) {
-                                feelChip(label: "Easy", face: "😄", value: 1)
-                                feelChip(label: "Moderate", face: "🙂", value: 3)
-                                feelChip(label: "Hard", face: "☹️", value: 5)
+                                feelChip(label: "Easy", face: .laugh, value: 1)
+                                feelChip(label: "Moderate", face: .smile, value: 3)
+                                feelChip(label: "Hard", face: .frown, value: 5)
                             }
                         }
 
@@ -187,15 +187,15 @@ struct LogRunSheet: View {
         dist.trimmingCharacters(in: .whitespaces).isEmpty && paceDigits.isEmpty
     }
 
-    // Faces per user spec (easy = open-mouth happy, moderate = smile, hard =
-    // frown). Deliberate emoji: SF Symbols has no open-mouth/frowning faces.
-    private func feelChip(label: String, face: String, value: Int) -> some View {
+    // Drawn line-art faces (FaceIcon) — icon-style, tintable; SF Symbols has no
+    // open-mouth/frowning face so these are custom-drawn per user spec.
+    private func feelChip(label: String, face: FaceIcon.Kind, value: Int) -> some View {
         let selected = feel == value
         return Button {
             feel = selected ? nil : value // tap again to clear
         } label: {
             VStack(spacing: 5) {
-                Text(face).font(.body)
+                FaceIcon(kind: face, size: 20)
                 Text(label).font(.caption2.weight(.semibold))
             }
             .frame(maxWidth: .infinity)
