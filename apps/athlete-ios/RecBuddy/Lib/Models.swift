@@ -81,6 +81,7 @@ struct WorkoutActual: Codable, Identifiable, Equatable {
     }
 }
 
+/// Shadows Foundation.Thread; qualify as Foundation.Thread if OS thread API is ever needed.
 struct Thread: Codable, Identifiable, Equatable {
     let id: String
     let athleteId: String
@@ -142,7 +143,10 @@ enum PayloadValue: Codable, Equatable {
         else if let i = try? c.decode(Int.self) { self = .int(i) }
         else if let d = try? c.decode(Double.self) { self = .double(d) }
         else if let s = try? c.decode(String.self) { self = .string(s) }
-        else { self = .null } // arrays/objects inside payloads aren't used
+        else {
+            assertionFailure("PayloadValue: unexpected JSON structure — nested object or array?")
+            self = .null // arrays/objects inside payloads aren't used
+        }
     }
     func encode(to encoder: Encoder) throws {
         var c = encoder.singleValueContainer()

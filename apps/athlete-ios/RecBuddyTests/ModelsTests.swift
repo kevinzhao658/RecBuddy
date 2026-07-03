@@ -40,4 +40,12 @@ import Foundation
         #expect(m.payloadString("title") == "Long Run")
         #expect(m.payloadInt("hr") == 152)
     }
+
+    @Test func decodesPayloadValueEdgeCases() throws {
+        let json = #"{"flag":true,"score":3.5,"nothing":null}"#.data(using: .utf8)!
+        let vals = try decoder.decode([String: PayloadValue].self, from: json)
+        #expect(vals["flag"] == .bool(true))
+        #expect(vals["score"] == .double(3.5))
+        #expect(vals["nothing"] == .null)
+    }
 }
