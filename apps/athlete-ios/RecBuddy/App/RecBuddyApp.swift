@@ -2,9 +2,13 @@ import SwiftUI
 
 @main
 struct RecBuddyApp: App {
+    @State private var session = SessionStore()
+
     var body: some Scene {
         WindowGroup {
-            Text("RecBuddy")
+            RootView()
+                .environment(session)
+                .task { await session.start() }
         }
     }
 }
