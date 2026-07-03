@@ -47,6 +47,7 @@ struct VoltButtonStyle: ButtonStyle {
             .background(prominent ? RB.accent : RB.surface2)
             .foregroundStyle(prominent ? RB.onAccent : .white)
             .clipShape(Capsule())
+            .contentShape(Capsule()) // whole pill tappable
             .shadow(color: prominent ? RB.accent.opacity(configuration.isPressed ? 0.15 : 0.45) : .clear,
                     radius: 14, y: 2)
             .opacity(configuration.isPressed ? 0.85 : 1)

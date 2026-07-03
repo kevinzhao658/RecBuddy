@@ -68,6 +68,7 @@ struct RBTabBar: View {
             .padding(.vertical, 11)
             .background(tab == i ? RB.accent.opacity(0.14) : .clear)
             .clipShape(Capsule())
+            .contentShape(Capsule()) // inactive tab (clear bg) stays tappable
         }
         .accessibilityLabel(label)
         .accessibilityAddTraits(tab == i ? .isSelected : [])

@@ -186,6 +186,7 @@ struct CalendarView: View {
                 .padding(.top, 14)
             }
             .padding(16)
+            .contentShape(Rectangle()) // whole card tappable, not just drawn pixels
         }
         .buttonStyle(.plain)
         .rbCard(highlighted: true)
@@ -212,6 +213,7 @@ struct CalendarView: View {
                 .background(mode == m ? RB.surface2 : Color.clear)
                 .clipShape(RoundedRectangle(cornerRadius: 10))
                 .padding(3)
+                .contentShape(Rectangle()) // inactive segment (clear bg) stays tappable
         }
         .buttonStyle(.plain)
     }
@@ -225,6 +227,8 @@ struct CalendarView: View {
                 Button { Task { await store.goToWeek(offset: -1) } } label: {
                     Image(systemName: "chevron.left")
                         .foregroundStyle(RB.textMute)
+                        .frame(width: 44, height: 44) // forgiving hit target
+                        .contentShape(Rectangle())
                 }
                 Spacer()
                 Text("\(Week.fmtShortDate(store.weekMonday)) – \(Week.fmtShortDate(Week.addDays(store.weekMonday, 6)))")
@@ -234,6 +238,8 @@ struct CalendarView: View {
                 Button { Task { await store.goToWeek(offset: 1) } } label: {
                     Image(systemName: "chevron.right")
                         .foregroundStyle(RB.textMute)
+                        .frame(width: 44, height: 44) // forgiving hit target
+                        .contentShape(Rectangle())
                 }
             }
             .buttonStyle(.plain)
@@ -344,7 +350,7 @@ struct CalendarView: View {
                 Button {
                     monthAnchor = Week.addMonths(Week.firstOfMonth(monthAnchor), -1)
                 } label: {
-                    Image(systemName: "chevron.left").foregroundStyle(RB.textMute)
+                    Image(systemName: "chevron.left").foregroundStyle(RB.textMute).frame(width: 44, height: 44).contentShape(Rectangle())
                 }
                 Spacer()
                 Text(Week.fmtMonthYear(monthAnchor))
@@ -354,7 +360,7 @@ struct CalendarView: View {
                 Button {
                     monthAnchor = Week.addMonths(Week.firstOfMonth(monthAnchor), 1)
                 } label: {
-                    Image(systemName: "chevron.right").foregroundStyle(RB.textMute)
+                    Image(systemName: "chevron.right").foregroundStyle(RB.textMute).frame(width: 44, height: 44).contentShape(Rectangle())
                 }
             }
             .buttonStyle(.plain)
