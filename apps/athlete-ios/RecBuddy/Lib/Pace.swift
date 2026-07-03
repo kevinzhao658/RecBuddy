@@ -19,6 +19,14 @@ enum Pace {
         guard miles > 0, totalSeconds > 0 else { return nil }
         return fromSeconds(Int((Double(totalSeconds) / miles).rounded()))
     }
+    /// Total seconds -> elapsed-time string: 2700 -> "45:00", 5114 -> "1:25:14".
+    static func timeString(fromSeconds s: Int) -> String {
+        let t = max(0, s)
+        let h = t / 3600, m = (t % 3600) / 60, sec = t % 60
+        return h > 0
+            ? "\(h):" + String(format: "%02d:%02d", m, sec)
+            : "\(m):" + String(format: "%02d", sec)
+    }
     /// "45:00" or "1:25:14" -> total seconds. nil if unparseable.
     static func timeToSeconds(_ time: String) -> Int? {
         let parts = time.split(separator: ":")

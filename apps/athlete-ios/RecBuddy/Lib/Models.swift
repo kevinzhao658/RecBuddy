@@ -73,9 +73,10 @@ struct WorkoutActual: Codable, Identifiable, Equatable {
     let time: String
     let hr: Int?
     let feel: Int?
+    let note: String?
     let source: String
     enum CodingKeys: String, CodingKey {
-        case id, dist, pace, time, hr, feel, source
+        case id, dist, pace, time, hr, feel, note, source
         case workoutId = "workout_id"
         case athleteId = "athlete_id"
     }

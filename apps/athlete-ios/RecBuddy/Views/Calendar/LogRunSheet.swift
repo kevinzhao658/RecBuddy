@@ -1,23 +1,65 @@
 import SwiftUI
 
+/// The completion flow: opened by "Mark as complete" on the detail sheet.
+/// Athlete enters distance + AVERAGE PACE (total time is derived), optional
+/// HR + feel + a free-form comment — or skips straight to marking done.
 struct LogRunSheet: View {
     let workout: Workout
     let store: PlanStore
     let unit: Unit
     @Environment(\.dismiss) private var dismiss
     @State private var dist = ""
-    @State private var time = ""
+    @State private var paceDigits = ""   // raw typed digits, fills M:SS from the right
     @State private var hr = ""
     @State private var feel = 3
+    @State private var note = ""
     @State private var share = true
     @State private var busy = false
     @State private var error: String?
 
-    /// Canonical pace derived from the entered distance (display unit) + time.
-    private var derivedPace: String? {
-        guard let d = Double(dist), let secs = Pace.timeToSeconds(time) else { return nil }
-        let miles = Units.toMiles(d, unit)
-        return Pace.derive(miles: miles, totalSeconds: secs)
+    init(workout: Workout, store: PlanStore, unit: Unit) {
+        self.workout = workout
+        self.store = store
+        self.unit = unit
+        // Prefill from the plan so most runs are a two-tap log.
+        _dist = State(initialValue: workout.dist.map { Units.fmtDist($0, unit) } ?? "")
+        _paceDigits = State(initialValue: Self.digits(fromPace: workout.pace, unit: unit))
+    }
+
+    /// "9:30/mi" (canonical) -> "930" display-unit digit buffer; "" if none.
+    private static func digits(fromPace pace: String?, unit: Unit) -> String {
+        guard var sec = Pace.toSeconds(pace) else { return "" }
+        if unit == .km { sec = Int((Double(sec) / Units.kmPerMi).rounded()) }
+        return "\(sec / 60)" + String(format: "%02d", sec % 60)
+    }
+
+    /// Typed pace digits -> display string ("930" -> "9:30", "45" -> "45").
+    private var paceShown: String {
+        paceDigits.count > 2
+            ? "\(Int(paceDigits.dropLast(2)) ?? 0):\(paceDigits.suffix(2))"
+            : paceDigits
+    }
+    /// Seconds per DISPLAY unit from the digit buffer; nil until a full M:SS.
+    private var paceDispSeconds: Int? {
+        guard paceDigits.count > 2 else { return nil }
+        let m = Int(paceDigits.dropLast(2)) ?? 0
+        let s = Int(paceDigits.suffix(2)) ?? 0
+        let total = m * 60 + s
+        return total > 0 ? total : nil
+    }
+    /// Canonical "M:SS/mi" pace from the buffer.
+    private var canonicalPace: String? {
+        guard let disp = paceDispSeconds else { return nil }
+        return Pace.fromSeconds(unit == .km ? Int((Double(disp) * Units.kmPerMi).rounded()) : disp)
+    }
+    private var miles: Double? {
+        guard let d = Double(dist), d > 0 else { return nil }
+        return (Units.toMiles(d, unit) * 100).rounded() / 100
+    }
+    /// TOTAL TIME derived from distance x average pace.
+    private var derivedTimeSeconds: Int? {
+        guard let miles, let pace = canonicalPace, let secPerMi = Pace.toSeconds(pace) else { return nil }
+        return Int((miles * Double(secPerMi)).rounded())
     }
 
     var body: some View {
@@ -27,41 +69,51 @@ struct LogRunSheet: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
 
-                        // Distance
+                        // Distance — digits + one decimal point only
                         fieldGroup(label: "DISTANCE (\(unit.rawValue.uppercased()))") {
                             TextField("4.5", text: $dist)
                                 .keyboardType(.decimalPad)
                                 .foregroundStyle(.white)
                                 .rbField()
-                        }
-
-                        // Time — auto-formatting number pad
-                        fieldGroup(label: "TIME") {
-                            TextField("45:00", text: $time)
-                                .keyboardType(.numberPad)
-                                .foregroundStyle(.white)
-                                .rbField()
-                                .onChange(of: time) { _, new in
-                                    time = formatTimeInput(new)
+                                .onChange(of: dist) { _, new in
+                                    var clean = new.filter { $0.isNumber || $0 == "." }
+                                    if let first = clean.firstIndex(of: ".") {
+                                        let after = clean.index(after: first)
+                                        clean = String(clean[..<after]) + clean[after...].filter(\.isNumber)
+                                    }
+                                    dist = String(clean.prefix(5))
                                 }
                         }
 
-                        // Derived pace (read-only display)
-                        if let p = derivedPace {
+                        // Average pace — templated M:SS, digits fill from the right
+                        fieldGroup(label: "AVG PACE (/\(unit.rawValue.uppercased()))") {
+                            TextField(unit == .km ? "5:50" : "9:30",
+                                      text: Binding(get: { paceShown },
+                                                    set: { paceDigits = String($0.filter(\.isNumber).suffix(4)) }))
+                                .keyboardType(.numberPad)
+                                .foregroundStyle(.white)
+                                .rbField()
+                        }
+
+                        // Derived total time (read-only)
+                        if let t = derivedTimeSeconds {
                             VStack(alignment: .leading, spacing: 6) {
-                                RBLabel("PACE")
-                                Text(Units.fmtPace(p, unit))
+                                RBLabel("TOTAL TIME")
+                                Text(Pace.timeString(fromSeconds: t))
                                     .font(.body.weight(.semibold))
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(RB.accent)
                             }
                         }
 
-                        // Heart rate
+                        // Heart rate — digits only
                         fieldGroup(label: "AVG HEART RATE (OPTIONAL)") {
                             TextField("150", text: $hr)
                                 .keyboardType(.numberPad)
                                 .foregroundStyle(.white)
                                 .rbField()
+                                .onChange(of: hr) { _, new in
+                                    hr = String(new.filter(\.isNumber).prefix(3))
+                                }
                         }
 
                         // Feel picker
@@ -73,6 +125,14 @@ struct LogRunSheet: View {
                                 }
                             }
                             .pickerStyle(.segmented)
+                        }
+
+                        // Free-form comment
+                        fieldGroup(label: "HOW DID IT GO? (OPTIONAL)") {
+                            TextField("Felt strong on the second half…", text: $note, axis: .vertical)
+                                .lineLimit(2...4)
+                                .foregroundStyle(.white)
+                                .rbField()
                         }
 
                         // Share toggle
@@ -91,17 +151,20 @@ struct LogRunSheet: View {
                                 .font(.footnote)
                         }
 
-                        // Save button
+                        // Save (full log) / skip (status only)
                         Button(busy ? "Saving…" : "Save run") { Task { await save() } }
                             .buttonStyle(VoltButtonStyle())
-                            .disabled(busy || derivedPace == nil)
+                            .disabled(busy || derivedTimeSeconds == nil)
+                        Button("Just mark as complete") { Task { await skipAndComplete() } }
+                            .buttonStyle(VoltButtonStyle(prominent: false))
+                            .disabled(busy)
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 20)
                     .padding(.bottom, 32)
                 }
             }
-            .navigationTitle("Log Run")
+            .navigationTitle("Complete workout")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -110,20 +173,6 @@ struct LogRunSheet: View {
                 }
             }
         }
-    }
-
-    /// Auto-formats digit-only input right-to-left into H:MM:SS / MM:SS.
-    /// "4500" -> "45:00", "12514" -> "1:25:14".
-    private func formatTimeInput(_ raw: String) -> String {
-        let d = raw.filter(\.isNumber).suffix(6)
-        guard !d.isEmpty else { return "" }
-        let s = String(d)
-        if s.count <= 2 { return s }                          // "45" (seconds so far)
-        if s.count <= 4 {                                      // "4500" -> "45:00"
-            return "\(s.dropLast(2)):\(s.suffix(2))"
-        }
-        // 5-6 digits: "12514" -> "1:25:14"
-        return "\(s.dropLast(4)):\(s.dropLast(2).suffix(2)):\(s.suffix(2))"
     }
 
     @ViewBuilder
@@ -135,20 +184,34 @@ struct LogRunSheet: View {
     }
 
     private func save() async {
-        guard let d = Double(dist), let pace = derivedPace else { return }
+        guard let miles, let pace = canonicalPace, let secs = derivedTimeSeconds else { return }
         busy = true; error = nil; defer { busy = false }
-        let miles = (Units.toMiles(d, unit) * 100).rounded() / 100
+        let time = Pace.timeString(fromSeconds: secs)
+        let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
         do {
             try await store.logRun(workout: workout, dist: miles, time: time,
-                                   pace: pace, hr: Int(hr), feel: feel)
+                                   pace: pace, hr: Int(hr), feel: feel,
+                                   note: trimmedNote.isEmpty ? nil : trimmedNote)
             if share {
                 try? await ChatShare.shareRunCard(
                     athleteId: workout.athleteId, title: workout.title,
-                    dist: "\(Units.fmtDist(miles, .mi)) mi", pace: pace, time: time, hr: Int(hr))
+                    dist: "\(Units.fmtDist(miles, .mi)) mi", pace: pace, time: time,
+                    hr: Int(hr), note: trimmedNote.isEmpty ? nil : trimmedNote)
             }
             dismiss()
         } catch {
             self.error = "Couldn't save the run — try again."
+        }
+    }
+
+    /// Mark done without logging details.
+    private func skipAndComplete() async {
+        busy = true; error = nil; defer { busy = false }
+        do {
+            try await store.setStatus(workout, to: "done")
+            dismiss()
+        } catch {
+            self.error = "Couldn't update — try again."
         }
     }
 }

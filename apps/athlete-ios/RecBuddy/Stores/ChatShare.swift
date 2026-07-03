@@ -27,7 +27,7 @@ enum ChatShare {
 
     /// Post a kind='runcard' message (the shape the coach app already renders).
     static func shareRunCard(athleteId: String, title: String, dist: String,
-                             pace: String, time: String, hr: Int?) async throws {
+                             pace: String, time: String, hr: Int?, note: String? = nil) async throws {
         let thread = try await fetchOrCreateThread(athleteId: athleteId)
         struct NewMsg: Encodable {
             let thread_id: String
@@ -40,6 +40,7 @@ enum ChatShare {
             "pace": .string(pace), "time": .string(time),
         ]
         if let hr { payload["hr"] = .int(hr) }
+        if let note, !note.isEmpty { payload["note"] = .string(note) }
         try await Supa.shared.from("messages")
             .insert(NewMsg(thread_id: thread.id, from_user_id: athleteId,
                            kind: "runcard", payload: payload)).execute()

@@ -72,20 +72,25 @@ struct MessageRow: View {
             if mine {
                 // Volt lime run stats card (reference: "9.1 mi  9:22  1:25:14  152")
                 VStack(alignment: .trailing, spacing: 4) {
-                    HStack(spacing: 16) {
-                        if let dist = message.payloadString("dist") {
-                            Text("\(dist) \(unit.rawValue)")
-                                .font(.subheadline.weight(.bold))
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 16) {
+                            if let dist = message.payloadString("dist") {
+                                Text("\(dist) \(unit.rawValue)")
+                                    .font(.subheadline.weight(.bold))
+                            }
+                            if let pace = message.payloadString("pace") {
+                                Text(Units.fmtPace(pace, unit))
+                                    .font(.subheadline.weight(.bold))
+                            }
+                            if let time = message.payloadString("time") {
+                                Text(time).font(.subheadline.weight(.bold))
+                            }
+                            if let hr = message.payloadInt("hr") {
+                                Text("\(hr)").font(.subheadline.weight(.bold))
+                            }
                         }
-                        if let pace = message.payloadString("pace") {
-                            Text(Units.fmtPace(pace, unit))
-                                .font(.subheadline.weight(.bold))
-                        }
-                        if let time = message.payloadString("time") {
-                            Text(time).font(.subheadline.weight(.bold))
-                        }
-                        if let hr = message.payloadInt("hr") {
-                            Text("\(hr)").font(.subheadline.weight(.bold))
+                        if let note = message.payloadString("note"), !note.isEmpty {
+                            Text(note).font(.caption)
                         }
                     }
                     .foregroundStyle(RB.onAccent)
@@ -105,6 +110,9 @@ struct MessageRow: View {
                         Text("\(message.payloadString("dist") ?? "") · \(Units.fmtPace(message.payloadString("pace"), unit)) · \(message.payloadString("time") ?? "")")
                             .font(.caption)
                             .foregroundStyle(RB.textMute)
+                        if let note = message.payloadString("note"), !note.isEmpty {
+                            Text(note).font(.caption).foregroundStyle(RB.textMute)
+                        }
                     }
                     timestamp
                 }

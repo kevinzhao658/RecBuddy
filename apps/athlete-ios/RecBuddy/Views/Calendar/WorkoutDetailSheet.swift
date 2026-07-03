@@ -80,11 +80,10 @@ struct WorkoutDetailSheet: View {
                             .buttonStyle(VoltButtonStyle(prominent: false))
                             .disabled(busy)
                     } else {
-                        Button("✓ Mark as complete") { Task { await setStatus("done") } }
+                        // Completion goes THROUGH the log sheet (which offers a
+                        // "just mark as complete" skip) — one clear entry point.
+                        Button("✓ Mark as complete") { logOpen = true }
                             .buttonStyle(VoltButtonStyle())
-                            .disabled(busy)
-                        Button("Log run…") { logOpen = true }
-                            .buttonStyle(VoltButtonStyle(prominent: false))
                             .disabled(busy)
                     }
                 }
@@ -249,6 +248,11 @@ struct WorkoutDetailSheet: View {
                 if let hr = a.hr {
                     loggedStat(label: "AVG HR", value: "\(hr)")
                 }
+            }
+            if let note = a.note, !note.isEmpty {
+                Text(note)
+                    .font(.callout)
+                    .foregroundStyle(RB.textMute)
             }
         }
         .padding(16)

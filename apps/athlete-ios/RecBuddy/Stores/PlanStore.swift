@@ -115,7 +115,7 @@ final class PlanStore {
     /// busy state). Idempotent on retry: if an actual already exists for this
     /// workout (e.g. a prior attempt saved the row but mark-done failed), skip the
     /// insert and just complete the status step.
-    func logRun(workout: Workout, dist: Double, time: String, pace: String, hr: Int?, feel: Int?) async throws {
+    func logRun(workout: Workout, dist: Double, time: String, pace: String, hr: Int?, feel: Int?, note: String?) async throws {
         if actualsByWorkout[workout.id] == nil {
             struct NewActual: Encodable {
                 let workout_id: String
@@ -125,10 +125,12 @@ final class PlanStore {
                 let time: String
                 let hr: Int?
                 let feel: Int?
+                let note: String?
                 let source: String
             }
             let row = NewActual(workout_id: workout.id, athlete_id: workout.athleteId,
-                                dist: dist, pace: pace, time: time, hr: hr, feel: feel, source: "manual")
+                                dist: dist, pace: pace, time: time, hr: hr, feel: feel,
+                                note: note, source: "manual")
             try await Supa.shared.from("workout_actuals").insert(row).execute()
         }
         do {
