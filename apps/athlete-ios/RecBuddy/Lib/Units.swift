@@ -14,11 +14,14 @@ enum Units {
         unit == .km ? value / kmPerMi : value
     }
     /// Stored mileage -> display number ("6", "4.5", "16.1"); "" for nil.
+    /// Mirrors TS `v % 1 ? v.toFixed(1) : String(v)` — the whole-number check is
+    /// on the RAW value, so 9.977 km displays "10.0" (rounded), not "10".
     static func fmtDist(_ miles: Double?, _ unit: Unit) -> String {
         guard let miles else { return "" }
         let v = fromMiles(miles, unit)
-        let rounded = (v * 10).rounded() / 10
-        return rounded == rounded.rounded() ? String(Int(rounded)) : String(format: "%.1f", rounded)
+        return v.truncatingRemainder(dividingBy: 1) == 0
+            ? String(Int(v))
+            : String(format: "%.1f", v)
     }
     /// Stored "M:SS/mi" -> display pace in the unit, e.g. "5:17/km". "" for nil.
     static func fmtPace(_ pace: String?, _ unit: Unit) -> String {

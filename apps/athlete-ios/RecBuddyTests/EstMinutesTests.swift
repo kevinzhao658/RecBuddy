@@ -16,4 +16,7 @@ import Foundation
         #expect(EstMinutes.compute(type: "cross", estMinutes: nil, dist: nil, pace: nil, dur: 30) == 30)
         #expect(EstMinutes.compute(type: "cross", estMinutes: nil, dist: nil, pace: nil, dur: nil) == 45)
     }
+    @Test func garbagePaceComputesZeroLikeTS() {
+        #expect(EstMinutes.compute(type: "easy", estMinutes: nil, dist: 5, pace: "garbage", dur: 30) == 0)
+    }
 }

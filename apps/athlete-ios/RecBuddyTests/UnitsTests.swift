@@ -19,4 +19,12 @@ import Foundation
         #expect(Units.fmtDist(nil, .km) == "")
         #expect(Units.fmtPace(nil, .km) == "")
     }
+    @Test func fmtDistRawNonWholeShowsOneDecimalLikeTS() {
+        // TS parity: raw 9.977…km isn't whole → one decimal ("10.0"), not "10"
+        #expect(Units.fmtDist(6.2, .km) == "10.0")
+        // Sanity: a truly whole raw value stays whole
+        #expect(Units.fmtDist(6, .mi) == "6")
+        // And non-whole that rounds: 10mi → 16.09344km, not whole → "16.1"
+        #expect(Units.fmtDist(10, .km) == "16.1")
+    }
 }
