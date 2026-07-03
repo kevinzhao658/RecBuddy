@@ -21,6 +21,11 @@ targets:
         product: Supabase
     info:
       path: RecBuddy/Info.plist
+      properties:
+        CFBundleDisplayName: RecBuddy
+        UILaunchScreen: {}
+        SupabaseURL: $(SUPABASE_URL)
+        SupabaseAnonKey: $(SUPABASE_ANON_KEY)
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.recbuddy.athlete
