@@ -1,8 +1,10 @@
 import SwiftUI
 
 /// The completion flow: opened by "Mark as complete" on the detail sheet.
-/// Athlete enters distance + AVERAGE PACE (total time is derived), optional
-/// HR + feel + a free-form comment — or skips straight to marking done.
+/// Distance + AVERAGE PACE prefill from the plan, so "Save run" with no typing
+/// logs the prescribed values (total time derived). Workouts with no dist/pace
+/// targets (e.g. cross-training) save as a plain mark-complete. A partial
+/// entry (one field, not both) disables Save.
 struct LogRunSheet: View {
     let workout: Workout
     let store: PlanStore
@@ -11,7 +13,7 @@ struct LogRunSheet: View {
     @State private var dist = ""
     @State private var paceDigits = ""   // raw typed digits, fills M:SS from the right
     @State private var hr = ""
-    @State private var feel = 3
+    @State private var feel: Int? = nil   // optional; 1=easy 3=moderate 5=hard
     @State private var note = ""
     @State private var share = true
     @State private var busy = false
@@ -116,15 +118,14 @@ struct LogRunSheet: View {
                                 }
                         }
 
-                        // Feel picker
+                        // Feel — three effort icons, optional (tap again to clear)
                         VStack(alignment: .leading, spacing: 8) {
-                            RBLabel("HOW DID IT FEEL?")
-                            Picker("", selection: $feel) {
-                                ForEach(1...5, id: \.self) { i in
-                                    Text(String(repeating: "★", count: i)).tag(i)
-                                }
+                            RBLabel("HOW DID IT FEEL? (OPTIONAL)")
+                            HStack(spacing: 10) {
+                                feelChip(label: "Easy", icon: "tortoise.fill", value: 1)
+                                feelChip(label: "Moderate", icon: "figure.run", value: 3)
+                                feelChip(label: "Hard", icon: "flame.fill", value: 5)
                             }
-                            .pickerStyle(.segmented)
                         }
 
                         // Free-form comment
@@ -151,13 +152,11 @@ struct LogRunSheet: View {
                                 .font(.footnote)
                         }
 
-                        // Save (full log) / skip (status only)
+                        // One Save: full log when dist+pace present (prefilled or typed);
+                        // plain mark-complete when both are empty (no-target workouts).
                         Button(busy ? "Saving…" : "Save run") { Task { await save() } }
                             .buttonStyle(VoltButtonStyle())
-                            .disabled(busy || derivedTimeSeconds == nil)
-                        Button("Just mark as complete") { Task { await skipAndComplete() } }
-                            .buttonStyle(VoltButtonStyle(prominent: false))
-                            .disabled(busy)
+                            .disabled(busy || !(derivedTimeSeconds != nil || bothEmpty))
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 20)
@@ -183,9 +182,41 @@ struct LogRunSheet: View {
         }
     }
 
+    /// Both entry fields empty -> Save just marks complete (no actual row).
+    private var bothEmpty: Bool {
+        dist.trimmingCharacters(in: .whitespaces).isEmpty && paceDigits.isEmpty
+    }
+
+    private func feelChip(label: String, icon: String, value: Int) -> some View {
+        let selected = feel == value
+        return Button {
+            feel = selected ? nil : value // tap again to clear
+        } label: {
+            VStack(spacing: 5) {
+                Image(systemName: icon).font(.body)
+                Text(label).font(.caption2.weight(.semibold))
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .foregroundStyle(selected ? RB.accent : RB.textMute)
+            .background(selected ? RB.accent.opacity(0.12) : RB.surface2)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12)
+                .stroke(selected ? RB.accent : RB.line, lineWidth: 1))
+        }
+        .accessibilityLabel("\(label) effort")
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
     private func save() async {
-        guard let miles, let pace = canonicalPace, let secs = derivedTimeSeconds else { return }
         busy = true; error = nil; defer { busy = false }
+        // No-target workout, nothing entered: plain mark-complete.
+        if bothEmpty {
+            do { try await store.setStatus(workout, to: "done"); dismiss() }
+            catch { self.error = "Couldn't update — try again." }
+            return
+        }
+        guard let miles, let pace = canonicalPace, let secs = derivedTimeSeconds else { return }
         let time = Pace.timeString(fromSeconds: secs)
         let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
         do {
@@ -201,17 +232,6 @@ struct LogRunSheet: View {
             dismiss()
         } catch {
             self.error = "Couldn't save the run — try again."
-        }
-    }
-
-    /// Mark done without logging details.
-    private func skipAndComplete() async {
-        busy = true; error = nil; defer { busy = false }
-        do {
-            try await store.setStatus(workout, to: "done")
-            dismiss()
-        } catch {
-            self.error = "Couldn't update — try again."
         }
     }
 }
