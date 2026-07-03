@@ -96,6 +96,19 @@ struct ChatView: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(spacing: 10) {
+                            // First-load skeleton: gray bubbles while the thread fetches
+                            if store.phase == .loading && store.messages.isEmpty {
+                                ForEach(0..<4, id: \.self) { i in
+                                    HStack {
+                                        if i % 2 == 1 { Spacer(minLength: 52) }
+                                        RoundedRectangle(cornerRadius: 18)
+                                            .fill(RB.surface)
+                                            .frame(width: 180 + CGFloat(i % 3) * 30, height: 40)
+                                        if i % 2 == 0 { Spacer(minLength: 52) }
+                                    }
+                                    .redacted(reason: .placeholder)
+                                }
+                            }
                             ForEach(chatItems) { item in
                                 switch item {
                                 case .separator(let label):
@@ -154,16 +167,32 @@ struct ChatView: View {
 
     // ── Custom header ──────────────────────────────────────────────────────
 
+    private var initialsCircle: some View {
+        ZStack {
+            Circle()
+                .fill(RB.surface2)
+                .frame(width: 36, height: 36)
+            Text(coach?.initials ?? "?")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.white)
+        }
+    }
+
     private var chatHeader: some View {
         HStack(spacing: 12) {
-            // Coach avatar
-            ZStack {
-                Circle()
-                    .fill(RB.surface2)
+            // Coach avatar — photo when set (public avatars bucket), else initials
+            Group {
+                if let url = coach?.avatarUrl.flatMap(URL.init(string:)) {
+                    AsyncImage(url: url) { image in
+                        image.resizable().scaledToFill()
+                    } placeholder: {
+                        initialsCircle
+                    }
                     .frame(width: 36, height: 36)
-                Text(coach?.initials ?? "?")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.white)
+                    .clipShape(Circle())
+                } else {
+                    initialsCircle
+                }
             }
             .accessibilityHidden(true)
 

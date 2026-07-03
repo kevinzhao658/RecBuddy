@@ -44,7 +44,7 @@ struct CalendarView: View {
                     }
                 }
                 .padding(.horizontal, 16)
-                .padding(.bottom, 32)
+                .padding(.bottom, 56) // clears the tab bar so the month legend is fully visible
             }
             .refreshable { await store.refresh() }
         }
@@ -247,7 +247,15 @@ struct CalendarView: View {
             // Day cards — only days with workouts
             let workoutDays = store.weekDates.filter { store.workoutsByDate[$0] != nil }
 
-            if workoutDays.isEmpty && store.phase == .idle {
+            if workoutDays.isEmpty && store.phase == .loading {
+                // First-load skeleton rows
+                ForEach(0..<4, id: \.self) { _ in
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(RB.surface)
+                        .frame(height: 64)
+                        .redacted(reason: .placeholder)
+                }
+            } else if workoutDays.isEmpty && store.phase == .idle {
                 Text("Your coach hasn't built your plan yet.")
                     .font(.footnote)
                     .foregroundStyle(RB.textMute)

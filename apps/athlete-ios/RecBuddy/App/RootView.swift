@@ -36,8 +36,17 @@ struct MainTabs: View {
     let profile: Profile
     @State private var tab = 0
     var body: some View {
-        Group {
-            if tab == 0 { CalendarView(profile: profile) } else { ChatView(profile: profile) }
+        // Both tabs stay ALIVE (opacity toggle, not if/else): switching is
+        // instant — no refetch, and the chat's realtime subscription persists.
+        ZStack {
+            CalendarView(profile: profile)
+                .opacity(tab == 0 ? 1 : 0)
+                .allowsHitTesting(tab == 0)
+                .accessibilityHidden(tab != 0)
+            ChatView(profile: profile)
+                .opacity(tab == 1 ? 1 : 0)
+                .allowsHitTesting(tab == 1)
+                .accessibilityHidden(tab != 1)
         }
         .safeAreaInset(edge: .bottom) { RBTabBar(tab: $tab) }
         .background(RB.bg.ignoresSafeArea())
