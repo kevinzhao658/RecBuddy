@@ -1,11 +1,10 @@
 import { useState } from 'react'
 import type { Workout } from '../../lib/types'
 import { useActual } from '../../lib/queries/actuals'
-import { TypeIcon } from '../../components/ui/Icon'
 import { fmtShortDate } from '../../lib/week'
 import { useUnit } from '../../lib/useUnit'
 import { fmtDist, fmtPace } from '../../lib/units'
-import { estMinutes } from '../../lib/estMinutes'
+import { WorkoutFields } from '../../components/ui/WorkoutFields'
 
 const label = 'mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-text-faint'
 
@@ -101,49 +100,23 @@ export function WorkoutResults({ workout, onClose }: { workout: Workout; onClose
             <p className="text-sm text-text-faint">Marked complete without logged details.</p>
           )
         ) : (
-          /* Plan tab — the prescription, read-only */
+          /* Plan tab — the prescription, rendered via the locked edit module */
           <>
-            <div className="flex items-center gap-2">
-              <TypeIcon type={workout.type} />
-              <span className="text-sm font-semibold capitalize">{workout.type}</span>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              {workout.dist != null && (
-                <div className="rb-card rb-card-sm p-3">
-                  <span className={label}>Distance</span>
-                  <span className="font-num text-lg font-bold">{fmtDist(workout.dist, unit)} {unit}</span>
-                </div>
-              )}
-              {workout.pace && (
-                <div className="rb-card rb-card-sm p-3">
-                  <span className={label}>Target pace</span>
-                  <span className="font-num text-lg font-bold">{fmtPace(workout.pace, unit)}</span>
-                </div>
-              )}
-              <div className="rb-card rb-card-sm p-3">
-                <span className={label}>Est. time</span>
-                <span className="font-num text-lg font-bold">{estMinutes(workout)} min</span>
-              </div>
-            </div>
-            {workout.sets.length > 0 && (
-              <div>
-                <span className={label}>Workout structure</span>
-                <div className="flex flex-col gap-1.5">
-                  {workout.sets.map((p, i) => (
-                    <div key={i} className="rounded-[10px] border border-line bg-surface2 px-3 py-2 text-sm">
-                      <span className="font-semibold">{p[0]}</span>
-                      {p[1] && <span className="block text-xs text-text-mute">{p[1]}</span>}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            {workout.note && (
-              <div>
-                <span className={label}>Coach's note</span>
-                <p className="text-sm text-text-mute">{workout.note}</p>
-              </div>
-            )}
+            <WorkoutFields
+              draft={{
+                type: workout.type,
+                title: workout.title,
+                dist: workout.dist,
+                pace: workout.pace,
+                note: workout.note ?? '',
+                sets: workout.sets,
+                est_minutes: workout.est_minutes,
+                dur: workout.dur,
+              }}
+              onChange={() => {}}
+              showEstimate
+              disabled
+            />
             <p className="text-xs text-text-faint">Completed workouts can't be edited.</p>
           </>
         )}

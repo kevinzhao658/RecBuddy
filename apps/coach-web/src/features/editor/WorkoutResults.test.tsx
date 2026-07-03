@@ -31,10 +31,11 @@ test('defaults to the athlete results and toggles to the read-only plan', () => 
   expect(screen.getByText(/hard effort/i)).toBeInTheDocument()
   expect(screen.getByText('Legs were heavy.')).toBeInTheDocument()
 
-  // Toggle to Plan: prescription, read-only
+  // Toggle to Plan: prescription rendered via locked WorkoutFields
   fireEvent.click(screen.getByRole('button', { name: /plan/i }))
-  expect(screen.getByText('Warm-up')).toBeInTheDocument()
-  expect(screen.getByText('Keep it relaxed.')).toBeInTheDocument()
+  expect(screen.getByLabelText('Phase 1 label')).toHaveValue('Warm-up')
+  expect(screen.getByLabelText('Note')).toHaveValue('Keep it relaxed.')
+  expect(screen.getByLabelText('Title')).toBeDisabled()
   expect(screen.getByText(/can't be edited/i)).toBeInTheDocument()
 })
 
