@@ -477,6 +477,8 @@ struct InviteFlowView: View {
         let trimmedCode = code.trimmingCharacters(in: .whitespaces).uppercased()
         do {
             session.pendingInviteCode = trimmedCode // redeemed on first sign-in (SessionStore)
+            let confirmRedirect = (Bundle.main.object(forInfoDictionaryKey: "EmailConfirmRedirect") as? String)
+                .flatMap(URL.init(string:)) ?? URL(string: "https://recbuddy.app/confirmed")
             try await Supa.shared.auth.signUp(
                 email: email.trimmingCharacters(in: .whitespaces),
                 password: password,
@@ -484,7 +486,8 @@ struct InviteFlowView: View {
                     "name": .string(name.trimmingCharacters(in: .whitespaces)),
                     "experience_level": .string(experienceLevel ?? "new"),
                     "primary_goal": .string(primaryGoal ?? "fit")
-                ])
+                ],
+                redirectTo: confirmRedirect)
             sent = true
         } catch {
             session.pendingInviteCode = nil

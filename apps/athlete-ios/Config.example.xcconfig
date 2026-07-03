@@ -6,3 +6,6 @@ SUPABASE_ANON_KEY = <dev-anon-key>
 // Where the forgot-password email lands. MUST be a web app whose Supabase
 // client points at the SAME project as this build (dev -> local web app).
 RESET_PASSWORD_REDIRECT = http:/$()/localhost:5176/reset-password
+// Where the signup confirmation email lands. MUST be a web app whose Supabase
+// client points at the SAME project as this build (dev -> local web app).
+EMAIL_CONFIRM_REDIRECT = http:/$()/localhost:5176/confirmed

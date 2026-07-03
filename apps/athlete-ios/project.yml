@@ -27,6 +27,10 @@ targets:
         SupabaseURL: $(SUPABASE_URL)
         SupabaseAnonKey: $(SUPABASE_ANON_KEY)
         ResetPasswordRedirect: $(RESET_PASSWORD_REDIRECT)
+        EmailConfirmRedirect: $(EMAIL_CONFIRM_REDIRECT)
+        CFBundleURLTypes:
+          - CFBundleURLName: app.recbuddy.athlete
+            CFBundleURLSchemes: [recbuddy]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.recbuddy.athlete
