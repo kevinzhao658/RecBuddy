@@ -6,7 +6,7 @@ Native SwiftUI (iOS 17+) + supabase-swift. Spec:
 ## Setup
 1. Install Xcode + `brew install xcodegen`
 2. `cp Config.example.xcconfig Config.xcconfig` and fill the dev anon key
-3. `xcodegen generate` → open `RecBuddy.xcodeproj` (or build via xcodebuild)
+3. `cd apps/athlete-ios && xcodegen generate` → open `RecBuddy.xcodeproj` (or build via xcodebuild)
 
 The project file is generated — edit `project.yml`, not the xcodeproj.
 Re-run `xcodegen generate` after adding/removing source files.
