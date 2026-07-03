@@ -54,7 +54,7 @@ struct CalendarView: View {
             WorkoutDetailSheet(workout: w, store: store, unit: unit)
         }
         .sheet(isPresented: $accountOpen) {
-            AccountSheet(profile: profile)
+            AccountSheet(profile: profile, plan: store.plan)
         }
     }
 
