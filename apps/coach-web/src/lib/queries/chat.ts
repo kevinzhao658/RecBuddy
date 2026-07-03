@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabase } from '../supabase'
+import { compressImage } from '../compressImage'
 import type { Message, Thread, Workout } from '../types'
 
 /** Get (or create) the coach↔athlete thread. RLS surfaces the head coach's
@@ -40,6 +41,31 @@ export function useSendMessage(threadId: string | null) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (body: string) => sendMessage(supabase, threadId!, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['messages', threadId] }),
+  })
+}
+
+/** Upload a client-compressed image and post it as kind='image'. Path convention:
+ *  <uid>/<epoch-ms>.jpg so each send is unique and scoped to the sender. */
+export async function sendImageMessage(client: SupabaseClient, threadId: string, file: File): Promise<void> {
+  const { data: me } = await client.auth.getUser()
+  const uid = me.user!.id
+  const { blob, w, h } = await compressImage(file)
+  const path = `${uid}/${Date.now()}.jpg`
+  const { error: upErr } = await client.storage
+    .from('chat-images')
+    .upload(path, blob, { contentType: 'image/jpeg' })
+  if (upErr) throw upErr
+  const { data: { publicUrl: url } } = client.storage.from('chat-images').getPublicUrl(path)
+  const { error } = await client.from('messages')
+    .insert({ thread_id: threadId, from_user_id: uid, kind: 'image', payload: { url, w, h } })
+  if (error) throw error
+  await client.from('message_threads').update({ updated_at: new Date().toISOString() }).eq('id', threadId)
+}
+export function useSendImage(threadId: string | null) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (file: File) => sendImageMessage(supabase, threadId!, file),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['messages', threadId] }),
   })
 }

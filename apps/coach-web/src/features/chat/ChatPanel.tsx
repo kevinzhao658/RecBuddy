@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { useAuth } from '../../auth/AuthProvider'
-import { useThread, useMessages, useSendMessage, useMarkThreadRead, useRealtimeThread } from '../../lib/queries/chat'
+import { useThread, useMessages, useSendMessage, useSendImage, useMarkThreadRead, useRealtimeThread } from '../../lib/queries/chat'
 import { useTeam } from '../../lib/queries/team'
 import { MessageItem, type Sender } from './MessageItem'
 
@@ -30,6 +30,8 @@ export function ChatPanel({ athleteId, athleteName, onClose, onOpenDay }: {
   const threadId = threadQ.data?.id ?? null
   const messagesQ = useMessages(threadId)
   const send = useSendMessage(threadId)
+  const sendImage = useSendImage(threadId)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const markRead = useMarkThreadRead(threadId)
   useRealtimeThread(threadId)
 
@@ -96,6 +98,27 @@ export function ChatPanel({ athleteId, athleteName, onClose, onOpenDay }: {
         </div>
 
         <div className="flex items-end gap-2 border-t border-line p-3">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file && threadId) sendImage.mutate(file)
+              e.target.value = ''
+            }}
+          />
+          <button
+            aria-label="Send image"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={sendImage.isPending}
+            className="shrink-0 text-text-faint hover:text-text-mute disabled:opacity-50"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width={20} height={20} aria-hidden="true">
+              <path d="M21 19V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+            </svg>
+          </button>
           <textarea aria-label="Message" value={text} rows={1} placeholder={`Message ${athleteName.split(' ')[0]}…`}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit() } }}

@@ -1,4 +1,4 @@
-import type { Message, RunCard, AdjustCard, WorkoutCard } from '../../lib/types'
+import type { Message, RunCard, AdjustCard, WorkoutCard, ImageCard } from '../../lib/types'
 import { TypeIcon } from '../../components/ui/Icon'
 import { Avatar } from '../../components/ui/Avatar'
 import { fmtShortDate } from '../../lib/week'
@@ -38,6 +38,20 @@ function RunCardView({ p }: { p: RunCard }) {
   )
 }
 
+function ImageView({ p }: { p: ImageCard }) {
+  return (
+    <a href={p.url} target="_blank" rel="noreferrer">
+      <img
+        src={p.url}
+        alt="Chat image"
+        loading="lazy"
+        style={{ aspectRatio: p.w && p.h ? `${p.w}/${p.h}` : undefined }}
+        className="block max-w-[70%] rounded-[14px]"
+      />
+    </a>
+  )
+}
+
 function AdjustCardView({ p }: { p: AdjustCard }) {
   return (
     <div className="rb-card rb-card-sm w-full max-w-[85%] border-l-2 border-accent p-3">
@@ -64,6 +78,8 @@ export function MessageItem({ m, mine, sender, showName, showAvatar, grouped, on
     <RunCardView p={m.payload as RunCard} />
   ) : m.kind === 'workout' ? (
     <WorkoutCardView p={m.payload as WorkoutCard} onOpen={onOpenWorkout ? () => onOpenWorkout((m.payload as WorkoutCard).date) : undefined} />
+  ) : m.kind === 'image' ? (
+    <ImageView p={m.payload as ImageCard} />
   ) : (
     <AdjustCardView p={m.payload as AdjustCard} />
   )

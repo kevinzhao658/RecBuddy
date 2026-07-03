@@ -31,3 +31,11 @@ test('renders a shared-workout card and opens its day on click', () => {
   fireEvent.click(screen.getByText('Long Run 11 mi'))
   expect(onOpenWorkout).toHaveBeenCalledWith('2026-08-23')
 })
+
+test('renders an image message with correct src and aspect ratio', () => {
+  render(<MessageItem mine={false}
+    m={{ ...base, kind: 'image', body: null, payload: { url: 'https://example.com/chat.jpg', w: 1280, h: 720 } } as any} />)
+  const img = screen.getByRole('img')
+  expect(img).toHaveAttribute('src', 'https://example.com/chat.jpg')
+  expect(img).toHaveStyle('aspect-ratio: 1280/720')
+})
