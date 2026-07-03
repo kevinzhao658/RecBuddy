@@ -56,10 +56,10 @@ struct MessageRow: View {
         }
     }
 
-    private func card<C: View>(header: String, icon: String, @ViewBuilder body: () -> C) -> some View {
+    private func card<C: View>(header: String, icon: String, @ViewBuilder content: () -> C) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Label(header, systemImage: icon).font(.caption2.weight(.bold)).foregroundStyle(.green)
-            body()
+            content()
         }
         .padding(10)
         .background(Color(.secondarySystemBackground))

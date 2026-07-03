@@ -21,6 +21,7 @@ struct ChatView: View {
                         }
                         .padding(12)
                     }
+                    .refreshable { await store.open(athleteId: profile.id) }
                     .onChange(of: store.messages.count) {
                         if let last = store.messages.last?.id {
                             withAnimation { proxy.scrollTo(last, anchor: .bottom) }

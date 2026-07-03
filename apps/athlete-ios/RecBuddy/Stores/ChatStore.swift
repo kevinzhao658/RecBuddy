@@ -16,6 +16,7 @@ final class ChatStore {
     private var subscriptionTask: Task<Void, Never>?
 
     func open(athleteId: String) async {
+        await close()  // evict any prior channel/task — makes open() idempotent under fast tab flips
         phase = .loading
         do {
             let t = try await ChatShare.fetchOrCreateThread(athleteId: athleteId)
@@ -27,6 +28,8 @@ final class ChatStore {
             await markRead(athleteId: athleteId)
             await subscribe(threadId: t.id, athleteId: athleteId)
             phase = .idle
+        } catch is CancellationError {
+            // view disappeared mid-open — the next .task will re-open
         } catch {
             phase = .error("Couldn't load chat. Pull to retry.")
         }
