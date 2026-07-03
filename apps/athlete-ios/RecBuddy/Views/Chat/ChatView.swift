@@ -14,18 +14,21 @@ struct ChatView: View {
         return store.senders[coachId]
     }
 
-    // ── Date-separator helpers ─────────────────────────────────────────────
+    // ── Session-separator helpers ──────────────────────────────────────────
 
     private enum ChatItem: Identifiable {
-        case separator(String)   // formatted day label
-        case message(Message)
+        case separator(String)
+        case message(Message, startsBlock: Bool, showAvatar: Bool)
         var id: String {
             switch self {
             case .separator(let s): return "sep-\(s)"
-            case .message(let m):   return m.id
+            case .message(let m, _, _): return m.id
             }
         }
     }
+
+    /// Two hours of silence (or a calendar-day boundary) triggers a new session header.
+    private static let SESSION_GAP: TimeInterval = 2 * 60 * 60
 
     private static let isoFull: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
@@ -37,43 +40,57 @@ struct ChatView: View {
         f.formatOptions = [.withInternetDateTime]
         return f
     }()
-    private static let localDayFmt: DateFormatter = {
+    private static let timeFmt: DateFormatter = {
         let f = DateFormatter()
-        f.dateFormat = "yyyy-MM-dd"
+        f.dateFormat = "h:mm a"
         f.timeZone = .current
         return f
     }()
-    private static let longDateFmt: DateFormatter = {
+    private static let shortMonthDayFmt: DateFormatter = {
         let f = DateFormatter()
-        f.dateFormat = "EEEE, MMMM d"
+        f.dateFormat = "MMM d"
         f.timeZone = .current
         return f
     }()
 
-    /// Convert an ISO8601 timestamp to a "YYYY-MM-DD" string in local timezone.
-    private func isoToLocalDay(_ iso: String) -> String {
-        let date = Self.isoFull.date(from: iso) ?? Self.isoBasic.date(from: iso)
-            ?? Self.localDayFmt.date(from: String(iso.prefix(10)))
-        guard let date else { return String(iso.prefix(10)) }
-        return Self.localDayFmt.string(from: date)
+    private func parseDate(_ iso: String) -> Date? {
+        Self.isoFull.date(from: iso) ?? Self.isoBasic.date(from: iso)
     }
 
-    /// Format a local "YYYY-MM-DD" as "Saturday, May 30".
-    private func dayLabel(_ localDay: String) -> String {
-        guard let date = Self.localDayFmt.date(from: localDay) else { return localDay }
-        return Self.longDateFmt.string(from: date)
+    /// "Today 3:30 PM" / "Yesterday 8:12 AM" / "Jun 25 · 8:12 AM" — mirrors web sessionLabel.
+    private func sessionLabel(_ date: Date) -> String {
+        let time = Self.timeFmt.string(from: date)
+        let cal = Calendar.current
+        if cal.isDateInToday(date) { return "Today \(time)" }
+        if cal.isDateInYesterday(date) { return "Yesterday \(time)" }
+        return "\(Self.shortMonthDayFmt.string(from: date)) · \(time)"
+    }
+
+    private func sepBefore(msgs: [Message], at i: Int) -> Bool {
+        if i == 0 { return true }
+        guard let cur = parseDate(msgs[i].createdAt),
+              let prev = parseDate(msgs[i - 1].createdAt) else { return false }
+        return cur.timeIntervalSince(prev) > Self.SESSION_GAP ||
+               !Calendar.current.isDate(cur, inSameDayAs: prev)
     }
 
     private var chatItems: [ChatItem] {
+        let msgs = store.messages
         var items: [ChatItem] = []
-        var lastDay = ""
-        for m in store.messages {
-            let day = isoToLocalDay(m.createdAt)
-            if day != lastDay {
-                items.append(.separator(dayLabel(day)))
-                lastDay = day
+        for i in msgs.indices {
+            let sep = sepBefore(msgs: msgs, at: i)
+            let startsBlock = i == 0 || msgs[i - 1].fromUserId != msgs[i].fromUserId || sep
+            let showAvatar: Bool
+            if i == msgs.count - 1 {
+                showAvatar = true
+            } else {
+                let nextSep = sepBefore(msgs: msgs, at: i + 1)
+                showAvatar = nextSep || msgs[i].fromUserId != msgs[i + 1].fromUserId
             }
-            items.append(.message(m))
+            if sep, let date = parseDate(msgs[i].createdAt) {
+                items.append(.separator(sessionLabel(date)))
+            }
+            items.append(.message(msgs[i], startsBlock: startsBlock, showAvatar: showAvatar))
         }
         return items
     }
@@ -95,7 +112,7 @@ struct ChatView: View {
 
                 ScrollViewReader { proxy in
                     ScrollView {
-                        LazyVStack(spacing: 10) {
+                        LazyVStack(spacing: 4) {
                             // First-load skeleton: gray bubbles while the thread fetches
                             if store.phase == .loading && store.messages.isEmpty {
                                 ForEach(0..<4, id: \.self) { i in
@@ -117,11 +134,17 @@ struct ChatView: View {
                                         .foregroundStyle(RB.textFaint)
                                         .padding(.vertical, 6)
                                         .frame(maxWidth: .infinity)
-                                case .message(let m):
+                                case .message(let m, let startsBlock, let showAvatar):
                                     MessageRow(
                                         message: m,
                                         mine: m.fromUserId == profile.id,
-                                        senderName: store.senders[m.fromUserId]?.name)
+                                        senderName: startsBlock && m.fromUserId != profile.id
+                                            ? store.senders[m.fromUserId]?.name : nil,
+                                        showAvatar: showAvatar && m.fromUserId != profile.id,
+                                        senderAvatarUrl: m.fromUserId != profile.id
+                                            ? store.senders[m.fromUserId]?.avatarUrl : nil,
+                                        grouped: !startsBlock
+                                    )
                                     .id(m.id)
                                 }
                             }
