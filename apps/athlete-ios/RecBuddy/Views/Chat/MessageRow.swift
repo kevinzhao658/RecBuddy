@@ -159,8 +159,40 @@ struct MessageRow: View {
                 }
             }
 
+        case "image":
+            imageCard
+
         default:
             EmptyView()
+        }
+    }
+
+    // ── Image bubble ──────────────────────────────────────────────────────
+
+    @ViewBuilder private var imageCard: some View {
+        if let urlStr = message.payloadString("url"), let url = URL(string: urlStr) {
+            let w = message.payloadInt("w")
+            let h = message.payloadInt("h")
+            if let w, let h, w > 0, h > 0 {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let img): img.resizable().scaledToFit()
+                    default: RB.surface.frame(height: 120)
+                    }
+                }
+                .frame(maxWidth: 220)
+                .aspectRatio(CGFloat(w) / CGFloat(h), contentMode: .fit)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+            } else {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let img): img.resizable().scaledToFit()
+                    default: RB.surface.frame(height: 120)
+                    }
+                }
+                .frame(maxWidth: 220)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+            }
         }
     }
 

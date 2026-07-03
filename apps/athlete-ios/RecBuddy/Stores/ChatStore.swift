@@ -50,6 +50,32 @@ final class ChatStore {
         try await load(threadId: thread.id)
     }
 
+    /// Upload a client-compressed JPEG to the chat-images bucket and post
+    /// kind='image' with payload {url, w, h}.  Path: <uid>/<epoch-ms>.jpg.
+    func sendImage(_ data: Data, width: Int, height: Int, from athleteId: String) async throws {
+        guard let thread else { return }
+        let path = "\(athleteId)/\(Int(Date().timeIntervalSince1970 * 1000)).jpg"
+        try await Supa.shared.storage
+            .from("chat-images")
+            .upload(path, data: data, options: FileOptions(contentType: "image/jpeg", upsert: false))
+        let url = try Supa.shared.storage
+            .from("chat-images")
+            .getPublicURL(path: path)
+            .absoluteString
+        struct ImagePayload: Encodable { let url: String; let w: Int; let h: Int }
+        struct ImageMsg: Encodable {
+            let thread_id: String; let from_user_id: String; let kind: String
+            let payload: ImagePayload
+        }
+        try await Supa.shared.from("messages")
+            .insert(ImageMsg(
+                thread_id: thread.id, from_user_id: athleteId, kind: "image",
+                payload: ImagePayload(url: url, w: width, h: height)
+            ))
+            .execute()
+        try await load(threadId: thread.id)
+    }
+
     /// Mark coach-authored unread messages read (drives the coach's unread badge).
     func markRead(athleteId: String) async {
         guard let thread else { return }

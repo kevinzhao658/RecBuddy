@@ -1,4 +1,6 @@
 import SwiftUI
+import PhotosUI
+import UIKit
 
 struct ChatView: View {
     let profile: Profile
@@ -6,6 +8,7 @@ struct ChatView: View {
     @State private var draft = ""
     @State private var busy = false
     @State private var sendError: String?
+    @State private var imageItem: PhotosPickerItem?
 
     // ── Coach resolved from thread ─────────────────────────────────────────
 
@@ -186,6 +189,10 @@ struct ChatView: View {
         }
         .task { await store.open(athleteId: profile.id) }
         .onDisappear { Task { await store.close() } }
+        .onChange(of: imageItem) { _, newItem in
+            guard let newItem else { return }
+            Task { await sendImageFromPicker(newItem) }
+        }
     }
 
     // ── Custom header ──────────────────────────────────────────────────────
@@ -239,6 +246,14 @@ struct ChatView: View {
 
     private var inputBar: some View {
         HStack(spacing: 8) {
+            PhotosPicker(selection: $imageItem, matching: .images) {
+                Image(systemName: "photo")
+                    .font(.system(size: 20))
+                    .foregroundStyle(busy ? RB.textFaint : RB.textMute)
+            }
+            .disabled(busy)
+            .accessibilityLabel("Send image")
+
             TextField("Message your coach…", text: $draft, axis: .vertical)
                 .lineLimit(1...4)
                 .foregroundStyle(.white)
@@ -283,6 +298,23 @@ struct ChatView: View {
         do {
             try await store.send(body, from: profile.id)
             draft = ""  // clear only on success — a failed send keeps the text
+        } catch {
+            sendError = "Couldn't send — try again."
+        }
+    }
+
+    private func sendImageFromPicker(_ item: PhotosPickerItem) async {
+        busy = true
+        sendError = nil
+        defer { busy = false; imageItem = nil }
+        do {
+            guard let rawData = try await item.loadTransferable(type: Data.self),
+                  let uiImage = UIImage(data: rawData),
+                  let (jpegData, w, h) = ImageShrink.jpegForChat(uiImage) else {
+                sendError = "Couldn't process the image."
+                return
+            }
+            try await store.sendImage(jpegData, width: w, height: h, from: profile.id)
         } catch {
             sendError = "Couldn't send — try again."
         }
