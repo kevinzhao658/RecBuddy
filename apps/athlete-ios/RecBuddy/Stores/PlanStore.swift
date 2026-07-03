@@ -28,12 +28,14 @@ final class PlanStore {
             let workouts: [Workout] = try await Supa.shared.from("workouts")
                 .select().gte("date", value: from).lte("date", value: to)
                 .order("date").execute().value
+            guard weekMonday == from else { return } // stale response — a newer week won
             workoutsByDate = Dictionary(uniqueKeysWithValues: workouts.map { ($0.date, $0) })
             let ids = workouts.map(\.id)
             if ids.isEmpty { actualsByWorkout = [:] }
             else {
                 let actuals: [WorkoutActual] = try await Supa.shared.from("workout_actuals")
                     .select().in("workout_id", values: ids).execute().value
+                guard weekMonday == from else { return } // stale response — a newer week won
                 actualsByWorkout = Dictionary(uniqueKeysWithValues:
                     actuals.compactMap { a in a.workoutId.map { ($0, a) } })
             }
@@ -66,22 +68,32 @@ final class PlanStore {
         }
     }
 
-    /// Insert a manual actual and mark the workout done. Pessimistic (caller shows busy state).
+    /// Insert a manual actual and mark the workout done. Pessimistic (caller shows
+    /// busy state). Idempotent on retry: if an actual already exists for this
+    /// workout (e.g. a prior attempt saved the row but mark-done failed), skip the
+    /// insert and just complete the status step.
     func logRun(workout: Workout, dist: Double, time: String, pace: String, hr: Int?, feel: Int?) async throws {
-        struct NewActual: Encodable {
-            let workout_id: String
-            let athlete_id: String
-            let dist: Double
-            let pace: String
-            let time: String
-            let hr: Int?
-            let feel: Int?
-            let source: String
+        if actualsByWorkout[workout.id] == nil {
+            struct NewActual: Encodable {
+                let workout_id: String
+                let athlete_id: String
+                let dist: Double
+                let pace: String
+                let time: String
+                let hr: Int?
+                let feel: Int?
+                let source: String
+            }
+            let row = NewActual(workout_id: workout.id, athlete_id: workout.athleteId,
+                                dist: dist, pace: pace, time: time, hr: hr, feel: feel, source: "manual")
+            try await Supa.shared.from("workout_actuals").insert(row).execute()
         }
-        let row = NewActual(workout_id: workout.id, athlete_id: workout.athleteId,
-                            dist: dist, pace: pace, time: time, hr: hr, feel: feel, source: "manual")
-        try await Supa.shared.from("workout_actuals").insert(row).execute()
-        try await setStatus(workout, to: "done")
+        do {
+            try await setStatus(workout, to: "done")
+        } catch {
+            await refresh() // surface the saved actual even though mark-done failed
+            throw error
+        }
         await refresh()
     }
 }

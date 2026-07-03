@@ -24,6 +24,7 @@ struct CalendarView: View {
             .navigationTitle("This Week")
             .toolbar {
                 Button { accountOpen = true } label: { Image(systemName: "person.crop.circle") }
+                    .accessibilityLabel("Account")
             }
             .refreshable { await store.refresh() }
             .task { await store.refresh() }
@@ -39,11 +40,13 @@ struct CalendarView: View {
     private var weekHeader: some View {
         HStack {
             Button { Task { await store.goToWeek(offset: -1) } } label: { Image(systemName: "chevron.left") }
+                .accessibilityLabel("Previous week")
             Spacer()
             Text("\(Week.fmtShortDate(store.weekMonday)) – \(Week.fmtShortDate(Week.addDays(store.weekMonday, 6)))")
                 .font(.subheadline.weight(.semibold))
             Spacer()
             Button { Task { await store.goToWeek(offset: 1) } } label: { Image(systemName: "chevron.right") }
+                .accessibilityLabel("Next week")
         }
         .buttonStyle(.borderless)
     }

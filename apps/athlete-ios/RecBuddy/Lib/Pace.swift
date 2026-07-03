@@ -21,9 +21,9 @@ enum Pace {
     }
     /// "45:00" or "1:25:14" -> total seconds. nil if unparseable.
     static func timeToSeconds(_ time: String) -> Int? {
-        let parts = time.split(separator: ":").map(String.init)
-        guard !parts.isEmpty, parts.allSatisfy({ Int($0) != nil }) else { return nil }
+        let parts = time.split(separator: ":")
         let nums = parts.compactMap { Int($0) }
+        guard nums.count == parts.count else { return nil }
         switch nums.count {
         case 2: return nums[0] * 60 + nums[1]
         case 3: return nums[0] * 3600 + nums[1] * 60 + nums[2]

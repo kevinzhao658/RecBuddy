@@ -49,7 +49,7 @@ struct LogRunSheet: View {
 
     private func save() async {
         guard let d = Double(dist), let pace = derivedPace else { return }
-        busy = true; error = nil
+        busy = true; error = nil; defer { busy = false }
         let miles = (Units.toMiles(d, unit) * 100).rounded() / 100
         do {
             try await store.logRun(workout: workout, dist: miles, time: time,
@@ -63,6 +63,5 @@ struct LogRunSheet: View {
         } catch {
             self.error = "Couldn't save the run — try again."
         }
-        busy = false
     }
 }
