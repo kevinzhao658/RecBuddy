@@ -29,15 +29,16 @@ final class PlanStore {
                 .select().gte("date", value: from).lte("date", value: to)
                 .order("date").execute().value
             guard weekMonday == from else { return } // stale response — a newer week won
-            workoutsByDate = Dictionary(uniqueKeysWithValues: workouts.map { ($0.date, $0) })
+            workoutsByDate = Dictionary(workouts.map { ($0.date, $0) }, uniquingKeysWith: { _, last in last })
             let ids = workouts.map(\.id)
             if ids.isEmpty { actualsByWorkout = [:] }
             else {
                 let actuals: [WorkoutActual] = try await Supa.shared.from("workout_actuals")
                     .select().in("workout_id", values: ids).execute().value
                 guard weekMonday == from else { return } // stale response — a newer week won
-                actualsByWorkout = Dictionary(uniqueKeysWithValues:
-                    actuals.compactMap { a in a.workoutId.map { ($0, a) } })
+                actualsByWorkout = Dictionary(
+                    actuals.compactMap { a in a.workoutId.map { ($0, a) } },
+                    uniquingKeysWith: { _, last in last })
             }
             phase = .idle
         } catch {

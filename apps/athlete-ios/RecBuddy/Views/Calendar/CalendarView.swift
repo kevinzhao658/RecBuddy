@@ -17,6 +17,13 @@ struct CalendarView: View {
                 ForEach(store.weekDates, id: \.self) { date in
                     dayRow(date)
                 }
+                if store.phase == .idle && store.workoutsByDate.isEmpty {
+                    Section {
+                        Text("Your coach hasn't built your plan yet.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                    }
+                }
                 if case .error(let msg) = store.phase {
                     Section { Label(msg, systemImage: "wifi.exclamationmark").foregroundStyle(.red) }
                 }
