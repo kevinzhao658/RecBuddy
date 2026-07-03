@@ -49,36 +49,57 @@ struct MainTabs: View {
                 .accessibilityHidden(tab != 1)
         }
         .safeAreaInset(edge: .bottom) { RBTabBar(tab: $tab) }
-        .background(RB.bg.ignoresSafeArea())
+        .background(
+            ZStack { // metal treatment: near-black base + ambient lime radial
+                RB.bg
+                RB.bgGlow
+            }
+            .ignoresSafeArea()
+        )
     }
 }
 
+/// Floating capsule dock — modern/minimal: inactive tabs are bare icons, the
+/// active tab is a sliding lime pill (spring matchedGeometryEffect) with label.
 struct RBTabBar: View {
     @Binding var tab: Int
+    @Namespace private var pill
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 4) {
             tabButton(0, icon: "calendar", label: "Calendar")
             tabButton(1, icon: "bubble.left", label: "Chat")
         }
-        .padding(.horizontal, 16).padding(.vertical, 10)
-        .background(RB.bg.opacity(0.94))
-        .overlay(Rectangle().fill(RB.line).frame(height: 1), alignment: .top)
+        .padding(5)
+        .background(RB.metalSurface2, in: Capsule())
+        .overlay(Capsule().stroke(RB.line, lineWidth: 1))
+        .shadow(color: .black.opacity(0.5), radius: 14, y: 6)
+        .padding(.bottom, 8)
+        .frame(maxWidth: .infinity) // centered, floating — content shows around it
     }
     private func tabButton(_ i: Int, icon: String, label: String) -> some View {
         Button {
-            tab = i
+            withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) { tab = i }
         } label: {
-            HStack(spacing: 7) {
-                Image(systemName: icon)
-                Text(label).font(.subheadline.weight(.semibold))
+            HStack(spacing: 6) {
+                Image(systemName: icon).font(.system(size: 15, weight: .semibold))
+                if tab == i {
+                    Text(label).font(.footnote.weight(.semibold))
+                        .transition(.opacity)
+                }
             }
-            .foregroundStyle(tab == i ? RB.accent : RB.textMute)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 11)
-            .background(tab == i ? RB.accent.opacity(0.14) : .clear)
-            .clipShape(Capsule())
-            .contentShape(Capsule()) // inactive tab (clear bg) stays tappable
+            .foregroundStyle(tab == i ? RB.onAccent : RB.textMute)
+            .padding(.horizontal, tab == i ? 18 : 15)
+            .padding(.vertical, 10)
+            .background {
+                if tab == i {
+                    Capsule().fill(RB.accent)
+                        .matchedGeometryEffect(id: "activePill", in: pill)
+                        .shadow(color: RB.accent.opacity(0.35), radius: 10, y: 2)
+                }
+            }
+            .contentShape(Capsule()) // inactive tab (no bg) stays tappable
         }
+        .buttonStyle(.plain)
         .accessibilityLabel(label)
         .accessibilityAddTraits(tab == i ? .isSelected : [])
     }

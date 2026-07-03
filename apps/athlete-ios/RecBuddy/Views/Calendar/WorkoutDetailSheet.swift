@@ -79,12 +79,18 @@ struct WorkoutDetailSheet: View {
                         Button("Mark as not done") { Task { await setStatus("planned") } }
                             .buttonStyle(VoltButtonStyle(prominent: false))
                             .disabled(busy)
-                    } else {
-                        // Completion goes THROUGH the log sheet (which offers a
-                        // "just mark as complete" skip) — one clear entry point.
+                    } else if live.date <= Week.todayISO() {
+                        // Completion goes THROUGH the log sheet — one clear entry
+                        // point. Only today's and past workouts can be completed.
                         Button("✓ Mark as complete") { logOpen = true }
                             .buttonStyle(VoltButtonStyle())
                             .disabled(busy)
+                    } else {
+                        Text("Scheduled for \(Week.fmtDayDate(live.date)) — you can log it then.")
+                            .font(.footnote)
+                            .foregroundStyle(RB.textFaint)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
                     }
                 }
                 .padding(.horizontal, 20)

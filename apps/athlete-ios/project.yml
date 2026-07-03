@@ -24,6 +24,7 @@ targets:
       properties:
         CFBundleDisplayName: RecBuddy
         UILaunchScreen: {}
+        UIAppFonts: [SairaCondensed-ExtraBold.ttf]
         SupabaseURL: $(SUPABASE_URL)
         SupabaseAnonKey: $(SUPABASE_ANON_KEY)
         ResetPasswordRedirect: $(RESET_PASSWORD_REDIRECT)

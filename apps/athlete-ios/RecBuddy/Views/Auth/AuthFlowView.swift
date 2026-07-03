@@ -12,20 +12,16 @@ struct AuthFlowView: View {
         NavigationStack {
             ZStack {
                 RB.bg.ignoresSafeArea()
+                RB.bgGlow.ignoresSafeArea() // ambient lime radial (metal treatment)
+                // Brand-panel glow from the web login (radial lime, top-leading)
+                RadialGradient(colors: [RB.accent.opacity(0.16), .clear],
+                               center: .init(x: 0.05, y: 0.05), startRadius: 0, endRadius: 320)
+                    .ignoresSafeArea()
                 VStack(spacing: 0) {
-                    // ── Brand wordmark (top half) ──────────────────────────
+                    // ── Brand wordmark: two-tone embossed metal ────────────
                     Spacer()
                     VStack(spacing: 10) {
-                        HStack(spacing: 0) {
-                            Text("Rec")
-                                .foregroundStyle(RB.accent)
-                            Text("Buddy")
-                                .foregroundStyle(.white)
-                        }
-                        .font(.system(size: 44, weight: .heavy))
-                        .italic()
-                        .fontWidth(.condensed)
-                        .accessibilityLabel("RecBuddy")
+                        Wordmark(size: 46)
 
                         Text("UNLEASH YOURSELF")
                             .font(.caption)
@@ -89,20 +85,15 @@ struct AuthFlowView: View {
 
                         Divider().overlay(RB.line)
 
-                        // Footer: sign-up link
-                        HStack(spacing: 4) {
-                            Text("New to RecBuddy?")
-                                .foregroundStyle(RB.textMute)
-                            NavigationLink {
-                                InviteFlowView()
-                            } label: {
-                                Text("Create an account")
-                                    .font(.subheadline.weight(.bold))
-                                    .foregroundStyle(RB.accent)
-                            }
-                            .accessibilityLabel("Create an account")
+                        // Footer: sign-up link (no "New to RecBuddy?" prefix)
+                        NavigationLink {
+                            InviteFlowView()
+                        } label: {
+                            Text("Create an account")
+                                .font(.subheadline.weight(.bold))
+                                .foregroundStyle(RB.accent)
                         }
-                        .font(.subheadline)
+                        .accessibilityLabel("Create an account")
                     }
                     .padding(.horizontal, 24)
                     .padding(.bottom, 48)
@@ -120,10 +111,14 @@ struct AuthFlowView: View {
             try await session.signIn(
                 email: email.trimmingCharacters(in: .whitespaces),
                 password: password)
+            // Stay in the "Signing in…" state: the session pipeline (auth event →
+            // invite redeem → profile fetch) is still running, and this whole view
+            // is replaced when it lands. Resetting busy here made the button flip
+            // back to LOG IN before the user was actually in the app.
         } catch {
             self.error = "Sign-in failed — check your email and password."
+            busy = false
         }
-        busy = false
     }
 
     private func forgot() async {
