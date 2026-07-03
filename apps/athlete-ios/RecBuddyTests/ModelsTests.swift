@@ -29,6 +29,8 @@ import Foundation
         let p = try decoder.decode(Profile.self, from: pJson)
         #expect(p.role == "athlete")
         #expect(p.initials == "JR")
+        #expect(p.experienceLevel == "returning")
+        #expect(p.primaryGoal == "pr")
 
         let mJson = """
         {"id":"m1","thread_id":"t1","from_user_id":"u2","kind":"runcard",

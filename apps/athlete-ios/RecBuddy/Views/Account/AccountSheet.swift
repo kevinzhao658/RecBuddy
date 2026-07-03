@@ -1,4 +1,6 @@
 import SwiftUI
+import PhotosUI
+import Supabase
 
 struct AccountSheet: View {
     let profile: Profile
@@ -6,155 +8,42 @@ struct AccountSheet: View {
     @Environment(SessionStore.self) private var session
     @Environment(\.dismiss) private var dismiss
     @AppStorage("unit") private var unitRaw = "mi"
-    @State private var name: String = ""
-    @State private var saved = false
-    @State private var saveError: String?
-    @State private var hasCoach = true
-    @State private var joinCode = ""
-    @State private var joinBusy = false
-    @State private var joinError: String?
 
-    // ── Goal & plan caption ────────────────────────────────────────────────
+    // Photo upload
+    @State private var photoItem: PhotosPickerItem?
+    @State private var uploadBusy = false
+    @State private var uploadError: String?
+    @State private var currentAvatarUrl: String?  // tracks post-upload URL locally
+
+    // Coach count for caption
+    @State private var coachCount: Int = 0
 
     private var planCaption: String {
-        guard let plan else { return "" }
+        guard let plan else { return "Not set" }
         var parts: [String] = []
         if let race = plan.goalRace, !race.isEmpty { parts.append(race) }
         if let date = plan.goalDate { parts.append(Week.fmtShortDate(date)) }
-        return parts.joined(separator: " · ")
+        return parts.isEmpty ? "Not set" : parts.joined(separator: " · ")
     }
-
-    // ── Body ───────────────────────────────────────────────────────────────
 
     var body: some View {
         NavigationStack {
             ZStack {
                 RB.bg.ignoresSafeArea()
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
-
-                        // ── Header ────────────────────────────────────────
-                        VStack(spacing: 12) {
-                            ZStack {
-                                Circle()
-                                    .fill(RB.surface2)
-                                    .frame(width: 56, height: 56)
-                                Text(profile.initials)
-                                    .font(.title3.weight(.bold))
-                                    .foregroundStyle(.white)
-                            }
-                            .accessibilityHidden(true)
-
-                            VStack(spacing: 4) {
-                                Text(profile.name)
-                                    .font(.title2.bold())
-                                    .foregroundStyle(.white)
-                                Text(profile.email)
-                                    .font(.subheadline)
-                                    .foregroundStyle(RB.textMute)
-                            }
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, 8)
-                        .padding(.bottom, 4)
-
-                        // ── Name edit ─────────────────────────────────────
-                        VStack(alignment: .leading, spacing: 8) {
-                            RBLabel("YOUR NAME")
-                            TextField("", text: $name)
-                                .foregroundStyle(.white)
-                                .rbField()
-                                .accessibilityLabel("Your name")
-
-                            if name.trimmingCharacters(in: .whitespaces) != profile.name
-                                && !name.trimmingCharacters(in: .whitespaces).isEmpty {
-                                Button(saved ? "Saved ✓" : "Save name") {
-                                    Task { await saveName() }
-                                }
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(saved ? RB.textMute : RB.accent)
-                            }
-                            if let saveError {
-                                Text(saveError).font(.footnote).foregroundStyle(.red)
-                            }
-                        }
-
-                        // ── Goal & plan row ───────────────────────────────
-                        if plan != nil {
-                            settingRow(
-                                icon: "target",
-                                title: "Goal & plan",
-                                subtitle: planCaption)
-                        }
-
-                        // ── Units ─────────────────────────────────────────
-                        VStack(alignment: .leading, spacing: 8) {
-                            RBLabel("DISTANCE UNIT")
-                            Picker("", selection: $unitRaw) {
-                                Text("Miles").tag("mi")
-                                Text("Kilometers").tag("km")
-                            }
-                            .pickerStyle(.segmented)
-                        }
-
-                        // ── Join a coach ──────────────────────────────────
-                        if !hasCoach {
-                            VStack(alignment: .leading, spacing: 10) {
-                                RBLabel("JOIN A COACH")
-                                Text("You're not linked to a coach yet. Enter an invite code to join one.")
-                                    .font(.footnote)
-                                    .foregroundStyle(RB.textMute)
-                                TextField("Invite code", text: $joinCode)
-                                    .textInputAutocapitalization(.characters)
-                                    .autocorrectionDisabled()
-                                    .foregroundStyle(.white)
-                                    .rbField()
-                                    .accessibilityLabel("Invite code")
-                                if let joinError {
-                                    Text(joinError).font(.footnote).foregroundStyle(.red)
-                                }
-                                Button(joinBusy ? "Joining…" : "Join") {
-                                    Task { await join() }
-                                }
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(RB.onAccent)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 12)
-                                .background(RB.accent)
-                                .clipShape(Capsule())
-                                .disabled(joinBusy || joinCode.trimmingCharacters(in: .whitespaces).isEmpty)
-                                .accessibilityLabel("Join coach")
-                            }
-                        }
-
-                        // ── Log out pill ──────────────────────────────────
-                        Button {
-                            Task { await session.signOut(); dismiss() }
-                        } label: {
-                            Text("Log out")
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(Color.red)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 16)
-                                .background(Color.red.opacity(0.15))
-                                .clipShape(Capsule())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Log out")
-
-                        // ── Footer note ───────────────────────────────────
-                        Text("Password changes and account deletion are available in the RecBuddy web app.")
-                            .font(.caption)
-                            .foregroundStyle(RB.textFaint)
-                            .multilineTextAlignment(.center)
-                            .frame(maxWidth: .infinity)
-                            .padding(.bottom, 8)
+                    VStack(alignment: .leading, spacing: 24) {
+                        headerSection
+                        profileSection
+                        coachesSection
+                        preferencesSection
+                        supportSection
+                        accountSection
                     }
                     .padding(.horizontal, 20)
-                    .padding(.bottom, 32)
+                    .padding(.bottom, 48)
                 }
             }
-            .navigationTitle("Account")
+            .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
@@ -163,15 +52,199 @@ struct AccountSheet: View {
                         .foregroundStyle(RB.accent)
                 }
             }
-            .onAppear { name = profile.name }
-            .task { await checkCoach() }
+            .task { await loadCoachCount() }
+            .onAppear { currentAvatarUrl = profile.avatarUrl }
+            .onChange(of: photoItem) { _, newItem in
+                guard let newItem else { return }
+                Task { await uploadPhoto(item: newItem) }
+            }
         }
         .presentationDragIndicator(.visible)
     }
 
-    // ── Row card helper ────────────────────────────────────────────────────
+    // MARK: – Header
 
-    private func settingRow(icon: String, title: String, subtitle: String) -> some View {
+    private var headerSection: some View {
+        VStack(spacing: 12) {
+            ZStack(alignment: .bottom) {
+                avatarView
+                    .frame(width: 56, height: 56)
+                PhotosPicker(selection: $photoItem, matching: .images) {
+                    Text("Change photo")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(RB.accent)
+                }
+                .offset(y: 22)
+            }
+            .padding(.bottom, 22)
+
+            VStack(spacing: 4) {
+                Text(profile.name)
+                    .font(.title2.bold())
+                    .foregroundStyle(.white)
+                Text(profile.email)
+                    .font(.subheadline)
+                    .foregroundStyle(RB.textMute)
+            }
+
+            if uploadBusy {
+                ProgressView()
+                    .tint(RB.accent)
+                    .scaleEffect(0.8)
+            }
+            if let err = uploadError {
+                Text(err)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 8)
+        .padding(.bottom, 4)
+    }
+
+    @ViewBuilder
+    private var avatarView: some View {
+        let urlStr = currentAvatarUrl ?? profile.avatarUrl
+        if let urlStr, let url = URL(string: urlStr) {
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .success(let img):
+                    img.resizable()
+                        .scaledToFill()
+                        .frame(width: 56, height: 56)
+                        .clipShape(Circle())
+                default:
+                    initialsCircle
+                }
+            }
+        } else {
+            initialsCircle
+        }
+    }
+
+    private var initialsCircle: some View {
+        ZStack {
+            Circle().fill(RB.surface2)
+            Text(profile.initials)
+                .font(.title3.weight(.bold))
+                .foregroundStyle(.white)
+        }
+        .frame(width: 56, height: 56)
+    }
+
+    // MARK: – Sections
+
+    private var profileSection: some View {
+        sectionGroup(title: "PROFILE") {
+            NavigationLink {
+                NameProfileView(profile: profile)
+            } label: {
+                navRow(icon: "person.fill", title: "Name & running profile", caption: profile.name)
+            }
+            .buttonStyle(.plain)
+
+            NavigationLink {
+                GoalSettingsView(profile: profile, plan: plan)
+            } label: {
+                navRow(icon: "target", title: "Race goal", caption: planCaption)
+            }
+            .buttonStyle(.plain)
+
+            NavigationLink {
+                EmailSettingsView(profile: profile)
+            } label: {
+                navRow(icon: "envelope.fill", title: "Email", caption: profile.email)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var coachesSection: some View {
+        sectionGroup(title: "COACHES") {
+            NavigationLink {
+                CoachesView(profile: profile)
+            } label: {
+                let caption = coachCount == 1 ? "1 coach" : "\(coachCount) coaches"
+                navRow(icon: "person.2.fill", title: "Coaches", caption: caption)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var preferencesSection: some View {
+        sectionGroup(title: "PREFERENCES") {
+            VStack(alignment: .leading, spacing: 8) {
+                RBLabel("DISTANCE UNIT")
+                Picker("", selection: $unitRaw) {
+                    Text("Miles").tag("mi")
+                    Text("Kilometers").tag("km")
+                }
+                .pickerStyle(.segmented)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 14)
+            .rbCard()
+        }
+    }
+
+    private var supportSection: some View {
+        sectionGroup(title: "SUPPORT") {
+            Link(destination: URL(string: "mailto:kevin@recbuddy.app")!) {
+                navRow(icon: "envelope.badge.fill", title: "Contact support", caption: "kevin@recbuddy.app")
+            }
+            .buttonStyle(.plain)
+
+            NavigationLink {
+                TermsView()
+            } label: {
+                navRow(icon: "doc.text.fill", title: "Terms & Conditions", caption: nil)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var accountSection: some View {
+        sectionGroup(title: "ACCOUNT") {
+            Button {
+                Task { await session.signOut(); dismiss() }
+            } label: {
+                Text("Log out")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.red)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(Color.red.opacity(0.15))
+                    .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Log out")
+
+            NavigationLink {
+                DeleteAccountView()
+            } label: {
+                Text("Delete account…")
+                    .font(.footnote)
+                    .foregroundStyle(RB.textFaint)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    // MARK: – Helpers
+
+    @ViewBuilder
+    private func sectionGroup<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            RBLabel(title)
+            content()
+        }
+    }
+
+    private func navRow(icon: String, title: String, caption: String?) -> some View {
         HStack(spacing: 12) {
             ZStack {
                 RoundedRectangle(cornerRadius: 8)
@@ -187,8 +260,8 @@ struct AccountSheet: View {
                 Text(title)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.white)
-                if !subtitle.isEmpty {
-                    Text(subtitle)
+                if let caption, !caption.isEmpty {
+                    Text(caption)
                         .font(.caption)
                         .foregroundStyle(RB.textMute)
                 }
@@ -199,44 +272,56 @@ struct AccountSheet: View {
                 .foregroundStyle(RB.textFaint)
         }
         .padding(14)
-        .background(RB.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(RB.line, lineWidth: 1))
+        .rbCard()
     }
 
-    // ── Actions ────────────────────────────────────────────────────────────
+    // MARK: – Actions
 
-    private func saveName() async {
-        saveError = nil; saved = false
-        let trimmed = name.trimmingCharacters(in: .whitespaces)
+    private func loadCoachCount() async {
+        struct TeamRow: Decodable { let coach_id: String }
+        let rows: [TeamRow] = (try? await Supa.shared
+            .rpc("get_team", params: ["p_athlete_id": profile.id])
+            .execute().value) ?? []
+        coachCount = rows.count
+    }
+
+    private func uploadPhoto(item: PhotosPickerItem) async {
+        uploadBusy = true
+        uploadError = nil
+        defer { uploadBusy = false }
         do {
+            guard let data = try await item.loadTransferable(type: Data.self) else {
+                uploadError = "Could not read the photo."
+                return
+            }
+            guard data.count < 5 * 1_024 * 1_024 else {
+                uploadError = "Photo must be under 5 MB."
+                return
+            }
+            try await Supa.shared.storage
+                .from("avatars")
+                .upload(
+                    "\(profile.id)/avatar",
+                    data: data,
+                    options: FileOptions(
+                        cacheControl: "3600",
+                        contentType: "image/jpeg",
+                        upsert: true
+                    )
+                )
+            let base = try Supa.shared.storage
+                .from("avatars")
+                .getPublicURL(path: "\(profile.id)/avatar")
+                .absoluteString
+            let url = base + "?v=\(Int(Date().timeIntervalSince1970))"
             try await Supa.shared.from("profiles")
-                .update(["name": trimmed]).eq("id", value: profile.id).execute()
-            await session.refreshProfile()
-            saved = true
-        } catch {
-            saveError = "Couldn't save — try again."
-        }
-    }
-
-    private func checkCoach() async {
-        struct Row: Decodable { let coach_id: String }
-        let rows: [Row] = (try? await Supa.shared.from("coach_athlete")
-            .select("coach_id").limit(1).execute().value) ?? []
-        hasCoach = !rows.isEmpty
-    }
-
-    private func join() async {
-        joinBusy = true; joinError = nil
-        defer { joinBusy = false }
-        let code = joinCode.trimmingCharacters(in: .whitespaces).uppercased()
-        do {
-            try await Supa.shared.rpc("redeem_invite", params: ["p_code": code]).execute()
-            joinCode = ""
-            await checkCoach()
+                .update(["avatar_url": url])
+                .eq("id", value: profile.id)
+                .execute()
+            currentAvatarUrl = url
             await session.refreshProfile()
         } catch {
-            joinError = "That code is invalid, used, or expired."
+            uploadError = "Photo upload failed — try again."
         }
     }
 }

@@ -12,9 +12,13 @@ struct Profile: Codable, Identifiable, Equatable {
     let initials: String
     let title: String?
     let avatarUrl: String?
+    let experienceLevel: String? // 'new'|'returning'|'experienced'|'competitive'
+    let primaryGoal: String?     // 'fit'|'first-race'|'pr'|'distance'
     enum CodingKeys: String, CodingKey {
         case id, role, name, email, initials, title
         case avatarUrl = "avatar_url"
+        case experienceLevel = "experience_level"
+        case primaryGoal = "primary_goal"
     }
 }
 
