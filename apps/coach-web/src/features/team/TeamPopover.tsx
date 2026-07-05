@@ -20,10 +20,16 @@ export function TeamPopover({ athleteId, isHead }: { athleteId: string; isHead: 
 
   return (
     <div className="relative">
-      <div className="flex items-center -space-x-2">
-        {members.map((m) => <Avatar key={m.coach_id} initials={m.coach?.initials ?? '?'} url={m.coach?.avatar_url} className="ring-1 ring-line" />)}
+      <div className="flex shrink-0 items-center -space-x-2">
+        {/* Cap the visible stack at 3; the rest collapse into a +N chip. */}
+        {members.slice(0, 3).map((m) => <Avatar key={m.coach_id} size="team" initials={m.coach?.initials ?? '?'} url={m.coach?.avatar_url} className="ring-1 ring-line" />)}
+        {members.length > 3 && (
+          <span className="grid h-7 w-7 place-items-center rounded-[8px] bg-surface2 text-[10px] font-semibold text-text-mute ring-1 ring-line md:h-9 md:w-9 md:rounded-[10px] md:text-xs">
+            +{members.length - 3}
+          </span>
+        )}
         {isHead && <button aria-label="Manage coaching team" onClick={() => setOpen((o) => !o)}
-          className="ml-3 grid h-9 w-9 place-items-center rounded-full border border-dashed border-line text-text-mute hover:border-text-mute hover:text-text">+</button>}
+          className="ml-3 grid h-7 w-7 place-items-center rounded-full border border-dashed border-line text-sm text-text-mute hover:border-text-mute hover:text-text md:h-9 md:w-9">+</button>}
       </div>
       {open && isHead && (
         <div className="rb-card absolute right-0 z-40 mt-2 w-72 p-3">

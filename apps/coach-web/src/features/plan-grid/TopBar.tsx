@@ -28,9 +28,9 @@ export function TopBar({ athlete, plan, actions, onMenu }: { athlete: Profile; p
           <HamburgerIcon />
         </button>
       )}
-      <Avatar initials={athlete.initials} className="h-12 w-12 rounded-[12px] text-base" />
-      <div className="min-w-0 flex-1">
-        <h2 className="truncate text-[26px] font-bold leading-tight tracking-tight">{athlete.name}</h2>
+      <Avatar initials={athlete.initials} className="h-10 w-10 rounded-[12px] text-base md:h-12 md:w-12" />
+      <div className="min-w-0 flex-1 basis-40">
+        <h2 className="truncate text-xl font-bold leading-tight tracking-tight md:text-[26px]">{athlete.name}</h2>
         {plan && (
           <p className="mt-0.5 flex items-center gap-1.5 truncate text-sm text-text-mute">
             <FlagIcon className="h-3.5 w-3.5 shrink-0 text-accent" />
