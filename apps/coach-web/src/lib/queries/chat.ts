@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabase } from '../supabase'
+import { compressImage } from '../compressImage'
 import type { Message, Thread, Workout } from '../types'
 
 /** Get (or create) the coach↔athlete thread. RLS surfaces the head coach's
@@ -41,6 +42,48 @@ export function useSendMessage(threadId: string | null) {
   return useMutation({
     mutationFn: (body: string) => sendMessage(supabase, threadId!, body),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['messages', threadId] }),
+  })
+}
+
+/** Upload a client-compressed image and post it as kind='image'. Path convention:
+ *  <thread_id>/<uuid>.jpg — first segment is the thread_id, which the storage
+ *  policy uses to scope access to thread participants.  The path (not a public URL)
+ *  is stored in the payload; callers exchange it for a signed URL at render time. */
+export async function sendImageMessage(client: SupabaseClient, threadId: string, file: File): Promise<void> {
+  const { data: me } = await client.auth.getUser()
+  const uid = me.user!.id
+  const { blob, w, h } = await compressImage(file)
+  const path = `${threadId}/${crypto.randomUUID()}.jpg`
+  const { error: upErr } = await client.storage
+    .from('chat-images')
+    .upload(path, blob, { contentType: 'image/jpeg' })
+  if (upErr) throw upErr
+  const { error } = await client.from('messages')
+    .insert({ thread_id: threadId, from_user_id: uid, kind: 'image', payload: { path, w, h } })
+  if (error) throw error
+  await client.from('message_threads').update({ updated_at: new Date().toISOString() }).eq('id', threadId)
+}
+export function useSendImage(threadId: string | null) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (file: File) => sendImageMessage(supabase, threadId!, file),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['messages', threadId] }),
+  })
+}
+
+/** Fetch a short-lived signed URL for a private chat-image path.
+ *  Only succeeds for callers who pass the storage SELECT policy (thread participants).
+ *  staleTime is 50 min — well within the 60-min signed-URL expiry. */
+export function useSignedImageUrl(path: string | null) {
+  return useQuery({
+    queryKey: ['chat-image', path],
+    queryFn: () =>
+      supabase.storage.from('chat-images').createSignedUrl(path!, 3600).then(r => {
+        if (r.error) throw r.error
+        return r.data.signedUrl
+      }),
+    enabled: !!path,
+    staleTime: 50 * 60 * 1000,
   })
 }
 

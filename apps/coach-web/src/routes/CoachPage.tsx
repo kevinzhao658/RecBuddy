@@ -11,6 +11,7 @@ import { WorkoutKey } from '../features/plan-grid/WorkoutKey'
 import { DragGhost } from '../features/plan-grid/DragGhost'
 import { useAthleteDnd } from '../features/plan-grid/useAthleteDnd'
 import { WorkoutEditor } from '../features/editor/WorkoutEditor'
+import { WorkoutResults } from '../features/editor/WorkoutResults'
 import { WorkoutLibrary } from '../features/library/WorkoutLibrary'
 import { ChatPanel } from '../features/chat/ChatPanel'
 import { TeamPopover } from '../features/team/TeamPopover'
@@ -167,15 +168,18 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, monthAnchor, 
           )}
         </div>
 
-        {/* Right column: the editor when a day is selected (week view), else the library */}
+        {/* Right column: completed workouts show read-only RESULTS (with a Plan
+            toggle); everything else opens the editor; no selection = library */}
         {view === 'week' && selectedDate
-          ? <WorkoutEditor key={selectedDate} date={selectedDate} workout={selectedWorkout}
-              onSave={(draft) => { upsert.mutate({ date: selectedDate, draft }, { onSuccess: () => setSelectedDate(null), onError }) }}
-              onClear={() => { clearDay.mutate(selectedDate, { onSuccess: () => setSelectedDate(null), onError }) }}
-              onShare={selectedWorkout ? (changed, draft) => {
-                if (changed) shareAdjust.mutate({ from: wSummary(selectedWorkout), to: wSummary(draft) }, { onSuccess: () => flash('Change shared to chat'), onError })
-                else shareWorkout.mutate(selectedWorkout, { onSuccess: () => flash('Shared to chat'), onError })
-              } : undefined} />
+          ? selectedWorkout?.status === 'done'
+            ? <WorkoutResults key={selectedDate} workout={selectedWorkout} onClose={() => setSelectedDate(null)} />
+            : <WorkoutEditor key={selectedDate} date={selectedDate} workout={selectedWorkout}
+                onSave={(draft) => { upsert.mutate({ date: selectedDate, draft }, { onSuccess: () => setSelectedDate(null), onError }) }}
+                onClear={() => { clearDay.mutate(selectedDate, { onSuccess: () => setSelectedDate(null), onError }) }}
+                onShare={selectedWorkout ? (changed, draft) => {
+                  if (changed) shareAdjust.mutate({ from: wSummary(selectedWorkout), to: wSummary(draft) }, { onSuccess: () => flash('Change shared to chat'), onError })
+                  else shareWorkout.mutate(selectedWorkout, { onSuccess: () => flash('Shared to chat'), onError })
+                } : undefined} />
           : <WorkoutLibrary />}
       </main>
 

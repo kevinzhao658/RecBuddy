@@ -1,5 +1,12 @@
+import { useState } from 'react'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { PaceField, secondsToPace, paceToSeconds } from './PaceField'
+
+/** Controlled like the real editor: onChange feeds back into value. */
+function Controlled({ initial }: { initial: string }) {
+  const [v, setV] = useState(initial)
+  return <PaceField value={v} onChange={setV} />
+}
 
 test('round-trips pace <-> seconds', () => {
   expect(paceToSeconds('8:30/mi')).toBe(510)
@@ -23,6 +30,20 @@ test('km mode displays per-km and emits a canonical /mi value', () => {
   expect(screen.getByText('/km')).toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: /increase pace by 15 seconds/i }))
   expect(onChange).toHaveBeenCalledWith(expect.stringMatching(/\/mi$/)) // still canonical /mi
+})
+
+test('typing 7-3-0 keystroke-by-keystroke yields 7:30, not 11:30 (regression)', () => {
+  // Real typing appends to the CURRENT display. Without a typing buffer, the
+  // intermediate "73" seconds normalizes to 1:13, and the next keystroke
+  // re-parses "1:13"+"0" as 11:30 — the +4-minutes carry bug.
+  render(<Controlled initial="9:30/mi" />)
+  const input = screen.getByLabelText('Pace') as HTMLInputElement
+  fireEvent.change(input, { target: { value: '7' } })                 // select-all + type 7
+  fireEvent.change(input, { target: { value: input.value + '3' } })   // append 3
+  fireEvent.change(input, { target: { value: input.value + '0' } })   // append 0
+  expect(input.value).toBe('7:30')
+  fireEvent.blur(input)
+  expect(input.value).toBe('7:30') // normalized display after editing ends
 })
 
 test('typed digits fill MM:SS from the right, spilling into minutes past 2', () => {

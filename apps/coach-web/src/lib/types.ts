@@ -18,6 +18,12 @@ export interface Workout {
   title: string; dist: number | null; pace: string | null; est_minutes: number | null
   dur: number | null; note: string | null; sets: [string, string][]; status: WorkoutStatus
 }
+/** An athlete-logged result for a workout (workout_actuals row). */
+export interface Actual {
+  id: string; workout_id: string | null; athlete_id: string; dist: number | null
+  pace: string | null; time: string | null; hr: number | null; feel: number | null
+  note: string | null; source: string; recorded_at: string
+}
 export interface LibraryWorkout {
   id: string; coach_id: string; type: WorkoutType; title: string; dist: number | null
   pace: string | null; est_minutes: number | null; note: string | null; sets: [string, string][]; custom: boolean
@@ -28,7 +34,7 @@ export interface Invite {
 }
 export interface RosterEntry { relationship: 'head' | 'assistant'; athlete: Profile; plans: Plan[] }
 
-export type MessageKind = 'text' | 'runcard' | 'adjust' | 'workout'
+export type MessageKind = 'text' | 'runcard' | 'adjust' | 'workout' | 'image'
 /** payload for kind='runcard' (a completed run the athlete logged). */
 export interface RunCard { title: string; dist: string; pace: string; time: string; hr: number }
 /** payload for kind='adjust' (a workout change the coach pushed). */
@@ -36,9 +42,14 @@ export interface AdjustCard { from: string; to: string; reason: string }
 /** payload for kind='workout' (a scheduled workout the coach shared). Snapshot
  *  for display; the message's workout_id links the live row for click-through. */
 export interface WorkoutCard { date: string; type: WorkoutType; title: string; dist: number | null; pace: string | null }
+/** payload for kind='image' (a client-compressed JPEG uploaded to chat-images).
+ *  `path` is the canonical storage path (<thread_id>/<uuid>.jpg) — clients exchange
+ *  it for a short-lived signed URL via the private bucket.
+ *  `url` is legacy-read-only (old public-bucket rows); never written to new rows. */
+export interface ImageCard { path?: string; url?: string; w: number; h: number }
 export interface Thread { id: string; athlete_id: string; coach_id: string }
 export interface Message {
   id: string; thread_id: string; from_user_id: string; kind: MessageKind
-  body: string | null; payload: RunCard | AdjustCard | WorkoutCard | null
+  body: string | null; payload: RunCard | AdjustCard | WorkoutCard | ImageCard | null
   workout_id: string | null; read: boolean; created_at: string
 }
