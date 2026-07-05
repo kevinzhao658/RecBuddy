@@ -37,6 +37,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: app.recbuddy.athlete
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         SWIFT_VERSION: "5.10"
+        TARGETED_DEVICE_FAMILY: "1" # iPhone only — no iPad layouts
   RecBuddyTests:
     type: bundle.unit-test
     platform: iOS
