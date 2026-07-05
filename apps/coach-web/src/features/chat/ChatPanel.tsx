@@ -59,7 +59,7 @@ export function ChatPanel({ athleteId, athleteName, onClose, onOpenDay }: {
   return (
     <div className="fixed inset-0 z-40">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <aside className="rb-surface absolute right-0 top-0 flex h-screen w-[400px] flex-col border-l border-line shadow-2xl">
+      <aside className="rb-surface absolute right-0 top-0 flex h-screen w-full flex-col border-l border-line shadow-2xl sm:w-[400px]">
         <header className="flex items-center justify-between border-b border-line px-4 py-3">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-accent">Messages</p>

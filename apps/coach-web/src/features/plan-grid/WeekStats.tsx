@@ -13,7 +13,7 @@ export function WeekStats({ week }: { week: (Workout | null)[] }) {
   const minutes = present.reduce((s, w) => s + estMinutes(w), 0)
   const done = present.filter((w) => w.status === 'done').length
   return (
-    <div className="flex gap-7 text-right">
+    <div className="flex gap-7 overflow-x-auto text-right">
       <Stat label="Est. weekly vol." value={`${fromMiles(miles, unit).toFixed(1)} ${unit}`} />
       <Stat label="Time on feet" value={fmtDur(minutes)} />
       <Stat label="Completed" value={`${done}/${present.length}`} />
