@@ -67,7 +67,7 @@ export function WorkoutLibrary() {
   const shown = filter === 'all' ? items : items.filter((t) => t.type === filter)
 
   return (
-    <aside className="rb-surface flex w-80 shrink-0 flex-col border-l border-line">
+    <aside className="rb-surface flex h-full w-80 shrink-0 flex-col border-l border-line">
       {mode.kind === 'new' ? (
         <LibraryEditor busy={create.isPending} onCancel={close}
           onSave={(d) => create.mutate(d, { onSuccess: close })} />

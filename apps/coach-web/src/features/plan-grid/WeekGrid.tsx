@@ -36,7 +36,7 @@ export function WeekGrid({ monday, week, selectedDate, onSelectDate, onCopy, can
 }) {
   const dates = weekDates(monday)
   return (
-    <div className="grid grid-cols-7 gap-3">
+    <div className="grid grid-cols-1 gap-2 md:grid-cols-7 md:gap-3">
       {dates.map((date, i) => (
         <DayCell key={date} date={date} dow={DOW[i]} workout={week[i]} selected={selectedDate === date}
           onSelectDate={onSelectDate} onCopy={onCopy} canPaste={canPaste} onPaste={onPaste} />

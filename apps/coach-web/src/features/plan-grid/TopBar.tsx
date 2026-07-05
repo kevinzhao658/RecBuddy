@@ -11,12 +11,26 @@ function FlagIcon({ className = '' }: { className?: string }) {
   )
 }
 
-export function TopBar({ athlete, plan, actions }: { athlete: Profile; plan: Plan | null; actions?: ReactNode }) {
+function HamburgerIcon() {
   return (
-    <header className="flex items-center gap-4 border-b border-line px-6 py-4">
-      <Avatar initials={athlete.initials} className="h-12 w-12 rounded-[12px] text-base" />
-      <div className="min-w-0 flex-1">
-        <h2 className="truncate text-[26px] font-bold leading-tight tracking-tight">{athlete.name}</h2>
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
+    </svg>
+  )
+}
+
+export function TopBar({ athlete, plan, actions, onMenu }: { athlete: Profile; plan: Plan | null; actions?: ReactNode; onMenu?: () => void }) {
+  return (
+    <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line px-6 py-4">
+      {onMenu && (
+        <button aria-label="Open roster" onClick={onMenu}
+          className="md:hidden grid h-8 w-8 shrink-0 place-items-center rounded-[10px] border border-line bg-surface2 text-text-mute hover:text-text">
+          <HamburgerIcon />
+        </button>
+      )}
+      <Avatar initials={athlete.initials} className="h-10 w-10 rounded-[12px] text-base md:h-12 md:w-12" />
+      <div className="min-w-0 flex-1 basis-40">
+        <h2 className="truncate text-xl font-bold leading-tight tracking-tight md:text-[26px]">{athlete.name}</h2>
         {plan && (
           <p className="mt-0.5 flex items-center gap-1.5 truncate text-sm text-text-mute">
             <FlagIcon className="h-3.5 w-3.5 shrink-0 text-accent" />

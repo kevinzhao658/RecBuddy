@@ -76,7 +76,7 @@ export function MonthGrid({ anchor, byDate, selectedDate, onPick }: {
   const m = monthOf(anchor)
   const todayIso = todayISO()
   return (
-    <div className="rb-card overflow-hidden p-0">
+    <div className="overflow-x-auto"><div className="rb-card min-w-[560px] overflow-hidden p-0">
       <div className="grid grid-cols-8 border-b border-line">
         {DOW.map((d) => <div key={d} className="border-r border-line px-2 py-2 text-center text-[11px] font-semibold uppercase tracking-[0.06em] text-text-mute">{d}</div>)}
         <div className="px-2 py-2 text-center text-[11px] font-semibold uppercase tracking-[0.06em] text-accent">Week mileage</div>
@@ -92,6 +92,6 @@ export function MonthGrid({ anchor, byDate, selectedDate, onPick }: {
           </Fragment>
         ))}
       </div>
-    </div>
+    </div></div>
   )
 }
