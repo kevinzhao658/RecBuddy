@@ -149,8 +149,11 @@ struct Wordmark: View {
             Text("Buddy").foregroundStyle(RB.metalSilver).metalSilver()
         }
         .font(.custom("SairaCondensed-ExtraBold", size: size))
-        .italic()
         .kerning(size * -0.03)
+        // Saira Condensed ships no italic face and SwiftUI's .italic() silently
+        // no-ops on custom fonts — synthesize the same ~12° oblique the web's
+        // CSS `italic` fakes (tan 12° ≈ 0.21; negative c slants the top right).
+        .projectionEffect(ProjectionTransform(CGAffineTransform(a: 1, b: 0, c: -0.21, d: 1, tx: 0, ty: 0)))
         .accessibilityElement(children: .combine)
         .accessibilityLabel("RecBuddy")
     }

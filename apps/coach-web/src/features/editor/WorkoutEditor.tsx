@@ -33,7 +33,7 @@ export function WorkoutEditor({ date, workout, onSave, onClear, onShare }: {
   )
 
   return (
-    <aside className="rb-surface flex w-80 shrink-0 flex-col border-l border-line">
+    <aside className="rb-surface flex h-full w-80 shrink-0 flex-col border-l border-line">
       <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-4">
         <div className="flex items-start justify-between gap-2">
           <div>

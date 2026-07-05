@@ -34,7 +34,7 @@ export function WorkoutResults({ workout, onClose }: { workout: Workout; onClose
   const actual = useActual(workout.id)
 
   return (
-    <aside className="rb-surface flex w-80 shrink-0 flex-col border-l border-line">
+    <aside className="rb-surface flex h-full w-80 shrink-0 flex-col border-l border-line">
       <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">Completed</p>

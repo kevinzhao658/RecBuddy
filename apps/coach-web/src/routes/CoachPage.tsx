@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { DndContext, DragOverlay, PointerSensor, pointerWithin, useSensor, useSensors } from '@dnd-kit/core'
+import { useEffect, useState } from 'react'
+import { DndContext, DragOverlay, PointerSensor, TouchSensor, pointerWithin, useSensor, useSensors } from '@dnd-kit/core'
 import { RosterSidebar } from '../features/roster/RosterSidebar'
 import { TopBar } from '../features/plan-grid/TopBar'
 import { PlanToolbar, type PlanView } from '../features/plan-grid/PlanToolbar'
@@ -39,6 +39,14 @@ function ChatIcon({ className = '' }: { className?: string }) {
   )
 }
 
+function HamburgerIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
+    </svg>
+  )
+}
+
 export default function CoachPage() {
   const { session } = useAuth()
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -47,23 +55,50 @@ export default function CoachPage() {
   const [view, setView] = useState<PlanView>('week')
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  const [rosterOpen, setRosterOpen] = useState(false)
   const clipboard = useClipboard()
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 220, tolerance: 8 } }),
+  )
   useUnreadRealtime() // keep unread badges live across the whole coach view
+
+  // Close mobile roster drawer whenever an athlete is selected
+  useEffect(() => { setRosterOpen(false) }, [selectedId])
 
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(null), 2200) }
 
   return (
     <div className="flex min-h-screen">
-      <RosterSidebar selectedId={selectedId} onSelect={(id) => { setSelectedId(id); setSelectedDate(null) }} />
+      {/* Sidebar: hidden on phones, shown md+ as a static column */}
+      <div className="hidden md:flex">
+        <RosterSidebar selectedId={selectedId} onSelect={(id) => { setSelectedId(id); setSelectedDate(null) }} />
+      </div>
+
+      {/* Mobile roster drawer (phones only) */}
+      {rosterOpen && (
+        <div className="fixed inset-0 z-40 md:hidden">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setRosterOpen(false)} />
+          <div className="fixed inset-y-0 left-0 z-40">
+            <RosterSidebar selectedId={selectedId} onSelect={(id) => { setSelectedId(id); setSelectedDate(null) }} />
+          </div>
+        </div>
+      )}
+
       {selectedId
         ? <AthleteDashboard
             key={selectedId} athleteId={selectedId} coachId={session!.user.id}
             monday={monday} setMonday={setMonday} monthAnchor={monthAnchor} setMonthAnchor={setMonthAnchor}
             view={view} setView={setView}
             selectedDate={selectedDate} setSelectedDate={setSelectedDate}
-            clipboard={clipboard} sensors={sensors} flash={flash} />
-        : <main className="grid flex-1 place-items-center px-6 py-32 text-center">
+            clipboard={clipboard} sensors={sensors} flash={flash}
+            onMenu={() => setRosterOpen(true)} />
+        : <main className="relative grid flex-1 place-items-center px-6 py-32 text-center">
+            {/* Hamburger visible only on phones (no TopBar in empty state) */}
+            <button aria-label="Open roster" onClick={() => setRosterOpen(true)}
+              className="absolute left-4 top-4 grid h-9 w-9 place-items-center rounded-[10px] border border-line bg-surface2 text-text-mute hover:text-text md:hidden">
+              <HamburgerIcon />
+            </button>
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent">Roster</p>
               <p className="mt-3 text-lg text-text-mute">Select an athlete</p>
@@ -75,13 +110,14 @@ export default function CoachPage() {
   )
 }
 
-function AthleteDashboard({ athleteId, coachId, monday, setMonday, monthAnchor, setMonthAnchor, view, setView, selectedDate, setSelectedDate, clipboard, sensors, flash }: {
+function AthleteDashboard({ athleteId, coachId, monday, setMonday, monthAnchor, setMonthAnchor, view, setView, selectedDate, setSelectedDate, clipboard, sensors, flash, onMenu }: {
   athleteId: string; coachId: string
   monday: string; setMonday: (m: string) => void
   monthAnchor: string; setMonthAnchor: (m: string) => void
   view: PlanView; setView: (v: PlanView) => void
   selectedDate: string | null; setSelectedDate: (d: string | null) => void
   clipboard: ReturnType<typeof useClipboard>; sensors: ReturnType<typeof useSensors>; flash: (m: string) => void
+  onMenu: () => void
 }) {
   useRealtimePlan(athleteId)
   const roster = useRoster()
@@ -111,6 +147,10 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, monthAnchor, 
   })
 
   const [chatOpen, setChatOpen] = useState(false)
+  const [libraryOpen, setLibraryOpen] = useState(false)
+
+  // Close library overlay when a day is selected (editor takes over)
+  useEffect(() => { if (selectedDate) setLibraryOpen(false) }, [selectedDate])
 
   const goMonth = () => { setMonthAnchor(firstOfMonth(monday)); setView('month') }
   const prev = () => view === 'week' ? setMonday(addDays(monday, -7)) : setMonthAnchor(addMonths(monthAnchor, -1))
@@ -120,6 +160,22 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, monthAnchor, 
 
   if (!entry) return <main className="flex-1 p-6 text-text-mute">Loading…</main>
 
+  // Editor/results panel — null when no date selected or not in week view
+  const editorPanel = view === 'week' && selectedDate
+    ? selectedWorkout?.status === 'done'
+      ? <WorkoutResults key={selectedDate} workout={selectedWorkout} onClose={() => setSelectedDate(null)} />
+      : <WorkoutEditor key={selectedDate} date={selectedDate} workout={selectedWorkout}
+          onSave={(draft) => { upsert.mutate({ date: selectedDate, draft }, { onSuccess: () => setSelectedDate(null), onError }) }}
+          onClear={() => { clearDay.mutate(selectedDate, { onSuccess: () => setSelectedDate(null), onError }) }}
+          onShare={selectedWorkout ? (changed, draft) => {
+            if (changed) shareAdjust.mutate({ from: wSummary(selectedWorkout), to: wSummary(draft) }, { onSuccess: () => flash('Change shared to chat'), onError })
+            else shareWorkout.mutate(selectedWorkout, { onSuccess: () => flash('Shared to chat'), onError })
+          } : undefined} />
+    : null
+
+  // Desktop right rail: editor when day selected, otherwise library
+  const desktopRail = editorPanel ?? <WorkoutLibrary />
+
   return (
     <DndContext sensors={sensors} collisionDetection={pointerWithin} onDragStart={dnd.onDragStart} onDragEnd={dnd.onDragEnd}>
       <main className="flex min-h-screen min-w-0 flex-1">
@@ -127,6 +183,7 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, monthAnchor, 
           <TopBar
             athlete={entry.athlete}
             plan={entry.plans?.[0] ?? null}
+            onMenu={onMenu}
             actions={
               <>
                 <TeamPopover athleteId={athleteId} isHead={isHead} />
@@ -136,7 +193,7 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, monthAnchor, 
                   <UnreadBadge count={unread.data?.[athleteId] ?? 0} className="ml-0.5" />
                 </button>
                 <button onClick={() => duplicate.mutate(undefined, { onSuccess: () => flash('Week duplicated to next week'), onError })}
-                  className="flex items-center gap-1.5 rounded-[12px] border border-line bg-surface2 px-4 py-2 text-sm font-semibold text-text hover:border-text-mute">
+                  className="hidden items-center gap-1.5 rounded-[12px] border border-line bg-surface2 px-4 py-2 text-sm font-semibold text-text hover:border-text-mute sm:flex">
                   <span className="text-accent">＋</span> Duplicate week
                 </button>
               </>
@@ -147,7 +204,8 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, monthAnchor, 
             view={view} onWeek={() => setView('week')} onMonth={goMonth} onPrev={prev} onNext={next}
             label={view === 'week' ? `${fmtShortDate(monday)} – ${fmtShortDate(addDays(monday, 6))}` : fmtMonthYear(monthAnchor)}
             isCurrent={view === 'week' ? monday === mondayOf(todayISO()) : monthAnchor === firstOfMonth(todayISO())}
-            stats={view === 'week' ? <WeekStats week={week} /> : <MonthStats byDate={monthQ.data ?? {}} anchor={monthAnchor} />} />
+            stats={view === 'week' ? <WeekStats week={week} /> : <MonthStats byDate={monthQ.data ?? {}} anchor={monthAnchor} />}
+            onLibrary={() => setLibraryOpen(true)} />
 
           {view === 'week' ? (
             // Clicking blank space exits the editor (day cards stop propagation)
@@ -168,19 +226,30 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, monthAnchor, 
           )}
         </div>
 
-        {/* Right column: completed workouts show read-only RESULTS (with a Plan
-            toggle); everything else opens the editor; no selection = library */}
-        {view === 'week' && selectedDate
-          ? selectedWorkout?.status === 'done'
-            ? <WorkoutResults key={selectedDate} workout={selectedWorkout} onClose={() => setSelectedDate(null)} />
-            : <WorkoutEditor key={selectedDate} date={selectedDate} workout={selectedWorkout}
-                onSave={(draft) => { upsert.mutate({ date: selectedDate, draft }, { onSuccess: () => setSelectedDate(null), onError }) }}
-                onClear={() => { clearDay.mutate(selectedDate, { onSuccess: () => setSelectedDate(null), onError }) }}
-                onShare={selectedWorkout ? (changed, draft) => {
-                  if (changed) shareAdjust.mutate({ from: wSummary(selectedWorkout), to: wSummary(draft) }, { onSuccess: () => flash('Change shared to chat'), onError })
-                  else shareWorkout.mutate(selectedWorkout, { onSuccess: () => flash('Shared to chat'), onError })
-                } : undefined} />
-          : <WorkoutLibrary />}
+        {/* ≥lg: static right rail (editor when day selected, otherwise library) */}
+        <div className="hidden lg:flex">
+          {desktopRail}
+        </div>
+
+        {/* <lg: editor/results overlay when a day is selected */}
+        {editorPanel && (
+          <div className="fixed inset-0 z-40 lg:hidden">
+            <div className="absolute inset-0 bg-black/40" onClick={() => setSelectedDate(null)} />
+            <div className="fixed inset-y-0 right-0 z-40 shadow-2xl">
+              {editorPanel}
+            </div>
+          </div>
+        )}
+
+        {/* <lg: library overlay (only when no editor is showing) */}
+        {libraryOpen && !editorPanel && (
+          <div className="fixed inset-0 z-40 lg:hidden">
+            <div className="absolute inset-0 bg-black/40" onClick={() => setLibraryOpen(false)} />
+            <div className="fixed inset-y-0 right-0 z-40 shadow-2xl">
+              <WorkoutLibrary />
+            </div>
+          </div>
+        )}
       </main>
 
       <DragOverlay dropAnimation={null}><DragGhost workout={dnd.activeGhost} /></DragOverlay>
