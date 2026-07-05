@@ -1,9 +1,10 @@
-import type { Message, RunCard, AdjustCard, WorkoutCard } from '../../lib/types'
+import type { Message, RunCard, AdjustCard, WorkoutCard, ImageCard } from '../../lib/types'
 import { TypeIcon } from '../../components/ui/Icon'
 import { Avatar } from '../../components/ui/Avatar'
 import { fmtShortDate } from '../../lib/week'
 import { useUnit } from '../../lib/useUnit'
 import { fmtDist, fmtPace } from '../../lib/units'
+import { useSignedImageUrl } from '../../lib/queries/chat'
 
 export type Sender = { name: string; initials: string; avatarUrl?: string | null }
 
@@ -38,6 +39,48 @@ function RunCardView({ p }: { p: RunCard }) {
   )
 }
 
+function ImageView({ p }: { p: ImageCard }) {
+  // New canonical flow: exchange the stored path for a short-lived signed URL.
+  const { data: signedUrl } = useSignedImageUrl(p.path ?? null)
+
+  // Resolve the URL that is safe to put in href/src:
+  //   - path-based (new): use signed URL once available, else show placeholder
+  //   - legacy url: only accept a strict https:// scheme — reject javascript: and data: etc.
+  let href: string | null = null
+  if (p.path) {
+    href = signedUrl ?? null
+  } else if (typeof p.url === 'string' && /^https:\/\//i.test(p.url)) {
+    href = p.url
+  }
+
+  const aspectStyle = p.w && p.h ? { aspectRatio: `${p.w}/${p.h}` } as const : undefined
+
+  // Show a placeholder while a path-based signed URL is still loading.
+  if (p.path && !href) {
+    return (
+      <div
+        style={aspectStyle}
+        className="block max-w-[70%] rounded-[14px] bg-surface2"
+      />
+    )
+  }
+
+  // No valid href (unsafe legacy scheme or empty payload) — render nothing.
+  if (!href) return null
+
+  return (
+    <a href={href} target="_blank" rel="noreferrer noopener">
+      <img
+        src={href}
+        alt="Chat image"
+        loading="lazy"
+        style={aspectStyle}
+        className="block max-w-[70%] rounded-[14px]"
+      />
+    </a>
+  )
+}
+
 function AdjustCardView({ p }: { p: AdjustCard }) {
   return (
     <div className="rb-card rb-card-sm w-full max-w-[85%] border-l-2 border-accent p-3">
@@ -64,6 +107,8 @@ export function MessageItem({ m, mine, sender, showName, showAvatar, grouped, on
     <RunCardView p={m.payload as RunCard} />
   ) : m.kind === 'workout' ? (
     <WorkoutCardView p={m.payload as WorkoutCard} onOpen={onOpenWorkout ? () => onOpenWorkout((m.payload as WorkoutCard).date) : undefined} />
+  ) : m.kind === 'image' ? (
+    <ImageView p={m.payload as ImageCard} />
   ) : (
     <AdjustCardView p={m.payload as AdjustCard} />
   )

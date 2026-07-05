@@ -11,9 +11,6 @@ import { LibraryEditor } from './LibraryEditor'
 function GripIcon({ className = '' }: { className?: string }) {
   return <svg viewBox="0 0 24 24" className={`h-4 w-4 ${className}`} fill="currentColor"><circle cx="9" cy="6" r="1.4" /><circle cx="15" cy="6" r="1.4" /><circle cx="9" cy="12" r="1.4" /><circle cx="15" cy="12" r="1.4" /><circle cx="9" cy="18" r="1.4" /><circle cx="15" cy="18" r="1.4" /></svg>
 }
-function PencilIcon({ className = '' }: { className?: string }) {
-  return <svg viewBox="0 0 24 24" className={`h-3.5 w-3.5 ${className}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>
-}
 function TrashIcon({ className = '' }: { className?: string }) {
   return <svg viewBox="0 0 24 24" className={`h-3.5 w-3.5 ${className}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14" /></svg>
 }
@@ -23,21 +20,23 @@ function LibraryCard({ t, onEdit, onDelete }: { t: LibraryWorkout; onEdit: () =>
   const drag = useDraggable({ id: `lib:${t.id}` })
   const setsLine = (t.sets ?? []).map((s) => s[0]).filter(Boolean).join(' · ')
   return (
-    <div ref={drag.setNodeRef} className={`rb-card rb-card-sm group flex items-start gap-2 p-3 ${drag.isDragging ? 'opacity-40' : ''}`}>
+    <div ref={drag.setNodeRef} className={`rb-card rb-card-sm group flex items-start gap-2 p-3 transition hover:border-text-mute ${drag.isDragging ? 'opacity-40' : ''}`}>
       <button {...drag.attributes} {...drag.listeners} aria-label="Drag workout"
         className="mt-0.5 cursor-grab text-text-faint active:cursor-grabbing">
         <GripIcon />
       </button>
-      <TypeIcon type={t.type} className="mt-0.5 shrink-0 text-text-mute" />
-      <div className="min-w-0 flex-1">
-        <div className="truncate font-semibold">{t.title}</div>
-        {t.dist != null && <div className="font-num text-xs text-text-mute">{fmtDist(t.dist, unit)} {unit} · {fmtPace(t.pace, unit)}</div>}
-        {setsLine && <div className="mt-0.5 truncate font-num text-[11px] text-text-faint">{setsLine}</div>}
-      </div>
-      <div className="flex shrink-0 gap-1.5 opacity-0 transition group-hover:opacity-100">
-        <button aria-label="Edit workout" onClick={onEdit} className="text-text-faint hover:text-text"><PencilIcon /></button>
-        <button aria-label="Delete workout" onClick={onDelete} className="text-text-faint hover:text-missed"><TrashIcon /></button>
-      </div>
+      {/* The card body IS the edit affordance — no separate pencil button. */}
+      <button aria-label={`Edit workout ${t.title}`} onClick={onEdit}
+        className="flex min-w-0 flex-1 items-start gap-2 text-left">
+        <TypeIcon type={t.type} className="mt-0.5 shrink-0 text-text-mute" />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-semibold">{t.title}</span>
+          {t.dist != null && <span className="block font-num text-xs text-text-mute">{fmtDist(t.dist, unit)} {unit} · {fmtPace(t.pace, unit)}</span>}
+          {setsLine && <span className="mt-0.5 block truncate font-num text-[11px] text-text-faint">{setsLine}</span>}
+        </span>
+      </button>
+      <button aria-label="Delete workout" onClick={onDelete}
+        className="shrink-0 text-text-faint opacity-0 transition hover:text-missed group-hover:opacity-100"><TrashIcon /></button>
     </div>
   )
 }
