@@ -9,12 +9,14 @@ struct ChatView: View {
     @State private var draft = ""
     @State private var busy = false
     @State private var sendError: String?
-    @State private var imageItem: PhotosPickerItem?
-    // A picked photo is STAGED (with a preview) so a caption can be typed
-    // before sending — nothing uploads until the send button.
-    @State private var staged: StagedImage?
+    @State private var imageItems: [PhotosPickerItem] = []
+    // Picked photos are STAGED (with previews) so a caption can be typed
+    // before sending — nothing uploads until the send button. Capped at maxPhotos.
+    @State private var staged: [StagedImage] = []
+    private static let maxPhotos = 6
 
-    private struct StagedImage {
+    private struct StagedImage: Identifiable {
+        let id = UUID()
         let data: Data; let w: Int; let h: Int; let preview: UIImage
     }
 
@@ -219,9 +221,9 @@ struct ChatView: View {
         // no-coach empty state and a fresh thread appear without a relaunch.
         .task(id: session.hasCoach) { await store.open(athleteId: profile.id) }
         .onDisappear { Task { await store.close() } }
-        .onChange(of: imageItem) { _, newItem in
-            guard let newItem else { return }
-            Task { await stageImageFromPicker(newItem) }
+        .onChange(of: imageItems) { _, newItems in
+            guard !newItems.isEmpty else { return }
+            Task { await stageImagesFromPicker(newItems) }
         }
     }
 
@@ -274,49 +276,57 @@ struct ChatView: View {
 
     // ── Input bar ─────────────────────────────────────────────────────────
 
-    /// Nothing to send: no staged photo and an empty draft.
+    /// Nothing to send: no staged photos and an empty draft.
     private var sendDisabled: Bool {
-        busy || (staged == nil && draft.trimmingCharacters(in: .whitespaces).isEmpty)
+        busy || (staged.isEmpty && draft.trimmingCharacters(in: .whitespaces).isEmpty)
     }
 
     private var inputBar: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // Staged photo preview — remove or caption it before sending
-            if let staged {
-                HStack(spacing: 10) {
-                    Image(uiImage: staged.preview)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: 56, height: 56)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                        .overlay(alignment: .topTrailing) {
-                            Button { self.staged = nil } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .font(.system(size: 18))
-                                    .symbolRenderingMode(.palette)
-                                    .foregroundStyle(.white, RB.surface2)
-                            }
-                            .offset(x: 7, y: -7)
-                            .accessibilityLabel("Remove attachment")
+            // Staged photo previews — remove any, caption once, then send
+            if !staged.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(staged) { photo in
+                            Image(uiImage: photo.preview)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 56, height: 56)
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                                .overlay(alignment: .topTrailing) {
+                                    Button { staged.removeAll { $0.id == photo.id } } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .font(.system(size: 18))
+                                            .symbolRenderingMode(.palette)
+                                            .foregroundStyle(.white, RB.surface2)
+                                    }
+                                    .offset(x: 7, y: -7)
+                                    .accessibilityLabel("Remove attachment")
+                                }
                         }
-                    Text("Photo attached — add a caption, then send.")
-                        .font(.caption)
-                        .foregroundStyle(RB.textFaint)
-                    Spacer()
+                    }
+                    .padding(.top, 8)
+                    .padding(.trailing, 8)
                 }
-                .padding(.top, 2)
+                Text(staged.count == 1
+                     ? "Photo attached — add a caption, then send."
+                     : "\(staged.count) photos attached — add a caption, then send.")
+                    .font(.caption)
+                    .foregroundStyle(RB.textFaint)
             }
 
             HStack(spacing: 8) {
-                PhotosPicker(selection: $imageItem, matching: .images) {
+                PhotosPicker(selection: $imageItems,
+                             maxSelectionCount: Self.maxPhotos - staged.count,
+                             matching: .images) {
                     Image(systemName: "photo")
                         .font(.system(size: 20))
-                        .foregroundStyle(busy ? RB.textFaint : RB.textMute)
+                        .foregroundStyle(busy || staged.count >= Self.maxPhotos ? RB.textFaint : RB.textMute)
                 }
-                .disabled(busy)
-                .accessibilityLabel("Attach photo")
+                .disabled(busy || staged.count >= Self.maxPhotos)
+                .accessibilityLabel("Attach photos")
 
-                TextField(staged == nil ? "Message your coach…" : "Add a caption…",
+                TextField(staged.isEmpty ? "Message your coach…" : "Add a caption…",
                           text: $draft, axis: .vertical)
                     .lineLimit(1...4)
                     .foregroundStyle(.white)
@@ -356,11 +366,17 @@ struct ChatView: View {
         sendError = nil
         defer { busy = false }
         do {
-            if let staged {
-                // Photo (with optional caption) — clear only on success
-                try await store.sendImage(staged.data, width: staged.w, height: staged.h,
-                                          from: profile.id, body: body.isEmpty ? nil : body)
-                self.staged = nil
+            if !staged.isEmpty {
+                // Photos upload sequentially; the caption rides on the LAST one
+                // so it reads beneath the batch. Sent photos leave the tray as
+                // they go — a mid-batch failure keeps only the unsent ones.
+                let batch = staged
+                for (i, photo) in batch.enumerated() {
+                    let caption = i == batch.count - 1 && !body.isEmpty ? body : nil
+                    try await store.sendImage(photo.data, width: photo.w, height: photo.h,
+                                              from: profile.id, body: caption)
+                    staged.removeAll { $0.id == photo.id }
+                }
                 draft = ""
             } else {
                 guard !body.isEmpty else { return }
@@ -372,18 +388,26 @@ struct ChatView: View {
         }
     }
 
-    /// Load + downscale the picked photo and hold it in the composer; the
+    /// Load + downscale the picked photos and hold them in the composer; the
     /// user adds a caption (optional) and sends explicitly.
-    private func stageImageFromPicker(_ item: PhotosPickerItem) async {
+    private func stageImagesFromPicker(_ items: [PhotosPickerItem]) async {
         sendError = nil
-        defer { imageItem = nil }
-        guard let rawData = try? await item.loadTransferable(type: Data.self),
-              let uiImage = UIImage(data: rawData),
-              let (jpegData, w, h) = ImageShrink.jpegForChat(uiImage),
-              let preview = UIImage(data: jpegData) else {
-            sendError = "Couldn't process the image."
-            return
+        defer { imageItems = [] }
+        var failed = 0
+        for item in items {
+            guard staged.count < Self.maxPhotos else { break }
+            guard let rawData = try? await item.loadTransferable(type: Data.self),
+                  let uiImage = UIImage(data: rawData),
+                  let (jpegData, w, h) = ImageShrink.jpegForChat(uiImage),
+                  let preview = UIImage(data: jpegData) else {
+                failed += 1
+                continue
+            }
+            staged.append(StagedImage(data: jpegData, w: w, h: h, preview: preview))
         }
-        staged = StagedImage(data: jpegData, w: w, h: h, preview: preview)
+        if failed > 0 {
+            sendError = failed == 1 ? "Couldn't process one of the images."
+                                    : "Couldn't process \(failed) of the images."
+        }
     }
 }

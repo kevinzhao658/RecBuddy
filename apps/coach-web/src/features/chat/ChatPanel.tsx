@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../../auth/AuthProvider'
-import { useThread, useMessages, useSendMessage, useSendImage, useMarkThreadRead, useRealtimeThread } from '../../lib/queries/chat'
+import { useThread, useMessages, useSendMessage, useSendImages, useMarkThreadRead, useRealtimeThread } from '../../lib/queries/chat'
 import { useTeam } from '../../lib/queries/team'
 import { MessageItem, type Sender } from './MessageItem'
 
@@ -10,6 +10,8 @@ const initialsOf = (name: string) =>
 // A new "session" header is shown when the chat went quiet for over two hours
 // (or it's a new day) — otherwise messages flow without timestamps.
 const SESSION_GAP_MS = 2 * 60 * 60 * 1000
+// Most photos stageable in the composer at once (matches the iOS picker cap).
+const MAX_PHOTOS = 6
 const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString()
 function sessionLabel(iso: string): string {
   const d = new Date(iso)
@@ -30,7 +32,7 @@ export function ChatPanel({ athleteId, athleteName, onClose, onOpenDay }: {
   const threadId = threadQ.data?.id ?? null
   const messagesQ = useMessages(threadId)
   const send = useSendMessage(threadId)
-  const sendImage = useSendImage(threadId)
+  const sendImages = useSendImages(threadId)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const taRef = useRef<HTMLTextAreaElement>(null)
   const markRead = useMarkThreadRead(threadId)
@@ -38,11 +40,11 @@ export function ChatPanel({ athleteId, athleteName, onClose, onOpenDay }: {
 
   const team = useTeam(athleteId)
   const [text, setText] = useState('')
-  // A picked photo is STAGED here (with a preview) so a caption can be added
-  // before sending — nothing uploads until Send.
-  const [staged, setStaged] = useState<File | null>(null)
-  const stagedUrl = useMemo(() => (staged ? URL.createObjectURL(staged) : null), [staged])
-  useEffect(() => () => { if (stagedUrl) URL.revokeObjectURL(stagedUrl) }, [stagedUrl])
+  // Picked photos are STAGED here (with previews) so a caption can be added
+  // before sending — nothing uploads until Send. Capped at MAX_PHOTOS.
+  const [staged, setStaged] = useState<File[]>([])
+  const stagedUrls = useMemo(() => staged.map((f) => URL.createObjectURL(f)), [staged])
+  useEffect(() => () => { stagedUrls.forEach((u) => URL.revokeObjectURL(u)) }, [stagedUrls])
   const scrollRef = useRef<HTMLDivElement>(null)
   const messages = messagesQ.data ?? []
 
@@ -65,9 +67,9 @@ export function ChatPanel({ athleteId, athleteName, onClose, onOpenDay }: {
   const submit = () => {
     const body = text.trim()
     if (!threadId) return
-    if (staged) {
-      sendImage.mutate({ file: staged, body: body || undefined })
-      setStaged(null)
+    if (staged.length) {
+      sendImages.mutate({ files: staged, body: body || undefined })
+      setStaged([])
       setText('')
       return
     }
@@ -117,15 +119,22 @@ export function ChatPanel({ athleteId, athleteName, onClose, onOpenDay }: {
           })}
         </div>
 
-        {/* Staged attachment preview — shown above the composer until sent/removed */}
-        {stagedUrl && (
-          <div className="flex items-center gap-3 border-t border-line px-3 pt-3">
-            <div className="relative">
-              <img src={stagedUrl} alt="Attached photo" className="h-16 w-16 rounded-[10px] object-cover" />
-              <button aria-label="Remove attachment" onClick={() => setStaged(null)}
-                className="absolute -right-2 -top-2 grid h-5 w-5 place-items-center rounded-full bg-surface2 text-xs text-text ring-1 ring-line hover:text-missed">✕</button>
+        {/* Staged attachment previews — shown above the composer until sent/removed */}
+        {staged.length > 0 && (
+          <div className="border-t border-line px-3 pt-3">
+            <div className="flex items-center gap-3 overflow-x-auto pb-1">
+              {stagedUrls.map((url, i) => (
+                <div key={url} className="relative shrink-0">
+                  <img src={url} alt={`Attached photo ${i + 1}`} className="h-16 w-16 rounded-[10px] object-cover" />
+                  <button aria-label={`Remove attachment ${i + 1}`}
+                    onClick={() => setStaged((prev) => prev.filter((_, j) => j !== i))}
+                    className="absolute -right-2 -top-2 grid h-5 w-5 place-items-center rounded-full bg-surface2 text-xs text-text ring-1 ring-line hover:text-missed">✕</button>
+                </div>
+              ))}
             </div>
-            <p className="text-xs text-text-faint">Photo attached — add a caption below, then Send.</p>
+            <p className="mt-1 text-xs text-text-faint">
+              {staged.length === 1 ? 'Photo attached' : `${staged.length} photos attached`} — add a caption below, then Send.
+            </p>
           </div>
         )}
 
@@ -134,17 +143,18 @@ export function ChatPanel({ athleteId, athleteName, onClose, onOpenDay }: {
             ref={fileInputRef}
             type="file"
             accept="image/*"
+            multiple
             className="hidden"
             onChange={(e) => {
-              const file = e.target.files?.[0]
-              if (file) setStaged(file)
+              const files = Array.from(e.target.files ?? [])
+              if (files.length) setStaged((prev) => [...prev, ...files].slice(0, MAX_PHOTOS))
               e.target.value = ''
             }}
           />
           <button
-            aria-label="Send image"
+            aria-label="Attach photos"
             onClick={() => fileInputRef.current?.click()}
-            disabled={sendImage.isPending}
+            disabled={sendImages.isPending || staged.length >= MAX_PHOTOS}
             className="shrink-0 text-text-faint hover:text-text-mute disabled:opacity-50"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width={20} height={20} aria-hidden="true">
@@ -152,11 +162,11 @@ export function ChatPanel({ athleteId, athleteName, onClose, onOpenDay }: {
             </svg>
           </button>
           <textarea ref={taRef} aria-label="Message" value={text} rows={1}
-            placeholder={staged ? 'Add a caption…' : `Message ${athleteName.split(' ')[0]}…`}
+            placeholder={staged.length ? 'Add a caption…' : `Message ${athleteName.split(' ')[0]}…`}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit() } }}
             className="max-h-28 flex-1 resize-none overflow-y-auto rounded-[12px] border border-line bg-surface2 px-3 py-2 text-sm text-text placeholder:text-text-faint focus:border-text-mute focus:outline-none" />
-          <button aria-label="Send message" onClick={submit} disabled={(!text.trim() && !staged) || send.isPending || sendImage.isPending}
+          <button aria-label="Send message" onClick={submit} disabled={(!text.trim() && !staged.length) || send.isPending || sendImages.isPending}
             className="rb-glow rounded-[12px] bg-accent px-4 py-2 text-sm font-semibold text-on-accent disabled:opacity-50">Send</button>
         </div>
       </aside>

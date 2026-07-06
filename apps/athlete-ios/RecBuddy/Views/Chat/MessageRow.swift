@@ -103,8 +103,8 @@ struct MessageRow: View {
                     .foregroundStyle(.white)
                 Divider()
                     .overlay(RB.line)
-                    .padding(.vertical, 3)
-                HStack(alignment: .top, spacing: 18) {
+                    .padding(.vertical, 5)
+                HStack(alignment: .top, spacing: 26) {
                     if let dist = message.payloadString("dist") {
                         runStat("DISTANCE", dist)
                     }
@@ -170,7 +170,7 @@ struct MessageRow: View {
 
     /// One labeled stat column in the logged-run widget (uppercase eyebrow + bold value).
     private func runStat(_ label: String, _ value: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 3) {
             Text(label)
                 .font(.system(size: 9, weight: .bold))
                 .tracking(1)
