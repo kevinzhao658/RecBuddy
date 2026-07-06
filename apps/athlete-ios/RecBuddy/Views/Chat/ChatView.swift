@@ -9,6 +9,13 @@ struct ChatView: View {
     @State private var busy = false
     @State private var sendError: String?
     @State private var imageItem: PhotosPickerItem?
+    // A picked photo is STAGED (with a preview) so a caption can be typed
+    // before sending — nothing uploads until the send button.
+    @State private var staged: StagedImage?
+
+    private struct StagedImage {
+        let data: Data; let w: Int; let h: Int; let preview: UIImage
+    }
 
     // ── Coach resolved from thread ─────────────────────────────────────────
 
@@ -191,7 +198,7 @@ struct ChatView: View {
         .onDisappear { Task { await store.close() } }
         .onChange(of: imageItem) { _, newItem in
             guard let newItem else { return }
-            Task { await sendImageFromPicker(newItem) }
+            Task { await stageImageFromPicker(newItem) }
         }
     }
 
@@ -244,46 +251,77 @@ struct ChatView: View {
 
     // ── Input bar ─────────────────────────────────────────────────────────
 
+    /// Nothing to send: no staged photo and an empty draft.
+    private var sendDisabled: Bool {
+        busy || (staged == nil && draft.trimmingCharacters(in: .whitespaces).isEmpty)
+    }
+
     private var inputBar: some View {
-        HStack(spacing: 8) {
-            PhotosPicker(selection: $imageItem, matching: .images) {
-                Image(systemName: "photo")
-                    .font(.system(size: 20))
-                    .foregroundStyle(busy ? RB.textFaint : RB.textMute)
-            }
-            .disabled(busy)
-            .accessibilityLabel("Send image")
-
-            TextField("Message your coach…", text: $draft, axis: .vertical)
-                .lineLimit(1...4)
-                .foregroundStyle(.white)
-                .tint(RB.accent)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(RB.surface2)
-                .clipShape(RoundedRectangle(cornerRadius: 20))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20).stroke(RB.line, lineWidth: 1)
-                )
-
-            // Volt lime send button
-            Button {
-                Task { await send() }
-            } label: {
-                ZStack {
-                    Circle()
-                        .fill(busy || draft.trimmingCharacters(in: .whitespaces).isEmpty
-                              ? RB.surface2 : RB.accent)
-                        .frame(width: 36, height: 36)
-                    Image(systemName: "arrow.up")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(
-                            busy || draft.trimmingCharacters(in: .whitespaces).isEmpty
-                            ? RB.textMute : RB.onAccent)
+        VStack(alignment: .leading, spacing: 8) {
+            // Staged photo preview — remove or caption it before sending
+            if let staged {
+                HStack(spacing: 10) {
+                    Image(uiImage: staged.preview)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 56, height: 56)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .overlay(alignment: .topTrailing) {
+                            Button { self.staged = nil } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 18))
+                                    .symbolRenderingMode(.palette)
+                                    .foregroundStyle(.white, RB.surface2)
+                            }
+                            .offset(x: 7, y: -7)
+                            .accessibilityLabel("Remove attachment")
+                        }
+                    Text("Photo attached — add a caption, then send.")
+                        .font(.caption)
+                        .foregroundStyle(RB.textFaint)
+                    Spacer()
                 }
+                .padding(.top, 2)
             }
-            .disabled(busy || draft.trimmingCharacters(in: .whitespaces).isEmpty)
-            .accessibilityLabel("Send message")
+
+            HStack(spacing: 8) {
+                PhotosPicker(selection: $imageItem, matching: .images) {
+                    Image(systemName: "photo")
+                        .font(.system(size: 20))
+                        .foregroundStyle(busy ? RB.textFaint : RB.textMute)
+                }
+                .disabled(busy)
+                .accessibilityLabel("Attach photo")
+
+                TextField(staged == nil ? "Message your coach…" : "Add a caption…",
+                          text: $draft, axis: .vertical)
+                    .lineLimit(1...4)
+                    .foregroundStyle(.white)
+                    .tint(RB.accent)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(RB.surface2)
+                    .clipShape(RoundedRectangle(cornerRadius: 20))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 20).stroke(RB.line, lineWidth: 1)
+                    )
+
+                // Volt lime send button
+                Button {
+                    Task { await send() }
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill(sendDisabled ? RB.surface2 : RB.accent)
+                            .frame(width: 36, height: 36)
+                        Image(systemName: "arrow.up")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(sendDisabled ? RB.textMute : RB.onAccent)
+                    }
+                }
+                .disabled(sendDisabled)
+                .accessibilityLabel("Send message")
+            }
         }
     }
 
@@ -291,32 +329,38 @@ struct ChatView: View {
 
     private func send() async {
         let body = draft.trimmingCharacters(in: .whitespaces)
-        guard !body.isEmpty else { return }
         busy = true
         sendError = nil
         defer { busy = false }
         do {
-            try await store.send(body, from: profile.id)
-            draft = ""  // clear only on success — a failed send keeps the text
+            if let staged {
+                // Photo (with optional caption) — clear only on success
+                try await store.sendImage(staged.data, width: staged.w, height: staged.h,
+                                          from: profile.id, body: body.isEmpty ? nil : body)
+                self.staged = nil
+                draft = ""
+            } else {
+                guard !body.isEmpty else { return }
+                try await store.send(body, from: profile.id)
+                draft = ""  // clear only on success — a failed send keeps the text
+            }
         } catch {
             sendError = "Couldn't send — try again."
         }
     }
 
-    private func sendImageFromPicker(_ item: PhotosPickerItem) async {
-        busy = true
+    /// Load + downscale the picked photo and hold it in the composer; the
+    /// user adds a caption (optional) and sends explicitly.
+    private func stageImageFromPicker(_ item: PhotosPickerItem) async {
         sendError = nil
-        defer { busy = false; imageItem = nil }
-        do {
-            guard let rawData = try await item.loadTransferable(type: Data.self),
-                  let uiImage = UIImage(data: rawData),
-                  let (jpegData, w, h) = ImageShrink.jpegForChat(uiImage) else {
-                sendError = "Couldn't process the image."
-                return
-            }
-            try await store.sendImage(jpegData, width: w, height: h, from: profile.id)
-        } catch {
-            sendError = "Couldn't send — try again."
+        defer { imageItem = nil }
+        guard let rawData = try? await item.loadTransferable(type: Data.self),
+              let uiImage = UIImage(data: rawData),
+              let (jpegData, w, h) = ImageShrink.jpegForChat(uiImage),
+              let preview = UIImage(data: jpegData) else {
+            sendError = "Couldn't process the image."
+            return
         }
+        staged = StagedImage(data: jpegData, w: w, h: h, preview: preview)
     }
 }

@@ -93,46 +93,36 @@ struct MessageRow: View {
                 .clipShape(RoundedRectangle(cornerRadius: 18))
 
         case "runcard":
-            if mine {
-                // Volt lime run stats card (reference: "9.1 mi  9:22  1:25:14  152")
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 16) {
-                        if let dist = message.payloadString("dist") {
-                            Text("\(dist) \(unit.rawValue)")
-                                .font(.subheadline.weight(.bold))
-                        }
-                        if let pace = message.payloadString("pace") {
-                            Text(Units.fmtPace(pace, unit))
-                                .font(.subheadline.weight(.bold))
-                        }
-                        if let time = message.payloadString("time") {
-                            Text(time).font(.subheadline.weight(.bold))
-                        }
-                        if let hr = message.payloadInt("hr") {
-                            Text("\(hr)").font(.subheadline.weight(.bold))
-                        }
+            // Logged-run widget — same composition as the calendar workout card
+            // (header eyebrow, title, divider, labeled stat columns), so a shared
+            // run reads like a card, not a bare stat string. Used for both the
+            // athlete's own share and the (rare) coach-sent variant.
+            darkCard(header: "LOGGED RUN", icon: "figure.run") {
+                Text(message.payloadString("title") ?? "Run")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                Divider()
+                    .overlay(RB.line)
+                    .padding(.vertical, 3)
+                HStack(alignment: .top, spacing: 18) {
+                    if let dist = message.payloadString("dist") {
+                        runStat("DISTANCE", dist)
                     }
-                    if let note = message.payloadString("note"), !note.isEmpty {
-                        Text(note).font(.caption)
+                    if let pace = message.payloadString("pace") {
+                        runStat("PACE", Units.fmtPace(pace, unit))
+                    }
+                    if let time = message.payloadString("time") {
+                        runStat("TIME", time)
+                    }
+                    if let hr = message.payloadInt("hr") {
+                        runStat("AVG HR", "\(hr)")
                     }
                 }
-                .foregroundStyle(RB.onAccent)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 14)
-                .background(RB.accent)
-                .clipShape(RoundedRectangle(cornerRadius: 16))
-            } else {
-                // Dark run card (coach-sent, rare)
-                darkCard(header: "LOGGED RUN", icon: "figure.run") {
-                    Text(message.payloadString("title") ?? "Run")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.white)
-                    Text("\(message.payloadString("dist") ?? "") · \(Units.fmtPace(message.payloadString("pace"), unit)) · \(message.payloadString("time") ?? "")")
+                if let note = message.payloadString("note"), !note.isEmpty {
+                    Text(note)
                         .font(.caption)
                         .foregroundStyle(RB.textMute)
-                    if let note = message.payloadString("note"), !note.isEmpty {
-                        Text(note).font(.caption).foregroundStyle(RB.textMute)
-                    }
+                        .padding(.top, 3)
                 }
             }
 
@@ -160,10 +150,34 @@ struct MessageRow: View {
             }
 
         case "image":
-            imageCard
+            VStack(alignment: mine ? .trailing : .leading, spacing: 4) {
+                imageCard
+                // Optional caption sent with the photo (staged-composer flow)
+                if let body = message.body, !body.isEmpty {
+                    Text(body)
+                        .foregroundStyle(mine ? RB.onAccent : .white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(mine ? RB.accent : RB.surface)
+                        .clipShape(RoundedRectangle(cornerRadius: 18))
+                }
+            }
 
         default:
             EmptyView()
+        }
+    }
+
+    /// One labeled stat column in the logged-run widget (uppercase eyebrow + bold value).
+    private func runStat(_ label: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(.system(size: 9, weight: .bold))
+                .tracking(1)
+                .foregroundStyle(RB.textFaint)
+            Text(value)
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(.white)
         }
     }
 

@@ -55,7 +55,7 @@ final class ChatStore {
     /// Path convention: <thread_id>/<UUID>.jpg — the first folder segment is the
     /// thread_id, which the storage participant policy uses to gate access.
     /// Callers exchange the stored path for a signed URL at render time.
-    func sendImage(_ data: Data, width: Int, height: Int, from athleteId: String) async throws {
+    func sendImage(_ data: Data, width: Int, height: Int, from athleteId: String, body: String? = nil) async throws {
         guard let thread else { return }
         let path = "\(thread.id)/\(UUID().uuidString).jpg"
         try await Supa.shared.storage
@@ -64,11 +64,13 @@ final class ChatStore {
         struct ImagePayload: Encodable { let path: String; let w: Int; let h: Int }
         struct ImageMsg: Encodable {
             let thread_id: String; let from_user_id: String; let kind: String
+            let body: String?
             let payload: ImagePayload
         }
         try await Supa.shared.from("messages")
             .insert(ImageMsg(
                 thread_id: thread.id, from_user_id: athleteId, kind: "image",
+                body: body,
                 payload: ImagePayload(path: path, w: width, h: height)
             ))
             .execute()
