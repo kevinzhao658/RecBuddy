@@ -5,8 +5,8 @@ options:
     iOS: "17.0"
   xcodeVersion: "26.0"
 configFiles:
-  Debug: Config.xcconfig
-  Release: Config.xcconfig
+  Debug: Config.dev.xcconfig    # Simulator / "RecBuddy Dev" scheme -> dev Supabase
+  Release: Config.prod.xcconfig # Device / "RecBuddy Prod" scheme -> prod Supabase
 packages:
   Supabase:
     url: https://github.com/supabase/supabase-swift
@@ -49,10 +49,19 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         SWIFT_VERSION: "5.10"
 schemes:
-  RecBuddy:
+  RecBuddy Dev:
     build:
       targets:
         RecBuddy: all
         RecBuddyTests: [test]
+    run:
+      config: Debug
     test:
+      config: Debug
       targets: [RecBuddyTests]
+  RecBuddy Prod:
+    build:
+      targets:
+        RecBuddy: all
+    run:
+      config: Release

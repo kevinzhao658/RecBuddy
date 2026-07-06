@@ -1,11 +1,13 @@
-// Copy to Config.xcconfig (gitignored) and fill in. Values from Supabase
-// dashboard -> Project Settings -> API. Dev project: bawezljwxehadmkjeydw.
+// Template for the two build configs (both gitignored):
+//   cp Config.example.xcconfig Config.dev.xcconfig   # Debug  / Simulator / dev Supabase
+//   cp Config.example.xcconfig Config.prod.xcconfig  # Release / iPhone    / prod Supabase
+// Fill each from its Supabase project dashboard -> Project Settings -> API.
+// Dev project ref: bawezljwxehadmkjeydw. Prod: your separate prod project.
 // NOTE: '//' starts a comment in xcconfig — write URLs as https:/$()/host.
-SUPABASE_URL = https:/$()/bawezljwxehadmkjeydw.supabase.co
-SUPABASE_ANON_KEY = <dev-anon-key>
-// Where the forgot-password email lands. MUST be a web app whose Supabase
-// client points at the SAME project as this build (dev -> local web app).
-RESET_PASSWORD_REDIRECT = http:/$()/localhost:5176/reset-password
-// Where the signup confirmation email lands. MUST be a web app whose Supabase
-// client points at the SAME project as this build (dev -> local web app).
-EMAIL_CONFIRM_REDIRECT = http:/$()/localhost:5176/confirmed
+SUPABASE_URL = https:/$()/<project-ref>.supabase.co
+SUPABASE_ANON_KEY = <anon-public-key>
+// Where the forgot-password / signup emails land. MUST be a web app whose
+// Supabase client points at the SAME project as this build:
+//   dev  -> http:/$()/localhost:5176   prod -> your Vercel prod domain
+RESET_PASSWORD_REDIRECT = https:/$()/<web-host>/reset-password
+EMAIL_CONFIRM_REDIRECT = https:/$()/<web-host>/confirmed
