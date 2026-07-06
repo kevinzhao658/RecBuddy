@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useRoster, useRemoveAthlete } from '../../lib/queries/roster'
+import { useRoster } from '../../lib/queries/roster'
 import { usePendingInvites, useRevokeInvite } from '../../lib/queries/invites'
 import { useMe } from '../../lib/queries/me'
 import { useUnreadCounts } from '../../lib/queries/chat'
@@ -8,24 +8,19 @@ import { UnreadBadge } from '../../components/ui/UnreadBadge'
 import { Wordmark } from '../../components/ui/Wordmark'
 import { TypeIcon } from '../../components/ui/Icon'
 import { AddAthleteModal } from './AddAthleteModal'
-import { ConfirmDialog } from './ConfirmDialog'
 import { SettingsModal } from '../settings/SettingsModal'
-import { useAuth } from '../../auth/AuthProvider'
 import { supabase } from '../../lib/supabase'
 import { fmtShortDate } from '../../lib/week'
 
 const RACE_LEVEL: Record<string, string> = { '3.1 mi': '5K', '6.2 mi': '10K', '13.1 mi': 'Half Marathon', '26.2 mi': 'Marathon' }
 
 export function RosterSidebar({ selectedId, onSelect }: { selectedId: string | null; onSelect: (id: string) => void }) {
-  const { session } = useAuth()
   const me = useMe()
   const roster = useRoster()
   const pending = usePendingInvites()
-  const remove = useRemoveAthlete()
   const revoke = useRevokeInvite()
   const unread = useUnreadCounts()
   const [addOpen, setAddOpen] = useState(false)
-  const [removeId, setRemoveId] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const athletes = roster.data ?? []
@@ -60,8 +55,6 @@ export function RosterSidebar({ selectedId, onSelect }: { selectedId: string | n
               </span>
               <UnreadBadge count={unread.data?.[r.athlete.id] ?? 0} className="shrink-0" />
               {needsCheckin && <span title="Needs check-in" className="h-1.5 w-1.5 shrink-0 rounded-full bg-text-faint" />}
-              <span role="button" aria-label={`Remove ${r.athlete.name}`} onClick={(e) => { e.stopPropagation(); setRemoveId(r.athlete.id) }}
-                className="hidden shrink-0 text-text-faint hover:text-missed group-hover:block">🗑</span>
             </button>
           )
         })}
@@ -113,9 +106,6 @@ export function RosterSidebar({ selectedId, onSelect }: { selectedId: string | n
 
       <AddAthleteModal open={addOpen} onClose={() => setAddOpen(false)} />
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
-      <ConfirmDialog open={!!removeId} title="Remove this athlete from your roster?"
-        onCancel={() => setRemoveId(null)}
-        onConfirm={() => { remove.mutate({ coachId: session!.user.id, athleteId: removeId! }); setRemoveId(null) }} />
     </aside>
   )
 }

@@ -40,6 +40,25 @@ export function useAthleteMonth(athleteId: string | null, anchor: string, enable
   })
 }
 
+/** Coach-side goal edit — mirrors the athlete's update_my_goal RPC. */
+export interface GoalDraft { goalRace: string; goalDistance: string; goalDate: string; goalTime: string }
+export function useUpdateAthleteGoal(athleteId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (g: GoalDraft) => {
+      const { error } = await supabase.rpc('update_athlete_goal', {
+        p_athlete_id: athleteId,
+        p_goal_race: g.goalRace || null,
+        p_goal_distance: g.goalDistance || null,
+        p_goal_date: g.goalDate || null,
+        p_goal_time: g.goalTime || null,
+      })
+      if (error) throw error
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['roster'] }),
+  })
+}
+
 export interface WorkoutDraft {
   type: Workout['type']; title: string; dist: number | null; pace: string | null
   est_minutes: number | null; dur: number | null; note: string; sets: [string, string][]

@@ -50,6 +50,14 @@ test('renders an image message via signed URL when path is provided', () => {
   expect(screen.getByRole('link')).toHaveAttribute('href', 'https://signed.example.com/img.jpg')
 })
 
+test('renders an image caption below the photo when body is set', () => {
+  vi.mocked(chatQueries.useSignedImageUrl).mockReturnValue({ data: 'https://signed.example.com/img.jpg' } as any)
+  render(<MessageItem mine={true}
+    m={{ ...base, kind: 'image', body: 'Post-run view from the ridge', payload: { path: 'thread-1/abc.jpg', w: 1280, h: 720 } } as any} />)
+  expect(screen.getByRole('img')).toBeInTheDocument()
+  expect(screen.getByText('Post-run view from the ridge')).toBeInTheDocument()
+})
+
 test('renders nothing for a legacy javascript: url (XSS guard)', () => {
   // path is absent → useSignedImageUrl called with null → returns undefined (default mock)
   render(<MessageItem mine={false}

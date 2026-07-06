@@ -108,7 +108,10 @@ export function MessageItem({ m, mine, sender, showName, showAvatar, grouped, on
   ) : m.kind === 'workout' ? (
     <WorkoutCardView p={m.payload as WorkoutCard} onOpen={onOpenWorkout ? () => onOpenWorkout((m.payload as WorkoutCard).date) : undefined} />
   ) : m.kind === 'image' ? (
-    <ImageView p={m.payload as ImageCard} />
+    <div className={`flex max-w-[85%] flex-col gap-1 ${mine ? 'items-end' : 'items-start'}`}>
+      <ImageView p={m.payload as ImageCard} />
+      {m.body && <div className={`rounded-[14px] px-3 py-2 text-sm ${mine ? 'bg-accent text-on-accent' : 'bg-surface2 text-text'}`}>{m.body}</div>}
+    </div>
   ) : (
     <AdjustCardView p={m.payload as AdjustCard} />
   )

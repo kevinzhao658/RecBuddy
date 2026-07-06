@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import type { Plan, Profile } from '../../lib/types'
 import { Avatar } from '../../components/ui/Avatar'
+import { GearIcon } from '../../components/ui/FormIcons'
 import { fmtShortDate } from '../../lib/week'
 
 function FlagIcon({ className = '' }: { className?: string }) {
@@ -19,7 +20,7 @@ function HamburgerIcon() {
   )
 }
 
-export function TopBar({ athlete, plan, actions, onMenu }: { athlete: Profile; plan: Plan | null; actions?: ReactNode; onMenu?: () => void }) {
+export function TopBar({ athlete, plan, actions, onMenu, onSettings }: { athlete: Profile; plan: Plan | null; actions?: ReactNode; onMenu?: () => void; onSettings?: () => void }) {
   return (
     <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line px-6 py-4">
       {onMenu && (
@@ -30,7 +31,15 @@ export function TopBar({ athlete, plan, actions, onMenu }: { athlete: Profile; p
       )}
       <Avatar initials={athlete.initials} className="h-10 w-10 rounded-[12px] text-base md:h-12 md:w-12" />
       <div className="min-w-0 flex-1 basis-40">
-        <h2 className="truncate text-xl font-bold leading-tight tracking-tight md:text-[26px]">{athlete.name}</h2>
+        <div className="flex min-w-0 items-center gap-2">
+          <h2 className="min-w-0 truncate text-xl font-bold leading-tight tracking-tight md:text-[26px]">{athlete.name}</h2>
+          {onSettings && (
+            <button aria-label="Athlete settings" onClick={onSettings}
+              className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-text-faint hover:bg-surface2 hover:text-text">
+              <GearIcon className="h-4 w-4" />
+            </button>
+          )}
+        </div>
         {plan && (
           <p className="mt-0.5 flex items-center gap-1.5 truncate text-sm text-text-mute">
             <FlagIcon className="h-3.5 w-3.5 shrink-0 text-accent" />

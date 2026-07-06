@@ -49,7 +49,7 @@ export function useSendMessage(threadId: string | null) {
  *  <thread_id>/<uuid>.jpg — first segment is the thread_id, which the storage
  *  policy uses to scope access to thread participants.  The path (not a public URL)
  *  is stored in the payload; callers exchange it for a signed URL at render time. */
-export async function sendImageMessage(client: SupabaseClient, threadId: string, file: File): Promise<void> {
+export async function sendImageMessage(client: SupabaseClient, threadId: string, file: File, body?: string): Promise<void> {
   const { data: me } = await client.auth.getUser()
   const uid = me.user!.id
   const { blob, w, h } = await compressImage(file)
@@ -59,14 +59,14 @@ export async function sendImageMessage(client: SupabaseClient, threadId: string,
     .upload(path, blob, { contentType: 'image/jpeg' })
   if (upErr) throw upErr
   const { error } = await client.from('messages')
-    .insert({ thread_id: threadId, from_user_id: uid, kind: 'image', payload: { path, w, h } })
+    .insert({ thread_id: threadId, from_user_id: uid, kind: 'image', body: body || null, payload: { path, w, h } })
   if (error) throw error
   await client.from('message_threads').update({ updated_at: new Date().toISOString() }).eq('id', threadId)
 }
 export function useSendImage(threadId: string | null) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (file: File) => sendImageMessage(supabase, threadId!, file),
+    mutationFn: (v: { file: File; body?: string }) => sendImageMessage(supabase, threadId!, v.file, v.body),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['messages', threadId] }),
   })
 }
