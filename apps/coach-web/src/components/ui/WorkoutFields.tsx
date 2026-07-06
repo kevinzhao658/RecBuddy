@@ -1,6 +1,7 @@
 import type { Workout, WorkoutType } from '../../lib/types'
 import { estMinutes } from '../../lib/estMinutes'
 import { TypeIcon } from './Icon'
+import { TrashIcon } from './FormIcons'
 import { PaceField } from './PaceField'
 import { NumberField } from './NumberField'
 import { useUnit } from '../../lib/useUnit'
@@ -83,7 +84,7 @@ export function WorkoutFields({ draft: d, onChange, showEstimate = false, disabl
                 className="w-28 rounded-[10px] border border-line bg-surface2 px-2 py-1.5 font-num text-sm text-text placeholder:text-text-faint focus:border-text-mute focus:outline-none" />
               <input aria-label={`Phase ${i + 1} detail`} value={p[1]} onChange={(e) => editPhase(i, 1, e.target.value)} placeholder="Detail"
                 className="flex-1 rounded-[10px] border border-line bg-surface2 px-2 py-1.5 font-num text-sm text-text placeholder:text-text-faint focus:border-text-mute focus:outline-none" />
-              <button aria-label={`Remove phase ${i + 1}`} onClick={() => set({ sets: d.sets.filter((_, j) => j !== i) })} className="px-1 text-text-faint hover:text-missed">✕</button>
+              <button type="button" aria-label={`Remove phase ${i + 1}`} onClick={() => set({ sets: d.sets.filter((_, j) => j !== i) })} className="shrink-0 rounded-md p-1.5 text-text-mute hover:bg-surface2 hover:text-missed"><TrashIcon className="h-4 w-4" /></button>
             </div>
           ))}
         </div>

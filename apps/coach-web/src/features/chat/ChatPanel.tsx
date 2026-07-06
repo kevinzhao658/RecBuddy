@@ -32,6 +32,7 @@ export function ChatPanel({ athleteId, athleteName, onClose, onOpenDay }: {
   const send = useSendMessage(threadId)
   const sendImage = useSendImage(threadId)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const taRef = useRef<HTMLTextAreaElement>(null)
   const markRead = useMarkThreadRead(threadId)
   useRealtimeThread(threadId)
 
@@ -48,6 +49,13 @@ export function ChatPanel({ athleteId, athleteName, onClose, onOpenDay }: {
   useEffect(() => { if (threadId) markRead.mutate(meId) }, [threadId]) // eslint-disable-line react-hooks/exhaustive-deps
   // Keep the latest message in view.
   useEffect(() => { scrollRef.current?.scrollTo?.({ top: scrollRef.current.scrollHeight }) }, [messages.length])
+  // Auto-grow the composer with line breaks, up to ~7rem (max-h-28), then scroll.
+  useEffect(() => {
+    const el = taRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 112)}px`
+  }, [text])
 
   const submit = () => {
     const body = text.trim()
@@ -119,10 +127,10 @@ export function ChatPanel({ athleteId, athleteName, onClose, onOpenDay }: {
               <path d="M21 19V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
             </svg>
           </button>
-          <textarea aria-label="Message" value={text} rows={1} placeholder={`Message ${athleteName.split(' ')[0]}…`}
+          <textarea ref={taRef} aria-label="Message" value={text} rows={1} placeholder={`Message ${athleteName.split(' ')[0]}…`}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit() } }}
-            className="max-h-28 flex-1 resize-none rounded-[12px] border border-line bg-surface2 px-3 py-2 text-sm text-text placeholder:text-text-faint focus:border-text-mute focus:outline-none" />
+            className="max-h-28 flex-1 resize-none overflow-y-auto rounded-[12px] border border-line bg-surface2 px-3 py-2 text-sm text-text placeholder:text-text-faint focus:border-text-mute focus:outline-none" />
           <button aria-label="Send message" onClick={submit} disabled={!text.trim() || send.isPending}
             className="rb-glow rounded-[12px] bg-accent px-4 py-2 text-sm font-semibold text-on-accent disabled:opacity-50">Send</button>
         </div>
