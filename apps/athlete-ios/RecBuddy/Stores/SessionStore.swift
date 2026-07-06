@@ -24,6 +24,14 @@ final class SessionStore {
         get { UserDefaults.standard.string(forKey: "pendingInviteCode") }
         set { UserDefaults.standard.set(newValue, forKey: "pendingInviteCode") }
     }
+    /// Goal-race name the athlete edited during registration. The invite's goal
+    /// seeds the plan at redeem (coach's default); this override is applied
+    /// right after, so the athlete's version wins. UserDefaults-backed like
+    /// pendingInviteCode (survives the confirm-email round trip).
+    var pendingGoalRace: String? {
+        get { UserDefaults.standard.string(forKey: "pendingGoalRace") }
+        set { UserDefaults.standard.set(newValue, forKey: "pendingGoalRace") }
+    }
 
     func start() async {
         for await (event, session) in Supa.shared.auth.authStateChanges {
@@ -39,11 +47,13 @@ final class SessionStore {
             do {
                 try await Supa.shared.rpc("redeem_invite", params: ["p_code": code]).execute()
                 pendingInviteCode = nil
+                await applyPendingGoalRace()
             } catch {
                 // A consumed code errors here but the profile still loads (athlete
                 // just stays unlinked); clear it so we don't retry forever.
                 if (error as? PostgrestError)?.message.contains("already used") == true {
                     pendingInviteCode = nil
+                    pendingGoalRace = nil
                 }
             }
         }
@@ -76,6 +86,36 @@ final class SessionStore {
     /// Re-fetches the profile; also re-attempts any un-cleared invite redemption (normally a no-op).
     func refreshProfile() async {
         await onSignedIn()
+    }
+
+    /// The redeem seeds the plan from the INVITE's goal (coach's default).
+    /// If the athlete edited the race name during registration, their version
+    /// wins — rewrite it via update_my_goal, preserving the seeded
+    /// distance/date/time. Best-effort: the goal is editable in Settings anyway.
+    private func applyPendingGoalRace() async {
+        guard let race = pendingGoalRace else { return }
+        defer { pendingGoalRace = nil }
+        guard let uid = Supa.shared.auth.currentUser?.id.uuidString.lowercased() else { return }
+        struct Seeded: Decodable {
+            let goal_distance: String?
+            let goal_date: String?
+            let goal_time: String?
+        }
+        struct GoalParams: Encodable {
+            let p_goal_race: String?
+            let p_goal_distance: String?
+            let p_goal_date: String?
+            let p_goal_time: String?
+        }
+        guard let plan: Seeded = try? await Supa.shared.from("plans")
+            .select("goal_distance, goal_date, goal_time")
+            .eq("athlete_id", value: uid).single().execute().value else { return }
+        _ = try? await Supa.shared.rpc("update_my_goal", params: GoalParams(
+            p_goal_race: race,
+            p_goal_distance: plan.goal_distance,
+            p_goal_date: plan.goal_date,
+            p_goal_time: plan.goal_time
+        )).execute()
     }
 
     func signIn(email: String, password: String) async throws {
