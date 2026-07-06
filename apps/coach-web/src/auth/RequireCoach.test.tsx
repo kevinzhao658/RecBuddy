@@ -16,14 +16,18 @@ function renderAt(state: any) {
 }
 
 test('coach sees the dashboard', () => {
-  renderAt({ session: {}, role: 'coach', loading: false })
+  renderAt({ session: {}, role: 'coach', isCoach: true, loading: false })
   expect(screen.getByText('dashboard')).toBeInTheDocument()
 })
-test('athlete is redirected to login', () => {
-  renderAt({ session: {}, role: 'athlete', loading: false })
+test('athlete-only account is redirected to login', () => {
+  renderAt({ session: {}, role: 'athlete', isCoach: false, loading: false })
   expect(screen.getByText('login')).toBeInTheDocument()
 })
+test('dual-role athlete with coach flag sees the dashboard', () => {
+  renderAt({ session: {}, role: 'athlete', isCoach: true, loading: false })
+  expect(screen.getByText('dashboard')).toBeInTheDocument()
+})
 test('no session redirects to login', () => {
-  renderAt({ session: null, role: null, loading: false })
+  renderAt({ session: null, role: null, isCoach: false, loading: false })
   expect(screen.getByText('login')).toBeInTheDocument()
 })

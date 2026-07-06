@@ -6,7 +6,10 @@ import Foundation
 
 struct Profile: Codable, Identifiable, Equatable {
     let id: String
-    let role: String            // 'coach' | 'athlete'
+    let role: String            // 'coach' | 'athlete' — primary/display role
+    /// Dual-role flags — gates use these; optional so pre-migration rows decode.
+    let isCoach: Bool?
+    let isAthlete: Bool?
     var name: String
     let email: String
     let initials: String
@@ -16,10 +19,14 @@ struct Profile: Codable, Identifiable, Equatable {
     let primaryGoal: String?     // 'fit'|'first-race'|'pr'|'distance'
     enum CodingKeys: String, CodingKey {
         case id, role, name, email, initials, title
+        case isCoach = "is_coach"
+        case isAthlete = "is_athlete"
         case avatarUrl = "avatar_url"
         case experienceLevel = "experience_level"
         case primaryGoal = "primary_goal"
     }
+    /// The athlete gate: flag when present, else legacy role fallback.
+    var athleteAccess: Bool { isAthlete ?? (role == "athlete") }
 }
 
 struct Plan: Codable, Identifiable, Equatable {

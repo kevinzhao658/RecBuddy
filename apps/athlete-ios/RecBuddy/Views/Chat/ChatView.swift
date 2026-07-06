@@ -4,6 +4,7 @@ import UIKit
 
 struct ChatView: View {
     let profile: Profile
+    @Environment(SessionStore.self) private var session
     @State private var store = ChatStore()
     @State private var draft = ""
     @State private var busy = false
@@ -120,6 +121,25 @@ struct ChatView: View {
                         alignment: .bottom
                     )
 
+                if store.phase == .noCoach {
+                    // No coach linked (removed from a roster, or not joined yet):
+                    // chat needs a coach — point at the re-attach path.
+                    Spacer()
+                    VStack(spacing: 10) {
+                        Image(systemName: "bubble.left.and.exclamationmark.bubble.right")
+                            .font(.system(size: 34))
+                            .foregroundStyle(RB.textFaint)
+                        Text("No coach to message yet")
+                            .font(.headline)
+                            .foregroundStyle(.white)
+                        Text("Chat opens once you're connected to a coach. Add one with an invite code in Settings → Coaches.")
+                            .font(.subheadline)
+                            .foregroundStyle(RB.textMute)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(.horizontal, 40)
+                    Spacer()
+                } else {
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(spacing: 4) {
@@ -192,9 +212,12 @@ struct ChatView: View {
                         Rectangle().fill(RB.line).frame(height: 1),
                         alignment: .top
                     )
+                }
             }
         }
-        .task { await store.open(athleteId: profile.id) }
+        // Re-opens when a coach is added/removed (hasCoach flips) so the
+        // no-coach empty state and a fresh thread appear without a relaunch.
+        .task(id: session.hasCoach) { await store.open(athleteId: profile.id) }
         .onDisappear { Task { await store.close() } }
         .onChange(of: imageItem) { _, newItem in
             guard let newItem else { return }

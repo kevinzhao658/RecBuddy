@@ -7,7 +7,7 @@ import Supabase
 /// (RLS lets the athlete read linked coaches).
 @Observable @MainActor
 final class ChatStore {
-    enum Phase: Equatable { case idle, loading, error(String) }
+    enum Phase: Equatable { case idle, loading, error(String), noCoach }
     private(set) var phase: Phase = .idle
     private(set) var thread: Thread?
     private(set) var messages: [Message] = []
@@ -30,6 +30,11 @@ final class ChatStore {
             phase = .idle
         } catch is CancellationError {
             // view disappeared mid-open — the next .task will re-open
+        } catch let e as NSError where e.domain == "RecBuddy" && e.code == 1 {
+            // No coach linked (and no prior thread) — not an error: the athlete
+            // was removed or hasn't joined a coach yet. ChatView shows the
+            // add-a-coach empty state.
+            phase = .noCoach
         } catch {
             phase = .error("Couldn't load chat. Pull to retry.")
         }
