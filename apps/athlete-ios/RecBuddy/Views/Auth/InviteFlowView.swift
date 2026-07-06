@@ -389,9 +389,13 @@ struct InviteFlowView: View {
                 Text("Check your email")
                     .font(.title2.bold())
                     .foregroundStyle(.white)
-                Text("We sent a confirmation link to \(email). Confirm, then come back and sign in — your coach will be linked automatically.")
+                Text("If \(email) is new here, we sent it a confirmation link — confirm, then come back and sign in.")
                     .font(.subheadline)
                     .foregroundStyle(RB.textMute)
+                    .multilineTextAlignment(.center)
+                Text("Already have an account with this email? Just sign in — your invite code will be applied automatically.")
+                    .font(.footnote)
+                    .foregroundStyle(RB.textFaint)
                     .multilineTextAlignment(.center)
             }
             .padding(.horizontal, 36)
@@ -479,7 +483,7 @@ struct InviteFlowView: View {
             session.pendingInviteCode = trimmedCode // redeemed on first sign-in (SessionStore)
             let confirmRedirect = (Bundle.main.object(forInfoDictionaryKey: "EmailConfirmRedirect") as? String)
                 .flatMap(URL.init(string:)) ?? URL(string: "https://recbuddy.app/confirmed")
-            try await Supa.shared.auth.signUp(
+            _ = try await Supa.shared.auth.signUp(
                 email: email.trimmingCharacters(in: .whitespaces),
                 password: password,
                 data: [
@@ -488,6 +492,13 @@ struct InviteFlowView: View {
                     "primary_goal": .string(primaryGoal ?? "fit")
                 ],
                 redirectTo: confirmRedirect)
+            // NOTE: if the email already has an account (e.g. a coach going
+            // dual-role), GoTrue's anti-enumeration returns 200 with empty
+            // identities and sends no email. We deliberately show the SAME
+            // confirmation screen either way — a different message would leak
+            // whether an email is registered. The screen's copy covers both
+            // cases, and pendingInviteCode stays queued so an existing user who
+            // signs in gets the invite applied automatically.
             sent = true
         } catch {
             session.pendingInviteCode = nil
