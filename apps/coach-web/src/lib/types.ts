@@ -13,6 +13,8 @@ export interface Profile {
 export interface Plan {
   id: string; athlete_id: string; goal_race: string | null; goal_date: string | null
   goal_distance: string | null; goal_time: string | null; goal_pace: string | null
+  /** Training-block start; Week x of y derives from start_date -> goal_date. */
+  start_date: string | null
   plan_week: number; plan_weeks: number; status: 'On track' | 'Crushing it' | 'Needs check-in'
 }
 export interface Workout {
@@ -33,6 +35,7 @@ export interface LibraryWorkout {
 export interface Invite {
   id: string; code: string; coach_id: string; athlete_name: string | null; consumed_at: string | null
   goal_race: string | null; goal_distance: string | null; goal_date: string | null; goal_time: string | null
+  goal_start_date: string | null
 }
 export interface RosterEntry { relationship: 'head' | 'assistant'; athlete: Profile; plans: Plan[] }
 

@@ -122,7 +122,9 @@ export function MessageItem({ m, mine, sender, showName, showAvatar, grouped, on
   return (
     <div className={`flex items-end gap-2 ${grouped ? 'mt-0.5' : 'mt-3'}`}>
       <div className="w-5 shrink-0">{showAvatar && sender && <Avatar initials={sender.initials} url={sender.avatarUrl} size="sm" />}</div>
-      <div className="flex min-w-0 flex-col items-start">
+      {/* flex-1 so bubbles wrap at 85% of the panel — without it the column
+          shrink-wraps and short multi-word messages break one word per line */}
+      <div className="flex min-w-0 flex-1 flex-col items-start">
         {showName && sender && <span className="mb-0.5 px-0.5 text-[11px] font-semibold text-text-mute">{sender.name}</span>}
         {body}
       </div>

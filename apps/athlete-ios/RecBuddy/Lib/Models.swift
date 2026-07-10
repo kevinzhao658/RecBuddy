@@ -37,6 +37,8 @@ struct Plan: Codable, Identifiable, Equatable {
     let goalDistance: String?
     let goalTime: String?
     let goalPace: String?
+    /// Training-block start; WEEK x OF y derives from startDate -> goalDate.
+    let startDate: String?
     let planWeek: Int
     let planWeeks: Int
     let status: String
@@ -48,6 +50,7 @@ struct Plan: Codable, Identifiable, Equatable {
         case goalDistance = "goal_distance"
         case goalTime = "goal_time"
         case goalPace = "goal_pace"
+        case startDate = "start_date"
         case planWeek = "plan_week"
         case planWeeks = "plan_weeks"
     }

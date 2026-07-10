@@ -54,6 +54,16 @@ export function TrashIcon({ className = '' }: P) {
     </svg>
   )
 }
+export function GripIcon({ className = '' }: P) {
+  // Two-column dot grip — the conventional "drag me" affordance.
+  return (
+    <svg viewBox="0 0 24 24" className={`${base} ${className}`} fill="currentColor">
+      <circle cx="9" cy="6" r="1.6" /><circle cx="15" cy="6" r="1.6" />
+      <circle cx="9" cy="12" r="1.6" /><circle cx="15" cy="12" r="1.6" />
+      <circle cx="9" cy="18" r="1.6" /><circle cx="15" cy="18" r="1.6" />
+    </svg>
+  )
+}
 export function GearIcon({ className = '' }: P) {
   return (
     <svg viewBox="0 0 24 24" className={`${base} ${className}`} fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">

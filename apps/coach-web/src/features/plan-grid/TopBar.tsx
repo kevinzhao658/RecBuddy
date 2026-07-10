@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import type { Plan, Profile } from '../../lib/types'
 import { Avatar } from '../../components/ui/Avatar'
 import { GearIcon } from '../../components/ui/FormIcons'
-import { fmtShortDate } from '../../lib/week'
+import { blockLabel, fmtShortDate } from '../../lib/week'
 
 function FlagIcon({ className = '' }: { className?: string }) {
   return (
@@ -20,7 +20,13 @@ function HamburgerIcon() {
   )
 }
 
-export function TopBar({ athlete, plan, actions, onMenu, onSettings }: { athlete: Profile; plan: Plan | null; actions?: ReactNode; onMenu?: () => void; onSettings?: () => void }) {
+export function TopBar({ athlete, plan, monday, actions, onMenu, onSettings }: { athlete: Profile; plan: Plan | null; monday: string; actions?: ReactNode; onMenu?: () => void; onSettings?: () => void }) {
+  // Week x of y derives from the training block (start_date -> goal_date) and
+  // FOLLOWS the week being viewed; static plan_week/plan_weeks is the fallback
+  // for plans without a start date.
+  const week = plan
+    ? blockLabel(monday, plan.start_date, plan.goal_date) ?? `Week ${plan.plan_week} of ${plan.plan_weeks}`
+    : null
   return (
     <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line px-6 py-4">
       {onMenu && (
@@ -43,7 +49,7 @@ export function TopBar({ athlete, plan, actions, onMenu, onSettings }: { athlete
         {plan && (
           <p className="mt-0.5 flex items-center gap-1.5 truncate text-sm text-text-mute">
             <FlagIcon className="h-3.5 w-3.5 shrink-0 text-accent" />
-            <span className="truncate">{plan.goal_race} · {fmtShortDate(plan.goal_date)} · Week {plan.plan_week} of {plan.plan_weeks}</span>
+            <span className="truncate">{plan.goal_race} · {fmtShortDate(plan.goal_date)} · {week}</span>
           </p>
         )}
       </div>

@@ -53,3 +53,25 @@ export function fmtShortDate(iso: string | null | undefined): string {
   if (isNaN(d.getTime())) return iso // already a display string, leave as-is
   return `${MON[d.getUTCMonth()]} ${d.getUTCDate()}`
 }
+
+/** 1-based week number of the week containing `monday` within a training block
+ *  starting the Monday of `start`. 0 or negative = before the block. */
+export function blockWeekOf(monday: string, start: string): number {
+  const ms = new Date(monday + 'T00:00:00Z').getTime() - new Date(mondayOf(start) + 'T00:00:00Z').getTime()
+  return Math.floor(ms / (7 * 86_400_000)) + 1
+}
+
+/** Total weeks in a block: Monday-of-start through the week containing `goal`. */
+export function blockWeeks(start: string, goal: string): number {
+  return Math.max(1, blockWeekOf(mondayOf(goal), start))
+}
+
+/** 'Week x of y' for the viewed week — 'Starts Sep 1' before the block, clamped
+ *  to the final week after it. Null when the block window isn't fully set. */
+export function blockLabel(monday: string, start: string | null, goal: string | null): string | null {
+  if (!start || !goal) return null
+  const total = blockWeeks(start, goal)
+  const w = blockWeekOf(monday, start)
+  if (w < 1) return `Starts ${fmtShortDate(start)}`
+  return `Week ${Math.min(w, total)} of ${total}`
+}

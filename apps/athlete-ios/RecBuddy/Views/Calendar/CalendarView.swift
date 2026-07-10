@@ -67,6 +67,18 @@ struct CalendarView: View {
 
     // MARK: - Header
 
+    /// WEEK x OF y derived from the training block (start -> race) and the week
+    /// on screen; falls back to the stored counters when no start date is set.
+    private func weekLabel(_ plan: Plan) -> String {
+        if let start = plan.startDate, let goal = plan.goalDate {
+            let total = Week.blockWeeks(start: start, goal: goal)
+            let w = Week.blockWeek(monday: store.weekMonday, start: start)
+            if w < 1 { return "STARTS \(Week.fmtShortDate(start).uppercased())" }
+            return "WEEK \(min(w, total)) OF \(total)"
+        }
+        return "WEEK \(plan.planWeek) OF \(plan.planWeeks)"
+    }
+
     /// Quiet banner shown when no coach is linked: the plan is theirs to keep;
     /// adding a coach (Settings → Coaches, invite code) restores adjustments.
     private var noCoachBanner: some View {
@@ -96,7 +108,7 @@ struct CalendarView: View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 4) {
                 if let plan = store.plan {
-                    RBLabel("WEEK \(plan.planWeek) OF \(plan.planWeeks)", color: RB.accent)
+                    RBLabel(weekLabel(plan), color: RB.accent)
                 }
                 Text("Your Plan")
                     .font(.largeTitle.bold())

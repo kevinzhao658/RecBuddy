@@ -40,8 +40,9 @@ export function useAthleteMonth(athleteId: string | null, anchor: string, enable
   })
 }
 
-/** Coach-side goal edit — mirrors the athlete's update_my_goal RPC. */
-export interface GoalDraft { goalRace: string; goalDistance: string; goalDate: string; goalTime: string }
+/** Coach-side goal edit — mirrors the athlete's update_my_goal RPC, plus the
+ *  training-block start date (start_date -> goal_date drives Week x of y). */
+export interface GoalDraft { goalRace: string; goalDistance: string; goalDate: string; goalTime: string; startDate: string }
 export function useUpdateAthleteGoal(athleteId: string) {
   const qc = useQueryClient()
   return useMutation({
@@ -52,6 +53,7 @@ export function useUpdateAthleteGoal(athleteId: string) {
         p_goal_distance: g.goalDistance || null,
         p_goal_date: g.goalDate || null,
         p_goal_time: g.goalTime || null,
+        p_start_date: g.startDate || null,
       })
       if (error) throw error
     },

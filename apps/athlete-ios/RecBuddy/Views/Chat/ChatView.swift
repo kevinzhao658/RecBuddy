@@ -20,11 +20,24 @@ struct ChatView: View {
         let data: Data; let w: Int; let h: Int; let preview: UIImage
     }
 
-    // ── Coach resolved from thread ─────────────────────────────────────────
+    // ── Coaching team (head first, via get_team) ───────────────────────────
 
-    private var coach: Profile? {
-        guard let coachId = store.thread?.coachId else { return nil }
-        return store.senders[coachId]
+    private var team: [ChatSender] { store.team }
+
+    /// Chat title = the other members' names (never the athlete's own):
+    /// "Sarah" / "Sarah & Mike" / "Sarah, Mike & Dana".
+    private var chatTitle: String {
+        let names = team.map(\.name)
+        switch names.count {
+        case 0:  return "Coach"
+        case 1:  return names[0]
+        case 2:  return "\(names[0]) & \(names[1])"
+        default: return names.dropLast().joined(separator: ", ") + " & " + names.last!
+        }
+    }
+
+    private var chatSubtitle: String {
+        team.count > 1 ? "Your coaching team" : (team.first?.title ?? "Head Coach")
     }
 
     // ── Session-separator helpers ──────────────────────────────────────────
@@ -229,41 +242,52 @@ struct ChatView: View {
 
     // ── Custom header ──────────────────────────────────────────────────────
 
-    private var initialsCircle: some View {
+    /// One member avatar — photo when set (public avatars bucket), else
+    /// initials. A bg-colored ring separates avatars in the overlap stack.
+    private func memberAvatar(_ m: ChatSender) -> some View {
         ZStack {
             Circle()
                 .fill(RB.surface2)
                 .frame(width: 36, height: 36)
-            Text(coach?.initials ?? "?")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(.white)
+            if let url = m.avatarUrl.flatMap(URL.init(string:)) {
+                AsyncImage(url: url) { image in
+                    image.resizable().scaledToFill()
+                } placeholder: {
+                    Text(m.initials).font(.caption.weight(.bold)).foregroundStyle(.white)
+                }
+                .frame(width: 36, height: 36)
+                .clipShape(Circle())
+            } else {
+                Text(m.initials).font(.caption.weight(.bold)).foregroundStyle(.white)
+            }
         }
+        .overlay(Circle().stroke(RB.bg, lineWidth: 2))
     }
 
     private var chatHeader: some View {
         HStack(spacing: 12) {
-            // Coach avatar — photo when set (public avatars bucket), else initials
-            Group {
-                if let url = coach?.avatarUrl.flatMap(URL.init(string:)) {
-                    AsyncImage(url: url) { image in
-                        image.resizable().scaledToFill()
-                    } placeholder: {
-                        initialsCircle
+            // Overlapping avatar stack — every team member (up to three shown)
+            HStack(spacing: -10) {
+                if team.isEmpty {
+                    ZStack {
+                        Circle().fill(RB.surface2).frame(width: 36, height: 36)
+                        Text("?").font(.caption.weight(.bold)).foregroundStyle(.white)
                     }
-                    .frame(width: 36, height: 36)
-                    .clipShape(Circle())
                 } else {
-                    initialsCircle
+                    ForEach(team.prefix(3), id: \.coachId) { m in
+                        memberAvatar(m)
+                    }
                 }
             }
             .accessibilityHidden(true)
 
-            // Coach name + role
+            // Member names + role line
             VStack(alignment: .leading, spacing: 2) {
-                Text(coach?.name ?? "Coach")
+                Text(chatTitle)
                     .font(.subheadline.weight(.bold))
                     .foregroundStyle(.white)
-                Text(coach?.title ?? "Head Coach")
+                    .lineLimit(1)
+                Text(chatSubtitle)
                     .font(.caption)
                     .foregroundStyle(RB.accent)
             }
@@ -271,7 +295,7 @@ struct ChatView: View {
             Spacer()
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(coach?.name ?? "Coach"), \(coach?.title ?? "Head Coach")")
+        .accessibilityLabel("\(chatTitle), \(chatSubtitle)")
     }
 
     // ── Input bar ─────────────────────────────────────────────────────────

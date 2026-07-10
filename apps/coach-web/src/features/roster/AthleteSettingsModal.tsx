@@ -33,11 +33,12 @@ export function AthleteSettingsModal({ open, onClose, athlete, plan, onRemoved, 
   const [dist, setDist] = useState(plan?.goal_distance ?? '')
   const [date, setDate] = useState(plan?.goal_date ?? '')
   const [time, setTime] = useState(plan?.goal_time ?? '')
+  const [start, setStart] = useState(plan?.start_date ?? '')
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const save = () => update.mutate(
-    { goalRace: race, goalDistance: dist, goalDate: date, goalTime: time },
+    { goalRace: race, goalDistance: dist, goalDate: date, goalTime: time, startDate: start },
     { onSuccess: () => { onSaved(); onClose() }, onError: (e: any) => setError(e.message) },
   )
 
@@ -55,6 +56,19 @@ export function AthleteSettingsModal({ open, onClose, athlete, plan, onRemoved, 
 
         <div className="flex gap-2">
           <div className="flex-1">
+            <span className={eyebrow}>Training starts</span>
+            <input aria-label="Training start date" type="date" value={start} onChange={(e) => setStart(e.target.value)}
+              disabled={!plan} className={`${field} w-full font-num disabled:opacity-50`} />
+          </div>
+          <div className="flex-1">
+            <span className={eyebrow}>Race date</span>
+            <input aria-label="Goal date" type="date" value={date} onChange={(e) => setDate(e.target.value)}
+              disabled={!plan} className={`${field} w-full font-num disabled:opacity-50`} />
+          </div>
+        </div>
+
+        <div className="flex gap-2">
+          <div className="flex-1">
             <span className={eyebrow}>Distance</span>
             <select aria-label="Goal distance" value={dist} onChange={(e) => setDist(e.target.value)}
               disabled={!plan} className={`${field} w-full disabled:opacity-50`}>
@@ -63,16 +77,10 @@ export function AthleteSettingsModal({ open, onClose, athlete, plan, onRemoved, 
             </select>
           </div>
           <div className="flex-1">
-            <span className={eyebrow}>Goal date</span>
-            <input aria-label="Goal date" type="date" value={date} onChange={(e) => setDate(e.target.value)}
-              disabled={!plan} className={`${field} w-full font-num disabled:opacity-50`} />
+            <span className={eyebrow}>Goal time <span className="normal-case text-text-faint">(optional)</span></span>
+            <input aria-label="Goal time" value={time} onChange={(e) => setTime(e.target.value)}
+              placeholder="1:48:00" disabled={!plan} className={`${field} w-full font-num disabled:opacity-50`} />
           </div>
-        </div>
-
-        <div>
-          <span className={eyebrow}>Goal time <span className="normal-case text-text-faint">(optional)</span></span>
-          <input aria-label="Goal time" value={time} onChange={(e) => setTime(e.target.value)}
-            placeholder="1:48:00" disabled={!plan} className={`${field} w-full font-num disabled:opacity-50`} />
         </div>
 
         {!plan && <p className="text-xs text-text-faint">No plan yet — add a workout to their week first, then set the goal.</p>}

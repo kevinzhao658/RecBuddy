@@ -2,16 +2,34 @@ import Foundation
 import Observation
 import Supabase
 
+/// One coaching-team member, resolved via the get_team RPC. The definer RPC
+/// sees the WHOLE team (head + assistants added later); the raw profiles read
+/// it replaces missed co-coaches, leaving their messages nameless.
+struct ChatSender: Decodable, Equatable {
+    let coachId: String
+    let relationship: String   // 'head' | 'assistant'
+    let name: String
+    let title: String?
+    let initials: String
+    let avatarUrl: String?
+    enum CodingKeys: String, CodingKey {
+        case relationship, name, title, initials
+        case coachId = "coach_id"
+        case avatarUrl = "avatar_url"
+    }
+}
+
 /// The athlete's one thread with their coach team: messages, senders,
-/// send, realtime refresh, mark-read. Sender names resolve via profiles
-/// (RLS lets the athlete read linked coaches).
+/// send, realtime refresh, mark-read. Senders resolve via get_team
+/// (head first — drives the chat title and the avatar stack).
 @Observable @MainActor
 final class ChatStore {
     enum Phase: Equatable { case idle, loading, error(String), noCoach }
     private(set) var phase: Phase = .idle
     private(set) var thread: Thread?
     private(set) var messages: [Message] = []
-    private(set) var senders: [String: Profile] = [:]   // from_user_id -> profile
+    private(set) var team: [ChatSender] = []            // head first
+    private(set) var senders: [String: ChatSender] = [:] // from_user_id -> member
     private var channel: RealtimeChannelV2?
     private var subscriptionTask: Task<Void, Never>?
 
@@ -21,9 +39,11 @@ final class ChatStore {
         do {
             let t = try await ChatShare.fetchOrCreateThread(athleteId: athleteId)
             thread = t
-            let coaches: [Profile] = try await Supa.shared.from("profiles")
-                .select().neq("id", value: athleteId).execute().value
-            senders = Dictionary(uniqueKeysWithValues: coaches.map { ($0.id, $0) })
+            let rows: [ChatSender] = try await Supa.shared
+                .rpc("get_team", params: ["p_athlete_id": athleteId])
+                .execute().value
+            team = rows
+            senders = Dictionary(uniqueKeysWithValues: rows.map { ($0.coachId, $0) })
             try await load(threadId: t.id)
             await markRead(athleteId: athleteId)
             await subscribe(threadId: t.id, athleteId: athleteId)

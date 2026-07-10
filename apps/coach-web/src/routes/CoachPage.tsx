@@ -187,6 +187,7 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, monthAnchor, 
           <TopBar
             athlete={entry.athlete}
             plan={entry.plans?.[0] ?? null}
+            monday={monday}
             onMenu={onMenu}
             onSettings={() => setSettingsOpen(true)}
             actions={
