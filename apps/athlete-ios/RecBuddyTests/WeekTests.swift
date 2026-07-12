@@ -65,3 +65,18 @@ import Testing
         #expect(Week.blockWeeks(start: "2026-06-29", goal: "2026-06-30") == 1)
     }
 }
+
+@Suite struct LocalDayTests {
+    @Test func localDayRoundTripsExactly() {
+        // The UTC-parse bug rendered stored Nov 1 as "Oct 31" in DatePickers
+        // west of Greenwich — local parse/format must round-trip the same day.
+        for iso in ["2026-11-01", "2026-01-01", "2026-12-31", "2026-07-04"] {
+            let d = Week.parseLocalDay(iso)
+            #expect(d != nil)
+            #expect(Week.formatLocalDay(d!) == iso)
+        }
+    }
+    @Test func localDayRejectsMalformed() {
+        #expect(Week.parseLocalDay("not-a-date") == nil)
+    }
+}
