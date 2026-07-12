@@ -52,3 +52,16 @@ import Testing
         #expect(july.contains("2026-07-31"))
     }
 }
+
+@Suite struct BlockWeekTests {
+    @Test func blockWeekCountsFromStartMonday() {
+        #expect(Week.blockWeek(monday: "2026-06-29", start: "2026-06-29") == 1)
+        #expect(Week.blockWeek(monday: "2026-06-29", start: "2026-07-01") == 1) // mid-week start -> same week
+        #expect(Week.blockWeek(monday: "2026-07-06", start: "2026-06-29") == 2)
+        #expect(Week.blockWeek(monday: "2026-06-22", start: "2026-06-29") == 0) // before the block
+    }
+    @Test func blockWeeksSpansStartThroughGoalWeek() {
+        #expect(Week.blockWeeks(start: "2026-06-29", goal: "2026-09-20") == 12) // Sunday race, 12th week
+        #expect(Week.blockWeeks(start: "2026-06-29", goal: "2026-06-30") == 1)
+    }
+}

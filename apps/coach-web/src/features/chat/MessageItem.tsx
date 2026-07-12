@@ -29,12 +29,12 @@ function RunCardView({ p }: { p: RunCard }) {
     <div className="rb-card rb-card-sm w-full max-w-[85%] p-3">
       <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-accent">Logged run</p>
       <p className="mt-0.5 font-semibold">{p.title}</p>
-      <div className="mt-1.5 grid grid-cols-3 gap-2 font-num text-xs text-text-mute">
-        <span><span className="block text-[10px] uppercase text-text-faint">Dist</span>{p.dist}</span>
-        <span><span className="block text-[10px] uppercase text-text-faint">Pace</span>{p.pace}</span>
-        <span><span className="block text-[10px] uppercase text-text-faint">Time</span>{p.time}</span>
+      <div className="mt-2.5 grid grid-cols-3 gap-4 font-num text-xs text-text-mute">
+        <span><span className="mb-0.5 block text-[10px] uppercase text-text-faint">Dist</span>{p.dist}</span>
+        <span><span className="mb-0.5 block text-[10px] uppercase text-text-faint">Pace</span>{p.pace}</span>
+        <span><span className="mb-0.5 block text-[10px] uppercase text-text-faint">Time</span>{p.time}</span>
       </div>
-      {p.hr != null && <p className="mt-1.5 font-num text-xs text-text-faint">Avg HR {p.hr}</p>}
+      {p.hr != null && <p className="mt-2.5 font-num text-xs text-text-faint">Avg HR {p.hr}</p>}
     </div>
   )
 }
@@ -108,7 +108,10 @@ export function MessageItem({ m, mine, sender, showName, showAvatar, grouped, on
   ) : m.kind === 'workout' ? (
     <WorkoutCardView p={m.payload as WorkoutCard} onOpen={onOpenWorkout ? () => onOpenWorkout((m.payload as WorkoutCard).date) : undefined} />
   ) : m.kind === 'image' ? (
-    <ImageView p={m.payload as ImageCard} />
+    <div className={`flex max-w-[85%] flex-col gap-1 ${mine ? 'items-end' : 'items-start'}`}>
+      <ImageView p={m.payload as ImageCard} />
+      {m.body && <div className={`rounded-[14px] px-3 py-2 text-sm ${mine ? 'bg-accent text-on-accent' : 'bg-surface2 text-text'}`}>{m.body}</div>}
+    </div>
   ) : (
     <AdjustCardView p={m.payload as AdjustCard} />
   )
@@ -119,7 +122,9 @@ export function MessageItem({ m, mine, sender, showName, showAvatar, grouped, on
   return (
     <div className={`flex items-end gap-2 ${grouped ? 'mt-0.5' : 'mt-3'}`}>
       <div className="w-5 shrink-0">{showAvatar && sender && <Avatar initials={sender.initials} url={sender.avatarUrl} size="sm" />}</div>
-      <div className="flex min-w-0 flex-col items-start">
+      {/* flex-1 so bubbles wrap at 85% of the panel — without it the column
+          shrink-wraps and short multi-word messages break one word per line */}
+      <div className="flex min-w-0 flex-1 flex-col items-start">
         {showName && sender && <span className="mb-0.5 px-0.5 text-[11px] font-semibold text-text-mute">{sender.name}</span>}
         {body}
       </div>

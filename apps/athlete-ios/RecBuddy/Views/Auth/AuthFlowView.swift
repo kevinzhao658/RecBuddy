@@ -85,15 +85,26 @@ struct AuthFlowView: View {
 
                         Divider().overlay(RB.line)
 
-                        // Footer: sign-up link (no "New to RecBuddy?" prefix)
+                        // Footer: two sign-up routes — with a coach code (leads
+                        // the wizard, auto-populates details) or solo (add a
+                        // coach later in Settings → Coaches).
                         NavigationLink {
                             InviteFlowView()
                         } label: {
-                            Text("Create an account")
+                            Text("Create an account with a coach code")
                                 .font(.subheadline.weight(.bold))
                                 .foregroundStyle(RB.accent)
                         }
-                        .accessibilityLabel("Create an account")
+                        .accessibilityLabel("Create an account with a coach code")
+
+                        NavigationLink {
+                            InviteFlowView(requireCode: false)
+                        } label: {
+                            Text("No code? Sign up solo")
+                                .font(.footnote)
+                                .foregroundStyle(RB.textMute)
+                        }
+                        .accessibilityLabel("Sign up without a coach code")
                     }
                     .padding(.horizontal, 24)
                     .padding(.bottom, 48)

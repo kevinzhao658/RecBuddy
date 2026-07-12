@@ -18,6 +18,7 @@ export default function SignupPage() {
   const [err, setErr] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [sent, setSent] = useState(false)
+  const [promoted, setPromoted] = useState(false)
   const [captcha, setCaptcha] = useState('')
 
   async function submit(e: React.FormEvent) {
@@ -31,6 +32,13 @@ export default function SignupPage() {
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
         setErr(body.error ?? `Sign-up failed (${res.status})`)
+        return
+      }
+      const body = await res.json().catch(() => ({}))
+      if (body.promoted) {
+        // Existing (already-confirmed) account gained the coach role —
+        // no confirmation email needed; they sign straight in.
+        setPromoted(true)
         return
       }
       // Account created (unconfirmed). Send the confirmation email — the coach
@@ -72,7 +80,16 @@ export default function SignupPage() {
 
       {/* Form panel */}
       <div className="flex items-center justify-center p-8 md:p-12">
-        {sent ? (
+        {promoted ? (
+          <div className="w-full max-w-[400px]">
+            <h2 className="text-[30px] font-bold tracking-tight">Coaching added</h2>
+            <p className="mt-2 text-[15px] leading-relaxed text-text-mute">
+              Your existing account <span className="font-semibold text-text">{form.email}</span> is now also a coach
+              account — your athlete profile is untouched. Sign in to start building your roster.
+            </p>
+            <Link to="/login" className="mt-6 block"><Button className="w-full">Go to sign in</Button></Link>
+          </div>
+        ) : sent ? (
           <div className="w-full max-w-[400px]">
             <h2 className="text-[30px] font-bold tracking-tight">Check your email</h2>
             <p className="mt-2 text-[15px] leading-relaxed text-text-mute">

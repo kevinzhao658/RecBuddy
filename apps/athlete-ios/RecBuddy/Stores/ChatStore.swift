@@ -2,16 +2,34 @@ import Foundation
 import Observation
 import Supabase
 
+/// One coaching-team member, resolved via the get_team RPC. The definer RPC
+/// sees the WHOLE team (head + assistants added later); the raw profiles read
+/// it replaces missed co-coaches, leaving their messages nameless.
+struct ChatSender: Decodable, Equatable {
+    let coachId: String
+    let relationship: String   // 'head' | 'assistant'
+    let name: String
+    let title: String?
+    let initials: String
+    let avatarUrl: String?
+    enum CodingKeys: String, CodingKey {
+        case relationship, name, title, initials
+        case coachId = "coach_id"
+        case avatarUrl = "avatar_url"
+    }
+}
+
 /// The athlete's one thread with their coach team: messages, senders,
-/// send, realtime refresh, mark-read. Sender names resolve via profiles
-/// (RLS lets the athlete read linked coaches).
+/// send, realtime refresh, mark-read. Senders resolve via get_team
+/// (head first — drives the chat title and the avatar stack).
 @Observable @MainActor
 final class ChatStore {
-    enum Phase: Equatable { case idle, loading, error(String) }
+    enum Phase: Equatable { case idle, loading, error(String), noCoach }
     private(set) var phase: Phase = .idle
     private(set) var thread: Thread?
     private(set) var messages: [Message] = []
-    private(set) var senders: [String: Profile] = [:]   // from_user_id -> profile
+    private(set) var team: [ChatSender] = []            // head first
+    private(set) var senders: [String: ChatSender] = [:] // from_user_id -> member
     private var channel: RealtimeChannelV2?
     private var subscriptionTask: Task<Void, Never>?
 
@@ -21,15 +39,22 @@ final class ChatStore {
         do {
             let t = try await ChatShare.fetchOrCreateThread(athleteId: athleteId)
             thread = t
-            let coaches: [Profile] = try await Supa.shared.from("profiles")
-                .select().neq("id", value: athleteId).execute().value
-            senders = Dictionary(uniqueKeysWithValues: coaches.map { ($0.id, $0) })
+            let rows: [ChatSender] = try await Supa.shared
+                .rpc("get_team", params: ["p_athlete_id": athleteId])
+                .execute().value
+            team = rows
+            senders = Dictionary(uniqueKeysWithValues: rows.map { ($0.coachId, $0) })
             try await load(threadId: t.id)
             await markRead(athleteId: athleteId)
             await subscribe(threadId: t.id, athleteId: athleteId)
             phase = .idle
         } catch is CancellationError {
             // view disappeared mid-open — the next .task will re-open
+        } catch let e as NSError where e.domain == "RecBuddy" && e.code == 1 {
+            // No coach linked (and no prior thread) — not an error: the athlete
+            // was removed or hasn't joined a coach yet. ChatView shows the
+            // add-a-coach empty state.
+            phase = .noCoach
         } catch {
             phase = .error("Couldn't load chat. Pull to retry.")
         }
@@ -55,7 +80,7 @@ final class ChatStore {
     /// Path convention: <thread_id>/<UUID>.jpg — the first folder segment is the
     /// thread_id, which the storage participant policy uses to gate access.
     /// Callers exchange the stored path for a signed URL at render time.
-    func sendImage(_ data: Data, width: Int, height: Int, from athleteId: String) async throws {
+    func sendImage(_ data: Data, width: Int, height: Int, from athleteId: String, body: String? = nil) async throws {
         guard let thread else { return }
         let path = "\(thread.id)/\(UUID().uuidString).jpg"
         try await Supa.shared.storage
@@ -64,11 +89,13 @@ final class ChatStore {
         struct ImagePayload: Encodable { let path: String; let w: Int; let h: Int }
         struct ImageMsg: Encodable {
             let thread_id: String; let from_user_id: String; let kind: String
+            let body: String?
             let payload: ImagePayload
         }
         try await Supa.shared.from("messages")
             .insert(ImageMsg(
                 thread_id: thread.id, from_user_id: athleteId, kind: "image",
+                body: body,
                 payload: ImagePayload(path: path, w: width, h: height)
             ))
             .execute()
