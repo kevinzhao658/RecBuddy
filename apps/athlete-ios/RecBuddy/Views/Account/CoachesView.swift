@@ -167,7 +167,7 @@ struct CoachesView: View {
             await loadTeam()
             await session.refreshProfile()
         } catch {
-            joinError = "That code is invalid, used, or expired."
+            joinError = InviteErrors.friendly(error)
         }
     }
 }

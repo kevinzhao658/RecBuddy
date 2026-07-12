@@ -116,7 +116,8 @@ struct InviteFlowView: View {
     private var totalSteps: Int { kinds.count }
     private var currentKind: StepKind { kinds[step - 1] }
     @State private var step = 1
-    @State private var sent = false      // shows confirmation screen
+    @State private var sent = false             // shows check-your-email screen
+    @State private var existingAccount = false  // shows already-registered screen
 
     // Account step — credentials
     @State private var name = ""
@@ -169,7 +170,9 @@ struct InviteFlowView: View {
         ZStack {
             RB.bg.ignoresSafeArea()
 
-            if sent {
+            if existingAccount {
+                existingAccountScreen
+            } else if sent {
                 sentScreen
             } else {
                 VStack(spacing: 0) {
@@ -445,13 +448,9 @@ struct InviteFlowView: View {
                 Text("Check your email")
                     .font(.title2.bold())
                     .foregroundStyle(.white)
-                Text("If \(email) is new here, we sent it a confirmation link — confirm, then come back and sign in.")
+                Text("We sent a confirmation link to \(email). Confirm, then come back and sign in — your coach will be linked automatically.")
                     .font(.subheadline)
                     .foregroundStyle(RB.textMute)
-                    .multilineTextAlignment(.center)
-                Text("Already have an account with this email? Just sign in — your invite code will be applied automatically.")
-                    .font(.footnote)
-                    .foregroundStyle(RB.textFaint)
                     .multilineTextAlignment(.center)
             }
             .padding(.horizontal, 36)
@@ -477,6 +476,53 @@ struct InviteFlowView: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(RB.accent)
                     .accessibilityLabel("Go to sign in")
+            }
+            .padding(.horizontal, 24)
+            .padding(.bottom, 48)
+        }
+    }
+
+    // ── Existing-account screen ────────────────────────────────────────────
+    // The email already belongs to an account (e.g. a coach going dual-role):
+    // no second account is created and no email is sent — say so plainly and
+    // route to sign-in. The typed invite code stays queued and is applied
+    // automatically on that sign-in.
+
+    private var existingAccountScreen: some View {
+        VStack(spacing: 0) {
+            Spacer()
+            VStack(spacing: 20) {
+                Image(systemName: "person.crop.circle.badge.checkmark")
+                    .font(.system(size: 64))
+                    .foregroundStyle(RB.accent)
+                    .accessibilityHidden(true)
+                Text("You already have an account")
+                    .font(.title2.bold())
+                    .foregroundStyle(.white)
+                Text("\(email) is already registered. Sign in with that account's password — no new account or confirmation email is needed.")
+                    .font(.subheadline)
+                    .foregroundStyle(RB.textMute)
+                    .multilineTextAlignment(.center)
+                if requireCode {
+                    Text("Your invite code is saved and will be applied the moment you sign in.")
+                        .font(.footnote)
+                        .foregroundStyle(RB.textFaint)
+                        .multilineTextAlignment(.center)
+                }
+            }
+            .padding(.horizontal, 36)
+
+            Spacer()
+
+            VStack(spacing: 14) {
+                Button("Go to sign in") { dismiss() }
+                    .buttonStyle(VoltButtonStyle())
+                    .accessibilityLabel("Go to sign in")
+
+                Button("Use a different email") { existingAccount = false }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(RB.textMute)
+                    .accessibilityLabel("Use a different email")
             }
             .padding(.horizontal, 24)
             .padding(.bottom, 48)
@@ -561,7 +607,7 @@ struct InviteFlowView: View {
             }
             let confirmRedirect = (Bundle.main.object(forInfoDictionaryKey: "EmailConfirmRedirect") as? String)
                 .flatMap(URL.init(string:)) ?? URL(string: "https://recbuddy.app/confirmed")
-            _ = try await Supa.shared.auth.signUp(
+            let res = try await Supa.shared.auth.signUp(
                 email: email.trimmingCharacters(in: .whitespaces),
                 password: password,
                 data: [
@@ -570,14 +616,18 @@ struct InviteFlowView: View {
                     "primary_goal": .string(primaryGoal ?? "fit")
                 ],
                 redirectTo: confirmRedirect)
-            // NOTE: if the email already has an account (e.g. a coach going
-            // dual-role), GoTrue's anti-enumeration returns 200 with empty
-            // identities and sends no email. We deliberately show the SAME
-            // confirmation screen either way — a different message would leak
-            // whether an email is registered. The screen's copy covers both
-            // cases, and pendingInviteCode stays queued so an existing user who
-            // signs in gets the invite applied automatically.
-            sent = true
+            // Existing account (e.g. a coach going dual-role): GoTrue returns
+            // 200 with EMPTY identities and sends no email — waiting on a
+            // confirmation that will never come stranded users. Say so and
+            // route to sign-in (pendingInviteCode stays queued and is applied
+            // there). Product call: the signup API exposes this signal to any
+            // direct caller anyway, and coach-web's signup already says it —
+            // the in-app message adds no meaningful enumeration surface.
+            if res.user.identities?.isEmpty ?? false {
+                existingAccount = true
+            } else {
+                sent = true
+            }
         } catch {
             session.pendingInviteCode = nil
             session.pendingGoalRace = nil

@@ -19,6 +19,12 @@ final class SessionStore {
     /// them — their plan stays; the UI offers "add a coach" (invite code).
     /// nil until the first load completes.
     private(set) var hasCoach: Bool?
+    /// Why the queued invite code (from the signup wizard) could not be
+    /// redeemed after sign-in — surfaced by the join screens instead of the
+    /// old silent swallow. Cleared once shown.
+    private(set) var redeemNotice: String?
+
+    func clearRedeemNotice() { redeemNotice = nil }
     /// Backed by UserDefaults — NOT tracked by @Observable; don't read it inside View bodies expecting reactive updates.
     var pendingInviteCode: String? {
         get { UserDefaults.standard.string(forKey: "pendingInviteCode") }
@@ -49,11 +55,14 @@ final class SessionStore {
                 pendingInviteCode = nil
                 await applyPendingGoalRace()
             } catch {
-                // A consumed code errors here but the profile still loads (athlete
-                // just stays unlinked); clear it so we don't retry forever.
-                if (error as? PostgrestError)?.message.contains("already used") == true {
+                // The server rejected the code (own invite, used, head coach
+                // exists…): retrying the same code can never succeed, so stop
+                // and SURFACE the reason — the old silent swallow left users
+                // guessing. Transient network errors keep the code queued.
+                if InviteErrors.isPermanent(error) {
                     pendingInviteCode = nil
                     pendingGoalRace = nil
+                    redeemNotice = InviteErrors.friendly(error)
                 }
             }
         }
