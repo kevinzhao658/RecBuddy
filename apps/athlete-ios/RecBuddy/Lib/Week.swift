@@ -97,6 +97,27 @@ enum Week {
         return String(format: "%04d-%02d-%02d", c.year!, c.month!, c.day!)
     }
 
+    // ── Local-day parsing (for DatePicker round trips) ────────────────────
+    // DatePicker displays a Date in the LOCAL timezone: a 'YYYY-MM-DD' parsed
+    // as UTC midnight renders as the PREVIOUS day west of Greenwich (Nov 1 ->
+    // "Oct 31" in PDT). Parse/format calendar dates through the local zone so
+    // the picker shows exactly the stored day and saves exactly what it shows.
+
+    static func parseLocalDay(_ iso: String) -> Date? {
+        let p = iso.split(separator: "-").compactMap { Int($0) }
+        guard p.count == 3 else { return nil }
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = .current
+        return cal.date(from: DateComponents(year: p[0], month: p[1], day: p[2]))
+    }
+
+    static func formatLocalDay(_ date: Date) -> String {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = .current
+        let c = cal.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", c.year!, c.month!, c.day!)
+    }
+
     // ── Training-block week math (mirrors web lib/week.ts) ────────────────
 
     /// 1-based week number of the week containing `monday` within a block

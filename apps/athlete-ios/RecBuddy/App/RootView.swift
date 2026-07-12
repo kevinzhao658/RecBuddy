@@ -35,6 +35,15 @@ struct CoachJoinAsAthleteView: View {
     @State private var busy = false
     @State private var error: String?
 
+    /// Show why an auto-redeem (queued from the signup wizard) failed, then
+    /// clear it so the message doesn't reappear on the next visit.
+    private func adoptRedeemNotice() {
+        if let notice = session.redeemNotice {
+            error = notice
+            session.clearRedeemNotice()
+        }
+    }
+
     var body: some View {
         ZStack {
             RB.bg.ignoresSafeArea()
@@ -73,6 +82,7 @@ struct CoachJoinAsAthleteView: View {
             }
             .padding(32)
         }
+        .onAppear { adoptRedeemNotice() }
     }
 
     private func join() async {
@@ -83,7 +93,7 @@ struct CoachJoinAsAthleteView: View {
             try await Supa.shared.rpc("redeem_invite", params: ["p_code": trimmed]).execute()
             await session.refreshProfile()   // is_athlete now set → tabs open
         } catch {
-            self.error = "That code didn't work — check it and try again."
+            self.error = InviteErrors.friendly(error)
         }
     }
 }
