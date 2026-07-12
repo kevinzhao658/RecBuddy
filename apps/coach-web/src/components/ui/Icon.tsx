@@ -56,6 +56,15 @@ const TYPE_GLYPH: Record<string, React.ReactNode> = {
       <rect x="14.8" y="8.1" width="2.6" height="2.6" fill="currentColor" stroke="none" />
     </>
   ),
+  // ellipsis.circle — anything else (strength, mobility, drills…); metric-free
+  other: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <circle cx="7.8" cy="12" r="0.4" fill="currentColor" />
+      <circle cx="12" cy="12" r="0.4" fill="currentColor" />
+      <circle cx="16.2" cy="12" r="0.4" fill="currentColor" />
+    </>
+  ),
 }
 
 /** Per-type tints mirroring the athlete iOS app's TypeBadge (iOS system palette,

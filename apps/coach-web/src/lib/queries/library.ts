@@ -5,7 +5,7 @@ import type { LibraryWorkout, WorkoutType } from '../types'
 
 export interface LibraryDraft {
   type: WorkoutType; title: string; dist: number | null; pace: string | null
-  note: string | null; sets: [string, string][]
+  est_minutes: number | null; note: string | null; sets: [string, string][]
 }
 
 export async function fetchLibrary(client: SupabaseClient): Promise<LibraryWorkout[]> {

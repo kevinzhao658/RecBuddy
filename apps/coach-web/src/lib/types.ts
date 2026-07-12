@@ -1,5 +1,5 @@
 export type Role = 'coach' | 'athlete'
-export type WorkoutType = 'easy' | 'long' | 'speed' | 'tempo' | 'recovery' | 'cross' | 'rest' | 'race'
+export type WorkoutType = 'easy' | 'long' | 'speed' | 'tempo' | 'recovery' | 'cross' | 'rest' | 'race' | 'other'
 export type WorkoutStatus = 'done' | 'today' | 'planned' | 'missed' | 'rest'
 export type CoachTitle = 'Head Coach' | 'Assistant Coach' | 'Strength Coach' | 'Physio'
 
