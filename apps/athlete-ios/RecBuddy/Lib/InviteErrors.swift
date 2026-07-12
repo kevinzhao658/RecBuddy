@@ -7,9 +7,6 @@ import Supabase
 enum InviteErrors {
     static func friendly(_ error: Error) -> String {
         let msg = ((error as? PostgrestError)?.message ?? error.localizedDescription).lowercased()
-        if msg.contains("your own invite") {
-            return "That code came from your own coach account — ask another coach for theirs."
-        }
         if msg.contains("already used") {
             return "That code has already been used — ask your coach for a new one."
         }
