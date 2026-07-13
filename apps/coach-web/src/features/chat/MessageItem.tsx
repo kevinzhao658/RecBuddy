@@ -42,6 +42,7 @@ function RunCardView({ p, onOpen }: { p: RunCard; onOpen?: () => void }) {
           <span><span className="mb-0.5 block text-[10px] uppercase text-text-faint">Time</span>{p.time}</span>
         </div>
         {p.hr != null && <p className="mt-2.5 font-num text-xs text-text-faint">Avg HR {p.hr}</p>}
+        {p.note && <p className="mt-2.5 text-xs text-text-mute">“{p.note}”</p>}
       </div>
       {onOpen && <span className="text-text-faint" aria-hidden>›</span>}
     </button>
