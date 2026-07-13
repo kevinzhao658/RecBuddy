@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../../auth/AuthProvider'
 import { useThread, useMessages, useSendMessage, useSendImages, useMarkThreadRead, useRealtimeThread } from '../../lib/queries/chat'
+import { latestCardIds, supersededCardIds } from '../../lib/runcardRollup'
 import { useTeam } from '../../lib/queries/team'
 import { MessageItem, type Sender } from './MessageItem'
 
@@ -47,6 +48,12 @@ export function ChatPanel({ athleteId, athleteName, onClose, onOpenDay }: {
   useEffect(() => () => { stagedUrls.forEach((u) => URL.revokeObjectURL(u)) }, [stagedUrls])
   const scrollRef = useRef<HTMLDivElement>(null)
   const messages = messagesQ.data ?? []
+  // Re-shared cards for the same workout roll up into a placeholder that
+  // jumps to the newest card.
+  const superseded = useMemo(() => supersededCardIds(messages), [messages])
+  const latestCards = useMemo(() => latestCardIds(messages), [messages])
+  const jumpToMessage = (id: string) =>
+    document.getElementById(`msg-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
 
   // Resolve each from_user_id → name/initials: every coach on the team + the athlete.
   const senders: Record<string, Sender> = { [athleteId]: { name: athleteName, initials: initialsOf(athleteName) } }
@@ -110,9 +117,13 @@ export function ChatPanel({ athleteId, athleteName, onClose, onOpenDay }: {
             return (
               <Fragment key={m.id}>
                 {sep && <div className="my-3 text-center text-[11px] text-text-faint">{sessionLabel(m.created_at)}</div>}
-                <MessageItem m={m} mine={m.from_user_id === meId}
+                <MessageItem m={m} mine={m.from_user_id === meId} domId={`msg-${m.id}`}
                   sender={senders[m.from_user_id] ?? { name: 'Coach', initials: '·' }}
                   showName={startsBlock} showAvatar={showAvatar} grouped={!startsBlock}
+                  superseded={superseded.has(m.id)}
+                  onJumpToLatest={m.workout_id && latestCards.has(`${m.kind}:${m.workout_id}`)
+                    ? () => jumpToMessage(latestCards.get(`${m.kind}:${m.workout_id}`)!)
+                    : undefined}
                   onOpenWorkout={onOpenDay} />
               </Fragment>
             )

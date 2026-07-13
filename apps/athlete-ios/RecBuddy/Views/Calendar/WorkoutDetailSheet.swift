@@ -4,13 +4,16 @@ struct WorkoutDetailSheet: View {
     let workout: Workout
     let store: PlanStore
     let unit: Unit
+    /// Pre-fetched actual for workouts outside the store's loaded week —
+    /// the chat trace passes it so the logged-run section still renders.
+    var fetchedActual: WorkoutActual? = nil
     @Environment(\.dismiss) private var dismiss
     @State private var logOpen = false
     @State private var busy = false
     @State private var error: String?
 
     private var live: Workout { store.workoutsByDate[workout.date] ?? workout }
-    private var actual: WorkoutActual? { store.actualsByWorkout[workout.id] }
+    private var actual: WorkoutActual? { store.actualsByWorkout[workout.id] ?? fetchedActual }
 
     var body: some View {
         // NOTE: previously a ZStack with an ignoresSafeArea gradient overlay +
@@ -76,6 +79,12 @@ struct WorkoutDetailSheet: View {
             if live.type != "rest" {
                 VStack(spacing: 10) {
                     if live.status == "done" {
+                        // Edit in place — no unmark-and-relog needed to fix a note.
+                        if actual != nil {
+                            Button("Edit logged run") { logOpen = true }
+                                .buttonStyle(VoltButtonStyle())
+                                .disabled(busy)
+                        }
                         Button("Mark as not done") { Task { await setStatus("planned") } }
                             .buttonStyle(VoltButtonStyle(prominent: false))
                             .disabled(busy)
@@ -100,7 +109,9 @@ struct WorkoutDetailSheet: View {
         }
         .presentationDetents([.large])
         .sheet(isPresented: $logOpen) {
-            LogRunSheet(workout: live, store: store, unit: unit)
+            // Done + actual present -> edit that log; otherwise a fresh completion.
+            LogRunSheet(workout: live, store: store, unit: unit,
+                        existing: live.status == "done" ? actual : nil)
         }
     }
 

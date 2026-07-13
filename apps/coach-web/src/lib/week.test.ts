@@ -31,7 +31,7 @@ describe('month helpers', () => {
 })
 
 // ── Training-block week math ──────────────────────────────────────────────
-import { blockWeekOf, blockWeeks, blockLabel } from './week'
+import { blockWeekOf, blockWeeks, blockLabel, fmtDayDate } from './week'
 
 test('blockWeekOf counts 1-based weeks from the Monday of the start date', () => {
   expect(blockWeekOf('2026-06-29', '2026-06-29')).toBe(1)   // start monday itself
@@ -50,4 +50,9 @@ test('blockLabel follows the viewed week and clamps at the edges', () => {
   expect(blockLabel('2026-06-22', '2026-06-29', '2026-09-20')).toBe('Starts Jun 29')
   expect(blockLabel('2026-10-05', '2026-06-29', '2026-09-20')).toBe('Week 12 of 12')
   expect(blockLabel('2026-07-06', null, '2026-09-20')).toBeNull()
+})
+
+test('fmtDayDate prefixes the weekday', () => {
+  expect(fmtDayDate('2026-08-23')).toBe('Sun, Aug 23')
+  expect(fmtDayDate('2026-07-13')).toBe('Mon, Jul 13')
 })
