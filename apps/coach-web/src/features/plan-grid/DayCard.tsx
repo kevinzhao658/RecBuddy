@@ -24,7 +24,7 @@ export function DayCard({ workout, selected, onClick, onCopy }: {
   const ring = selected ? 'ring-2 ring-accent ring-offset-2 ring-offset-bg' : STATUS_RING[workout.status]
   return (
     <div onClick={(e) => { e.stopPropagation(); onClick() }}
-      className={`rb-card rb-card-sm flex cursor-pointer flex-col p-2 ${STATUS_BG[workout.status]} ${ring}`}>
+      className={`rb-card rb-card-sm flex h-full cursor-pointer flex-col p-2 ${STATUS_BG[workout.status]} ${ring}`}>
       <div className="mb-1 flex items-start justify-between gap-2">
         <div className="line-clamp-1 text-[14px] font-semibold leading-tight">{workout.title}</div>
         <TypeIcon type={workout.type} className="mt-0.5 shrink-0 text-text-mute" />

@@ -8,8 +8,9 @@ function DraggableWorkout({ workout, selected, onClick, onCopy }: {
   workout: Workout; selected: boolean; onClick: () => void; onCopy: () => void
 }) {
   const drag = useDraggable({ id: `w:${workout.id}` })
+  // flex-1 so a lone workout fills the cell; multiple share the height.
   return (
-    <div ref={drag.setNodeRef} {...drag.attributes} {...drag.listeners}>
+    <div ref={drag.setNodeRef} {...drag.attributes} {...drag.listeners} className="min-h-0 flex-1">
       <DayCard workout={workout} selected={selected} onClick={onClick} onCopy={onCopy} />
     </div>
   )
@@ -33,18 +34,33 @@ function DayCell({ date, dow, workouts, selectedId, onSelectWorkout, onCopy, can
       </div>
       <div ref={drop.setNodeRef}
         className={`flex min-h-[128px] flex-1 flex-col gap-1.5 rounded-[14px] transition ${isToday ? 'ring-2 ring-text' : ''} ${drop.isOver ? '-translate-y-0.5 ring-2 ring-accent shadow-[0_0_22px_rgba(173,255,47,0.35)]' : ''}`}>
-        {workouts.map((w) => (
-          <DraggableWorkout key={w.id} workout={w} selected={w.id === selectedId}
-            onClick={() => onSelectWorkout(date, w.id)} onCopy={() => onCopy(w)} />
-        ))}
-        <div className={`flex flex-1 flex-col items-center justify-center gap-1 rounded-[14px] py-2 text-text-faint ${workouts.length === 0 ? 'rb-card rb-card-sm border-dashed' : ''}`}>
-          {canPaste && (
-            <button aria-label="Paste workout" onClick={(e) => { e.stopPropagation(); onPaste(date) }}
-              className="text-sm text-accent hover:brightness-110">Paste</button>
-          )}
-          <button aria-label="Add workout" onClick={(e) => { e.stopPropagation(); onSelectWorkout(date, null) }}
-            className="hover:text-text">＋ Add</button>
-        </div>
+        {workouts.length === 0 ? (
+          // Empty day — the add card fills the cell.
+          <div className="rb-card rb-card-sm flex flex-1 flex-col items-center justify-center gap-1.5 rounded-[14px] border-dashed text-text-faint">
+            {canPaste && (
+              <button aria-label="Paste workout" onClick={(e) => { e.stopPropagation(); onPaste(date) }}
+                className="text-xs text-accent hover:brightness-110">Paste</button>
+            )}
+            <button aria-label="Add workout" onClick={(e) => { e.stopPropagation(); onSelectWorkout(date, null) }}
+              className="text-sm hover:text-text">＋ Add</button>
+          </div>
+        ) : (
+          <>
+            {workouts.map((w) => (
+              <DraggableWorkout key={w.id} workout={w} selected={w.id === selectedId}
+                onClick={() => onSelectWorkout(date, w.id)} onCopy={() => onCopy(w)} />
+            ))}
+            {/* Slim sliver so a single workout keeps the card; add another below. */}
+            <div className="flex shrink-0 items-center gap-1">
+              {canPaste && (
+                <button aria-label="Paste workout" onClick={(e) => { e.stopPropagation(); onPaste(date) }}
+                  className="rounded-[8px] border border-dashed border-line px-2 py-1 text-[11px] leading-none text-accent hover:brightness-110">Paste</button>
+              )}
+              <button aria-label="Add workout" onClick={(e) => { e.stopPropagation(); onSelectWorkout(date, null) }}
+                className="flex-1 rounded-[8px] border border-dashed border-line py-1 text-center text-[11px] leading-none text-text-faint transition hover:border-text-mute hover:text-text-mute">＋ Add</button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )
