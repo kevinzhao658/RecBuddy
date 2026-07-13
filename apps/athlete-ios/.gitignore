@@ -1,5 +1,7 @@
 RecBuddy.xcodeproj/
 Config.xcconfig
+Config.dev.xcconfig
+Config.prod.xcconfig
 DerivedData/
 .DS_Store
 RecBuddy/Info.plist

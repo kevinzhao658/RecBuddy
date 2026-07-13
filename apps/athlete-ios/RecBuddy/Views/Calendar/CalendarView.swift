@@ -2,6 +2,7 @@ import SwiftUI
 
 struct CalendarView: View {
     let profile: Profile
+    @Environment(SessionStore.self) private var session
     @State private var store = PlanStore()
     @State private var selected: Workout?
     @State private var accountOpen = false
@@ -26,6 +27,12 @@ struct CalendarView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     headerRow
                         .padding(.top, 12)
+
+                    // Coachless (e.g. removed from a roster): the plan stays
+                    // theirs — offer the re-attach path (Settings → Coaches).
+                    if session.hasCoach == false {
+                        noCoachBanner
+                    }
 
                     if store.weekPlannedMiles > 0 {
                         mileageBlock
@@ -60,11 +67,48 @@ struct CalendarView: View {
 
     // MARK: - Header
 
+    /// WEEK x OF y derived from the training block (start -> race) and the week
+    /// on screen; falls back to the stored counters when no start date is set.
+    private func weekLabel(_ plan: Plan) -> String {
+        if let start = plan.startDate, let goal = plan.goalDate {
+            let total = Week.blockWeeks(start: start, goal: goal)
+            let w = Week.blockWeek(monday: store.weekMonday, start: start)
+            if w < 1 { return "STARTS \(Week.fmtShortDate(start).uppercased())" }
+            return "WEEK \(min(w, total)) OF \(total)"
+        }
+        return "WEEK \(plan.planWeek) OF \(plan.planWeeks)"
+    }
+
+    /// Quiet banner shown when no coach is linked: the plan is theirs to keep;
+    /// adding a coach (Settings → Coaches, invite code) restores adjustments.
+    private var noCoachBanner: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "person.crop.circle.badge.questionmark")
+                .font(.system(size: 18))
+                .foregroundStyle(RB.accent)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("You're not connected to a coach")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                Text("Your plan is yours to keep. Add a coach with an invite code to get adjustments again.")
+                    .font(.caption)
+                    .foregroundStyle(RB.textMute)
+                Button("Add a coach") { accountOpen = true }
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(RB.accent)
+                    .padding(.top, 2)
+            }
+            Spacer()
+        }
+        .padding(14)
+        .rbCard()
+    }
+
     private var headerRow: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 4) {
                 if let plan = store.plan {
-                    RBLabel("WEEK \(plan.planWeek) OF \(plan.planWeeks)", color: RB.accent)
+                    RBLabel(weekLabel(plan), color: RB.accent)
                 }
                 Text("Your Plan")
                     .font(.largeTitle.bold())

@@ -3,10 +3,12 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabase } from '../supabase'
 import type { Actual } from '../types'
 
-/** The athlete's logged result for a workout (RLS: coach of the athlete can read). */
+/** The athlete's logged result for a workout (RLS: coach of the athlete can
+ *  read). Newest-first so any legacy duplicate rows resolve to the latest log. */
 export async function fetchActual(client: SupabaseClient, workoutId: string): Promise<Actual | null> {
   const { data, error } = await client.from('workout_actuals')
-    .select('*').eq('workout_id', workoutId).limit(1).maybeSingle()
+    .select('*').eq('workout_id', workoutId)
+    .order('recorded_at', { ascending: false }).limit(1).maybeSingle()
   if (error) throw error
   return (data as Actual) ?? null
 }

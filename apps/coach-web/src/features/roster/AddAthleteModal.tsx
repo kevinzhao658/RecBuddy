@@ -18,17 +18,18 @@ export function AddAthleteModal({ open, onClose }: { open: boolean; onClose: () 
   const [dist, setDist] = useState('')
   const [date, setDate] = useState('')
   const [time, setTime] = useState('')
+  const [start, setStart] = useState('')
   const [code, setCode] = useState<string | null>(null)
   const create = useCreateInvite()
 
   // Reset internal state on close so reopening starts fresh (avoids showing a
   // previously-generated code when reopened, incl. when closed via the backdrop).
   useEffect(() => {
-    if (!open) { setCode(null); setName(''); setRace(''); setDist(''); setDate(''); setTime('') }
+    if (!open) { setCode(null); setName(''); setRace(''); setDist(''); setDate(''); setTime(''); setStart('') }
   }, [open])
 
   const submit = () => create.mutate(
-    { athleteName: name, goalRace: race, goalDistance: dist, goalDate: date, goalTime: time },
+    { athleteName: name, goalRace: race, goalDistance: dist, goalDate: date, goalTime: time, startDate: start },
     { onSuccess: setCode },
   )
 
@@ -58,6 +59,17 @@ export function AddAthleteModal({ open, onClose }: { open: boolean; onClose: () 
 
           <div className="flex gap-2">
             <div className="flex-1">
+              <span className={eyebrow}>Training starts</span>
+              <input aria-label="Training start date" type="date" value={start} onChange={(e) => setStart(e.target.value)} className={`${field} w-full font-num`} />
+            </div>
+            <div className="flex-1">
+              <span className={eyebrow}>Race date</span>
+              <input aria-label="Goal date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className={`${field} w-full font-num`} />
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <div className="flex-1">
               <span className={eyebrow}>Distance</span>
               <select aria-label="Goal distance" value={dist} onChange={(e) => setDist(e.target.value)} className={`${field} w-full`}>
                 <option value="">—</option>
@@ -65,14 +77,9 @@ export function AddAthleteModal({ open, onClose }: { open: boolean; onClose: () 
               </select>
             </div>
             <div className="flex-1">
-              <span className={eyebrow}>Goal date</span>
-              <input aria-label="Goal date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className={`${field} w-full font-num`} />
+              <span className={eyebrow}>Goal time <span className="normal-case text-text-faint">(optional)</span></span>
+              <input aria-label="Goal time" value={time} onChange={(e) => setTime(e.target.value)} placeholder="1:48:00" className={`${field} w-full font-num`} />
             </div>
-          </div>
-
-          <div>
-            <span className={eyebrow}>Goal time <span className="normal-case text-text-faint">(optional)</span></span>
-            <input aria-label="Goal time" value={time} onChange={(e) => setTime(e.target.value)} placeholder="1:48:00" className={`${field} w-full font-num`} />
           </div>
 
           <Button disabled={!name || create.isPending} onClick={submit}>

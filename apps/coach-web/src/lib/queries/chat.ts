@@ -49,24 +49,28 @@ export function useSendMessage(threadId: string | null) {
  *  <thread_id>/<uuid>.jpg — first segment is the thread_id, which the storage
  *  policy uses to scope access to thread participants.  The path (not a public URL)
  *  is stored in the payload; callers exchange it for a signed URL at render time. */
-export async function sendImageMessage(client: SupabaseClient, threadId: string, file: File): Promise<void> {
+export async function sendImageMessages(client: SupabaseClient, threadId: string, files: File[], body?: string): Promise<void> {
   const { data: me } = await client.auth.getUser()
   const uid = me.user!.id
-  const { blob, w, h } = await compressImage(file)
-  const path = `${threadId}/${crypto.randomUUID()}.jpg`
-  const { error: upErr } = await client.storage
-    .from('chat-images')
-    .upload(path, blob, { contentType: 'image/jpeg' })
-  if (upErr) throw upErr
-  const { error } = await client.from('messages')
-    .insert({ thread_id: threadId, from_user_id: uid, kind: 'image', payload: { path, w, h } })
-  if (error) throw error
+  for (let i = 0; i < files.length; i++) {
+    const { blob, w, h } = await compressImage(files[i])
+    const path = `${threadId}/${crypto.randomUUID()}.jpg`
+    const { error: upErr } = await client.storage
+      .from('chat-images')
+      .upload(path, blob, { contentType: 'image/jpeg' })
+    if (upErr) throw upErr
+    // The caption rides on the LAST image so it reads beneath the batch.
+    const caption = i === files.length - 1 ? body || null : null
+    const { error } = await client.from('messages')
+      .insert({ thread_id: threadId, from_user_id: uid, kind: 'image', body: caption, payload: { path, w, h } })
+    if (error) throw error
+  }
   await client.from('message_threads').update({ updated_at: new Date().toISOString() }).eq('id', threadId)
 }
-export function useSendImage(threadId: string | null) {
+export function useSendImages(threadId: string | null) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (file: File) => sendImageMessage(supabase, threadId!, file),
+    mutationFn: (v: { files: File[]; body?: string }) => sendImageMessages(supabase, threadId!, v.files, v.body),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['messages', threadId] }),
   })
 }

@@ -4,17 +4,48 @@ import UIKit
 
 struct ChatView: View {
     let profile: Profile
+    @Environment(SessionStore.self) private var session
     @State private var store = ChatStore()
     @State private var draft = ""
     @State private var busy = false
     @State private var sendError: String?
-    @State private var imageItem: PhotosPickerItem?
+    @State private var imageItems: [PhotosPickerItem] = []
+    // Picked photos are STAGED (with previews) so a caption can be typed
+    // before sending — nothing uploads until the send button. Capped at maxPhotos.
+    @State private var staged: [StagedImage] = []
+    private static let maxPhotos = 6
 
-    // ── Coach resolved from thread ─────────────────────────────────────────
+    // Workout trace: tapping a workout/runcard reference opens the detail
+    // sheet (prescribed + logged run) for that workout.
+    @State private var traceWorkout: Workout?
+    @State private var traceActual: WorkoutActual?
+    @State private var tracePlanStore = PlanStore()
+    @AppStorage("unit") private var unitRaw = "mi"
+    private var unit: Unit { Unit(rawValue: unitRaw) ?? .mi }
 
-    private var coach: Profile? {
-        guard let coachId = store.thread?.coachId else { return nil }
-        return store.senders[coachId]
+    private struct StagedImage: Identifiable {
+        let id = UUID()
+        let data: Data; let w: Int; let h: Int; let preview: UIImage
+    }
+
+    // ── Coaching team (head first, via get_team) ───────────────────────────
+
+    private var team: [ChatSender] { store.team }
+
+    /// Chat title = the other members' names (never the athlete's own):
+    /// "Sarah" / "Sarah & Mike" / "Sarah, Mike & Dana".
+    private var chatTitle: String {
+        let names = team.map(\.name)
+        switch names.count {
+        case 0:  return "Coach"
+        case 1:  return names[0]
+        case 2:  return "\(names[0]) & \(names[1])"
+        default: return names.dropLast().joined(separator: ", ") + " & " + names.last!
+        }
+    }
+
+    private var chatSubtitle: String {
+        team.count > 1 ? "Your coaching team" : (team.first?.title ?? "Head Coach")
     }
 
     // ── Session-separator helpers ──────────────────────────────────────────
@@ -77,6 +108,31 @@ struct ChatView: View {
                !Calendar.current.isDate(cur, inSameDayAs: prev)
     }
 
+    /// Re-shared cards for the same workout (re-logged runs, re-shared
+    /// prescriptions) roll up: only the NEWEST per kind+workout renders as a
+    /// full card; older ones become a compact placeholder. Same-kind only —
+    /// a result never rolls up a prescription. Legacy cards (no workout_id)
+    /// are never rolled up.
+    /// "kind:workoutId" -> newest card message id (the placeholder's jump target).
+    private var latestCardIds: [String: String] {
+        var latest: [String: String] = [:]
+        for m in store.messages {
+            guard m.kind == "runcard" || m.kind == "workout", let w = m.workoutId else { continue }
+            latest["\(m.kind):\(w)"] = m.id
+        }
+        return latest
+    }
+
+    private var supersededIds: Set<String> {
+        let latest = latestCardIds
+        var out = Set<String>()
+        for m in store.messages {
+            guard m.kind == "runcard" || m.kind == "workout", let w = m.workoutId else { continue }
+            if latest["\(m.kind):\(w)"] != m.id { out.insert(m.id) }
+        }
+        return out
+    }
+
     private var chatItems: [ChatItem] {
         let msgs = store.messages
         var items: [ChatItem] = []
@@ -113,6 +169,25 @@ struct ChatView: View {
                         alignment: .bottom
                     )
 
+                if store.phase == .noCoach {
+                    // No coach linked (removed from a roster, or not joined yet):
+                    // chat needs a coach — point at the re-attach path.
+                    Spacer()
+                    VStack(spacing: 10) {
+                        Image(systemName: "bubble.left.and.exclamationmark.bubble.right")
+                            .font(.system(size: 34))
+                            .foregroundStyle(RB.textFaint)
+                        Text("No coach to message yet")
+                            .font(.headline)
+                            .foregroundStyle(.white)
+                        Text("Chat opens once you're connected to a coach. Add one with an invite code in Settings → Coaches.")
+                            .font(.subheadline)
+                            .foregroundStyle(RB.textMute)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(.horizontal, 40)
+                    Spacer()
+                } else {
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(spacing: 4) {
@@ -146,7 +221,14 @@ struct ChatView: View {
                                         showAvatar: showAvatar && m.fromUserId != profile.id,
                                         senderAvatarUrl: m.fromUserId != profile.id
                                             ? store.senders[m.fromUserId]?.avatarUrl : nil,
-                                        grouped: !startsBlock
+                                        grouped: !startsBlock,
+                                        superseded: supersededIds.contains(m.id),
+                                        onJumpToLatest: m.workoutId.flatMap { w in
+                                            latestCardIds["\(m.kind):\(w)"].map { target in
+                                                { withAnimation { proxy.scrollTo(target, anchor: .center) } }
+                                            }
+                                        },
+                                        onOpenWorkout: { id in Task { await openTrace(id) } }
                                     )
                                     .id(m.id)
                                 }
@@ -185,53 +267,71 @@ struct ChatView: View {
                         Rectangle().fill(RB.line).frame(height: 1),
                         alignment: .top
                     )
+                }
             }
         }
-        .task { await store.open(athleteId: profile.id) }
+        // Re-opens when a coach is added/removed (hasCoach flips) so the
+        // no-coach empty state and a fresh thread appear without a relaunch.
+        .task(id: session.hasCoach) { await store.open(athleteId: profile.id) }
         .onDisappear { Task { await store.close() } }
-        .onChange(of: imageItem) { _, newItem in
-            guard let newItem else { return }
-            Task { await sendImageFromPicker(newItem) }
+        .sheet(item: $traceWorkout) { w in
+            WorkoutDetailSheet(workout: w, store: tracePlanStore, unit: unit,
+                               fetchedActual: traceActual)
+        }
+        .onChange(of: imageItems) { _, newItems in
+            guard !newItems.isEmpty else { return }
+            Task { await stageImagesFromPicker(newItems) }
         }
     }
 
     // ── Custom header ──────────────────────────────────────────────────────
 
-    private var initialsCircle: some View {
+    /// One member avatar — photo when set (public avatars bucket), else
+    /// initials. A bg-colored ring separates avatars in the overlap stack.
+    private func memberAvatar(_ m: ChatSender) -> some View {
         ZStack {
             Circle()
                 .fill(RB.surface2)
                 .frame(width: 36, height: 36)
-            Text(coach?.initials ?? "?")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(.white)
+            if let url = m.avatarUrl.flatMap(URL.init(string:)) {
+                AsyncImage(url: url) { image in
+                    image.resizable().scaledToFill()
+                } placeholder: {
+                    Text(m.initials).font(.caption.weight(.bold)).foregroundStyle(.white)
+                }
+                .frame(width: 36, height: 36)
+                .clipShape(Circle())
+            } else {
+                Text(m.initials).font(.caption.weight(.bold)).foregroundStyle(.white)
+            }
         }
+        .overlay(Circle().stroke(RB.bg, lineWidth: 2))
     }
 
     private var chatHeader: some View {
         HStack(spacing: 12) {
-            // Coach avatar — photo when set (public avatars bucket), else initials
-            Group {
-                if let url = coach?.avatarUrl.flatMap(URL.init(string:)) {
-                    AsyncImage(url: url) { image in
-                        image.resizable().scaledToFill()
-                    } placeholder: {
-                        initialsCircle
+            // Overlapping avatar stack — every team member (up to three shown)
+            HStack(spacing: -10) {
+                if team.isEmpty {
+                    ZStack {
+                        Circle().fill(RB.surface2).frame(width: 36, height: 36)
+                        Text("?").font(.caption.weight(.bold)).foregroundStyle(.white)
                     }
-                    .frame(width: 36, height: 36)
-                    .clipShape(Circle())
                 } else {
-                    initialsCircle
+                    ForEach(team.prefix(3), id: \.coachId) { m in
+                        memberAvatar(m)
+                    }
                 }
             }
             .accessibilityHidden(true)
 
-            // Coach name + role
+            // Member names + role line
             VStack(alignment: .leading, spacing: 2) {
-                Text(coach?.name ?? "Coach")
+                Text(chatTitle)
                     .font(.subheadline.weight(.bold))
                     .foregroundStyle(.white)
-                Text(coach?.title ?? "Head Coach")
+                    .lineLimit(1)
+                Text(chatSubtitle)
                     .font(.caption)
                     .foregroundStyle(RB.accent)
             }
@@ -239,51 +339,90 @@ struct ChatView: View {
             Spacer()
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(coach?.name ?? "Coach"), \(coach?.title ?? "Head Coach")")
+        .accessibilityLabel("\(chatTitle), \(chatSubtitle)")
     }
 
     // ── Input bar ─────────────────────────────────────────────────────────
 
+    /// Nothing to send: no staged photos and an empty draft.
+    private var sendDisabled: Bool {
+        busy || (staged.isEmpty && draft.trimmingCharacters(in: .whitespaces).isEmpty)
+    }
+
     private var inputBar: some View {
-        HStack(spacing: 8) {
-            PhotosPicker(selection: $imageItem, matching: .images) {
-                Image(systemName: "photo")
-                    .font(.system(size: 20))
-                    .foregroundStyle(busy ? RB.textFaint : RB.textMute)
-            }
-            .disabled(busy)
-            .accessibilityLabel("Send image")
-
-            TextField("Message your coach…", text: $draft, axis: .vertical)
-                .lineLimit(1...4)
-                .foregroundStyle(.white)
-                .tint(RB.accent)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(RB.surface2)
-                .clipShape(RoundedRectangle(cornerRadius: 20))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20).stroke(RB.line, lineWidth: 1)
-                )
-
-            // Volt lime send button
-            Button {
-                Task { await send() }
-            } label: {
-                ZStack {
-                    Circle()
-                        .fill(busy || draft.trimmingCharacters(in: .whitespaces).isEmpty
-                              ? RB.surface2 : RB.accent)
-                        .frame(width: 36, height: 36)
-                    Image(systemName: "arrow.up")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(
-                            busy || draft.trimmingCharacters(in: .whitespaces).isEmpty
-                            ? RB.textMute : RB.onAccent)
+        VStack(alignment: .leading, spacing: 8) {
+            // Staged photo previews — remove any, caption once, then send
+            if !staged.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(staged) { photo in
+                            Image(uiImage: photo.preview)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 56, height: 56)
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                                .overlay(alignment: .topTrailing) {
+                                    Button { staged.removeAll { $0.id == photo.id } } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .font(.system(size: 18))
+                                            .symbolRenderingMode(.palette)
+                                            .foregroundStyle(.white, RB.surface2)
+                                    }
+                                    .offset(x: 7, y: -7)
+                                    .accessibilityLabel("Remove attachment")
+                                }
+                        }
+                    }
+                    .padding(.top, 8)
+                    .padding(.trailing, 8)
                 }
+                Text(staged.count == 1
+                     ? "Photo attached — add a caption, then send."
+                     : "\(staged.count) photos attached — add a caption, then send.")
+                    .font(.caption)
+                    .foregroundStyle(RB.textFaint)
             }
-            .disabled(busy || draft.trimmingCharacters(in: .whitespaces).isEmpty)
-            .accessibilityLabel("Send message")
+
+            HStack(spacing: 8) {
+                PhotosPicker(selection: $imageItems,
+                             maxSelectionCount: Self.maxPhotos - staged.count,
+                             matching: .images) {
+                    Image(systemName: "photo")
+                        .font(.system(size: 20))
+                        .foregroundStyle(busy || staged.count >= Self.maxPhotos ? RB.textFaint : RB.textMute)
+                }
+                .disabled(busy || staged.count >= Self.maxPhotos)
+                .accessibilityLabel("Attach photos")
+
+                TextField(staged.isEmpty ? "Message your coach…" : "Add a caption…",
+                          text: $draft, axis: .vertical)
+                    .lineLimit(1...4)
+                    .foregroundStyle(.white)
+                    .tint(RB.accent)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(RB.surface2)
+                    .clipShape(RoundedRectangle(cornerRadius: 20))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 20).stroke(RB.line, lineWidth: 1)
+                    )
+
+                // Volt lime send button
+                Button {
+                    Task { await send() }
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill(sendDisabled ? RB.surface2 : RB.accent)
+                            .frame(width: 36, height: 36)
+                        Image(systemName: "arrow.up")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(sendDisabled ? RB.textMute : RB.onAccent)
+                    }
+                }
+                .disabled(sendDisabled)
+                .accessibilityLabel("Send message")
+            }
         }
     }
 
@@ -291,32 +430,68 @@ struct ChatView: View {
 
     private func send() async {
         let body = draft.trimmingCharacters(in: .whitespaces)
-        guard !body.isEmpty else { return }
         busy = true
         sendError = nil
         defer { busy = false }
         do {
-            try await store.send(body, from: profile.id)
-            draft = ""  // clear only on success — a failed send keeps the text
+            if !staged.isEmpty {
+                // Photos upload sequentially; the caption rides on the LAST one
+                // so it reads beneath the batch. Sent photos leave the tray as
+                // they go — a mid-batch failure keeps only the unsent ones.
+                let batch = staged
+                for (i, photo) in batch.enumerated() {
+                    let caption = i == batch.count - 1 && !body.isEmpty ? body : nil
+                    try await store.sendImage(photo.data, width: photo.w, height: photo.h,
+                                              from: profile.id, body: caption)
+                    staged.removeAll { $0.id == photo.id }
+                }
+                draft = ""
+            } else {
+                guard !body.isEmpty else { return }
+                try await store.send(body, from: profile.id)
+                draft = ""  // clear only on success — a failed send keeps the text
+            }
         } catch {
             sendError = "Couldn't send — try again."
         }
     }
 
-    private func sendImageFromPicker(_ item: PhotosPickerItem) async {
-        busy = true
+    /// Fetch the referenced workout (and its logged actual, if any) and open
+    /// the detail sheet — the same results-vs-prescribed view as the calendar.
+    private func openTrace(_ workoutId: String) async {
         sendError = nil
-        defer { busy = false; imageItem = nil }
-        do {
-            guard let rawData = try await item.loadTransferable(type: Data.self),
+        let rows: [Workout] = (try? await Supa.shared.from("workouts")
+            .select().eq("id", value: workoutId).limit(1).execute().value) ?? []
+        guard let w = rows.first else {
+            sendError = "Couldn't open that workout — it may have been removed."
+            return
+        }
+        let actuals: [WorkoutActual] = (try? await Supa.shared.from("workout_actuals")
+            .select().eq("workout_id", value: workoutId).limit(1).execute().value) ?? []
+        traceActual = actuals.first
+        traceWorkout = w
+    }
+
+    /// Load + downscale the picked photos and hold them in the composer; the
+    /// user adds a caption (optional) and sends explicitly.
+    private func stageImagesFromPicker(_ items: [PhotosPickerItem]) async {
+        sendError = nil
+        defer { imageItems = [] }
+        var failed = 0
+        for item in items {
+            guard staged.count < Self.maxPhotos else { break }
+            guard let rawData = try? await item.loadTransferable(type: Data.self),
                   let uiImage = UIImage(data: rawData),
-                  let (jpegData, w, h) = ImageShrink.jpegForChat(uiImage) else {
-                sendError = "Couldn't process the image."
-                return
+                  let (jpegData, w, h) = ImageShrink.jpegForChat(uiImage),
+                  let preview = UIImage(data: jpegData) else {
+                failed += 1
+                continue
             }
-            try await store.sendImage(jpegData, width: w, height: h, from: profile.id)
-        } catch {
-            sendError = "Couldn't send — try again."
+            staged.append(StagedImage(data: jpegData, w: w, h: h, preview: preview))
+        }
+        if failed > 0 {
+            sendError = failed == 1 ? "Couldn't process one of the images."
+                                    : "Couldn't process \(failed) of the images."
         }
     }
 }

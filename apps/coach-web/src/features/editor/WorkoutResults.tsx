@@ -114,7 +114,6 @@ export function WorkoutResults({ workout, onClose }: { workout: Workout; onClose
                 dur: workout.dur,
               }}
               onChange={() => {}}
-              showEstimate
               disabled
             />
             <p className="text-xs text-text-faint">Completed workouts can't be edited.</p>

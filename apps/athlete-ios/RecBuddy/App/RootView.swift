@@ -19,15 +19,81 @@ struct RootView: View {
         case .signedOut:
             AuthFlowView()
         case .wrongRole:
-            VStack(spacing: 12) {
-                Text("RecBuddy for athletes").font(.title2.bold())
-                Text("This account is a coach account — coaches use the web app. Sign in with an athlete account.")
-                    .multilineTextAlignment(.center).foregroundStyle(.secondary)
-                Button("Sign out") { Task { await session.signOut() } }
-            }
-            .padding(32)
+            CoachJoinAsAthleteView()
         case .athlete(let profile):
             MainTabs(profile: profile)
+        }
+    }
+}
+
+/// A coach-only account signed into the athlete app. Dual-role: redeeming an
+/// athlete invite code here grants the athlete role (roles add, never replace),
+/// after which the tabs open like any athlete.
+struct CoachJoinAsAthleteView: View {
+    @Environment(SessionStore.self) private var session
+    @State private var code = ""
+    @State private var busy = false
+    @State private var error: String?
+
+    /// Show why an auto-redeem (queued from the signup wizard) failed, then
+    /// clear it so the message doesn't reappear on the next visit.
+    private func adoptRedeemNotice() {
+        if let notice = session.redeemNotice {
+            error = notice
+            session.clearRedeemNotice()
+        }
+    }
+
+    var body: some View {
+        ZStack {
+            RB.bg.ignoresSafeArea()
+            VStack(spacing: 14) {
+                Text("RecBuddy for athletes")
+                    .font(.title2.bold())
+                    .foregroundStyle(.white)
+                Text("This account is a coach account — coaches use the web app. To train here too, redeem an invite code from your own coach.")
+                    .multilineTextAlignment(.center)
+                    .font(.subheadline)
+                    .foregroundStyle(RB.textMute)
+
+                TextField("Invite code", text: $code)
+                    .textInputAutocapitalization(.characters)
+                    .autocorrectionDisabled()
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(RB.surface2)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(RB.line, lineWidth: 1))
+                    .accessibilityLabel("Invite code")
+
+                if let error {
+                    Text(error).font(.footnote).foregroundStyle(.red)
+                }
+
+                Button(busy ? "Joining…" : "Join as an athlete") { Task { await join() } }
+                    .buttonStyle(VoltButtonStyle())
+                    .disabled(busy || code.trimmingCharacters(in: .whitespaces).isEmpty)
+
+                Button("Sign out") { Task { await session.signOut() } }
+                    .font(.footnote)
+                    .foregroundStyle(RB.textMute)
+            }
+            .padding(32)
+        }
+        .onAppear { adoptRedeemNotice() }
+    }
+
+    private func join() async {
+        busy = true; error = nil
+        defer { busy = false }
+        do {
+            let trimmed = code.trimmingCharacters(in: .whitespaces).uppercased()
+            try await Supa.shared.rpc("redeem_invite", params: ["p_code": trimmed]).execute()
+            await session.refreshProfile()   // is_athlete now set → tabs open
+        } catch {
+            self.error = InviteErrors.friendly(error)
         }
     }
 }

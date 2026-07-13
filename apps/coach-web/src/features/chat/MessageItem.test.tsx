@@ -22,6 +22,34 @@ test('renders a run card with its stats', () => {
   expect(screen.getByText(/152/)).toBeInTheDocument()
 })
 
+test('a run card with a date shows day+date and opens that day on click', () => {
+  const onOpenWorkout = vi.fn()
+  render(<MessageItem mine={false} onOpenWorkout={onOpenWorkout}
+    m={{ ...base, kind: 'runcard', body: null, workout_id: 'w3', payload: { title: 'Tempo 5 mi', dist: '5 mi', pace: '8:10/mi', time: '40:50', hr: 160, date: '2026-08-23', type: 'tempo', note: 'Legs felt heavy' } } as any} />)
+  expect(screen.getByText(/Sun, Aug 23/)).toBeInTheDocument()
+  expect(screen.getByText(/Legs felt heavy/)).toBeInTheDocument()  // athlete's comment visible to the coach
+  fireEvent.click(screen.getByText('Tempo 5 mi'))
+  expect(onOpenWorkout).toHaveBeenCalledWith('2026-08-23')
+})
+
+test('a superseded card rolls up into a placeholder that jumps to the newest card', () => {
+  const onJumpToLatest = vi.fn()
+  render(<MessageItem mine={false} superseded onJumpToLatest={onJumpToLatest}
+    m={{ ...base, kind: 'runcard', body: null, workout_id: 'w1', payload: { title: 'Long Run', dist: '14 mi', pace: '9:00/mi', time: '2:06:00', hr: 150, date: '2026-07-12', type: 'long' } } as any} />)
+  expect(screen.getByText(/log updated below/)).toBeInTheDocument()
+  expect(screen.queryByText('14 mi')).toBeNull()          // full stats hidden
+  fireEvent.click(screen.getByText(/Long Run/))
+  expect(onJumpToLatest).toHaveBeenCalled()                // scrolls to the latest card
+})
+
+test('a legacy run card without a date is not clickable', () => {
+  const onOpenWorkout = vi.fn()
+  render(<MessageItem mine={false} onOpenWorkout={onOpenWorkout}
+    m={{ ...base, kind: 'runcard', body: null, payload: { title: 'Old Run', dist: '3 mi', pace: '9:00/mi', time: '27:00', hr: 140 } } as any} />)
+  fireEvent.click(screen.getByText('Old Run'))
+  expect(onOpenWorkout).not.toHaveBeenCalled()
+})
+
 test('renders an adjust card with from/to/reason', () => {
   render(<MessageItem mine={true} m={{ ...base, kind: 'adjust', body: null, payload: { from: '6 × 400m', to: '5 × 800m', reason: 'threshold' } } as any} />)
   expect(screen.getByText('6 × 400m')).toBeInTheDocument()
@@ -48,6 +76,14 @@ test('renders an image message via signed URL when path is provided', () => {
   expect(img).toHaveStyle('aspect-ratio: 1280/720')
   // The wrapping anchor must also point at the signed URL
   expect(screen.getByRole('link')).toHaveAttribute('href', 'https://signed.example.com/img.jpg')
+})
+
+test('renders an image caption below the photo when body is set', () => {
+  vi.mocked(chatQueries.useSignedImageUrl).mockReturnValue({ data: 'https://signed.example.com/img.jpg' } as any)
+  render(<MessageItem mine={true}
+    m={{ ...base, kind: 'image', body: 'Post-run view from the ridge', payload: { path: 'thread-1/abc.jpg', w: 1280, h: 720 } } as any} />)
+  expect(screen.getByRole('img')).toBeInTheDocument()
+  expect(screen.getByText('Post-run view from the ridge')).toBeInTheDocument()
 })
 
 test('renders nothing for a legacy javascript: url (XSS guard)', () => {

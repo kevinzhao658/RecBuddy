@@ -5,7 +5,7 @@ import { Button } from '../../components/ui/Button'
 import { WorkoutFields, type WorkoutFieldsDraft } from '../../components/ui/WorkoutFields'
 
 /** Full-panel library create/edit — the same view as editing a workout on a day
- *  (`WorkoutEditor`), minus the date/share/est-time bits the library has no use for. */
+ *  (`WorkoutEditor`), minus the date/share bits the library has no use for. */
 export function LibraryEditor({ initial, busy, onSave, onCancel, onDelete }: {
   initial?: LibraryWorkout | null; busy?: boolean
   onSave: (d: LibraryDraft) => void; onCancel: () => void; onDelete?: () => void
@@ -13,6 +13,7 @@ export function LibraryEditor({ initial, busy, onSave, onCancel, onDelete }: {
   const [d, setD] = useState<WorkoutFieldsDraft>(() => ({
     type: initial?.type ?? 'easy', title: initial?.title ?? '',
     dist: initial?.dist ?? null, pace: initial?.pace ?? null,
+    est_minutes: initial?.est_minutes ?? null,
     note: initial?.note ?? '', sets: initial?.sets ?? [],
   }))
   const set = (patch: Partial<WorkoutFieldsDraft>) => setD({ ...d, ...patch })
@@ -20,7 +21,8 @@ export function LibraryEditor({ initial, busy, onSave, onCancel, onDelete }: {
     if (!d.title.trim()) return
     onSave({
       type: d.type, title: d.title.trim(),
-      dist: d.dist, pace: d.pace?.trim() || null, note: d.note.trim() || null,
+      dist: d.dist, pace: d.pace?.trim() || null, est_minutes: d.est_minutes ?? null,
+      note: d.note.trim() || null,
       sets: d.sets.filter(([a, b]) => a.trim() || b.trim()),
     })
   }

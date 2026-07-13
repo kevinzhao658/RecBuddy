@@ -13,7 +13,7 @@ export function usePendingInvites() {
 }
 export interface InviteDraft {
   athleteName: string; goalRace?: string | null; goalDistance?: string | null
-  goalDate?: string | null; goalTime?: string | null
+  goalDate?: string | null; goalTime?: string | null; startDate?: string | null
 }
 export function useCreateInvite() {
   const qc = useQueryClient()
@@ -25,6 +25,7 @@ export function useCreateInvite() {
         p_goal_distance: draft.goalDistance || null,
         p_goal_date: draft.goalDate || null,
         p_goal_time: draft.goalTime || null,
+        p_start_date: draft.startDate || null,
       })
       if (error) throw error
       return data as string

@@ -42,8 +42,32 @@ Deno.serve(async (req) => {
     const { data, error } = await admin.auth.admin.createUser({
       email, password, email_confirm: false, user_metadata: { name },
     })
-    if (error) return json({ error: error.message }, 400)
-    const { error: pErr } = await admin.from('profiles').update({ role: 'coach', title }).eq('id', data.user!.id)
+    if (error) {
+      // Dual-role: the email may already belong to an athlete account. Verify
+      // OWNERSHIP by signing in with the submitted password, then ADD the coach
+      // role (is_coach) — the athlete role is kept, roles add, never replace.
+      if (/already|exists|registered/i.test(error.message)) {
+        const anon = createClient(
+          Deno.env.get('SUPABASE_URL')!,
+          Deno.env.get('SUPABASE_ANON_KEY')!,
+          { auth: { autoRefreshToken: false, persistSession: false } },
+        )
+        const { data: owned, error: sErr } = await anon.auth.signInWithPassword({ email, password })
+        if (sErr || !owned.user) {
+          return json({ error: 'An account with this email already exists — enter that account’s password to add coaching to it.' }, 400)
+        }
+        const { error: prErr } = await admin.from('profiles')
+          .update({ is_coach: true, title }).eq('id', owned.user.id)
+        if (prErr) return json({ error: prErr.message }, 400)
+        return json({ id: owned.user.id, promoted: true }, 200)
+      }
+      return json({ error: error.message }, 400)
+    }
+    // Fresh account created via COACH signup: coach-only (the profile trigger
+    // defaults new users to athlete; flip the flags to match the entry point —
+    // they gain is_athlete later by redeeming an invite).
+    const { error: pErr } = await admin.from('profiles')
+      .update({ role: 'coach', title, is_coach: true, is_athlete: false }).eq('id', data.user!.id)
     if (pErr) {
       await admin.auth.admin.deleteUser(data.user!.id)
       return json({ error: pErr.message }, 400)

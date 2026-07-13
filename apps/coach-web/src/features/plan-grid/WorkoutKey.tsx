@@ -3,7 +3,7 @@ import { TypeIcon } from '../../components/ui/Icon'
 
 const TYPES: [WorkoutType, string][] = [
   ['easy', 'Easy'], ['long', 'Long'], ['speed', 'Intervals'], ['tempo', 'Tempo'],
-  ['recovery', 'Recovery'], ['cross', 'Cross-train'], ['rest', 'Rest'],
+  ['recovery', 'Recovery'], ['cross', 'Cross-train'], ['rest', 'Rest'], ['other', 'Other'],
 ]
 
 /** Decode key: type icon → name, and the completion-status colors. */

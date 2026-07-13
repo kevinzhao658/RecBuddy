@@ -6,9 +6,19 @@ import Supabase
 private struct InvitePreview: Decodable {
     let coachName: String
     let coachInitials: String
+    let athleteName: String?
+    let goalRace: String?
+    let goalDistance: String?
+    let goalDate: String?
+    let goalTime: String?
     enum CodingKeys: String, CodingKey {
         case coachName = "coach_name"
         case coachInitials = "coach_initials"
+        case athleteName = "athlete_name"
+        case goalRace = "goal_race"
+        case goalDistance = "goal_distance"
+        case goalDate = "goal_date"
+        case goalTime = "goal_time"
     }
 }
 
@@ -92,30 +102,46 @@ private struct GoalChip: View {
 // MARK: - Main wizard
 
 struct InviteFlowView: View {
+    /// true (default): code-FIRST registration — the invite auto-populates the
+    /// athlete's details. false: the codeless route — the athlete signs up solo
+    /// and enters a coach code later (Settings → Coaches).
+    var requireCode: Bool = true
+
     @Environment(SessionStore.self) private var session
     @Environment(\.dismiss) private var dismiss
 
-    // Wizard navigation
-    @State private var step = 1          // 1, 2, or 3
-    @State private var sent = false      // shows confirmation screen
+    // Wizard navigation — ordered step kinds; the code step leads when present.
+    private enum StepKind { case code, account, running }
+    private var kinds: [StepKind] { requireCode ? [.code, .account, .running] : [.account, .running] }
+    private var totalSteps: Int { kinds.count }
+    private var currentKind: StepKind { kinds[step - 1] }
+    @State private var step = 1
+    @State private var sent = false             // shows check-your-email screen
+    @State private var existingAccount = false  // shows already-registered screen
 
-    // Step 1 — credentials
+    // Account step — credentials
     @State private var name = ""
     @State private var email = ""
     @State private var password = ""
 
-    // Step 2 — running profile
+    // Running step — profile
     // DB enum: athlete_level = 'new'|'returning'|'experienced'|'competitive'
     @State private var experienceLevel: String? = nil
     // DB enum: athlete_goal  = 'fit'|'first-race'|'pr'|'distance'
     @State private var primaryGoal: String? = nil
+    // Goal race NAME — prefilled from the invite; the athlete's edit wins
+    // (applied after redeem via update_my_goal).
+    @State private var goalRace = ""
 
-    // Step 3 — invite code
+    // Code step — invite code + resolved preview
     @State private var code = ""
     @State private var coachName = ""
     @State private var coachInitials = ""
     @State private var codeResolved = false
     @State private var resolveTask: Task<Void, Never>?
+    // Goal captured on the invite (coach's defaults; seeds the plan at redeem)
+    @State private var inviteGoalRace: String? = nil
+    @State private var inviteGoalSummary: String? = nil
 
     // Shared
     @State private var busy = false
@@ -123,13 +149,20 @@ struct InviteFlowView: View {
 
     // ── Computed validity ──────────────────────────────────────────────────
 
-    private var step1Valid: Bool {
+    private var accountValid: Bool {
         !name.trimmingCharacters(in: .whitespaces).isEmpty &&
         !email.trimmingCharacters(in: .whitespaces).isEmpty &&
         password.count >= 6
     }
-    private var step2Valid: Bool { experienceLevel != nil && primaryGoal != nil }
-    private var step3Valid: Bool { codeResolved }
+    private var runningValid: Bool { experienceLevel != nil && primaryGoal != nil }
+    private var codeValid: Bool { codeResolved }
+    private var currentStepValid: Bool {
+        switch currentKind {
+        case .code:    return codeValid
+        case .account: return accountValid
+        case .running: return runningValid
+        }
+    }
 
     // ── Body ───────────────────────────────────────────────────────────────
 
@@ -137,7 +170,9 @@ struct InviteFlowView: View {
         ZStack {
             RB.bg.ignoresSafeArea()
 
-            if sent {
+            if existingAccount {
+                existingAccountScreen
+            } else if sent {
                 sentScreen
             } else {
                 VStack(spacing: 0) {
@@ -180,14 +215,14 @@ struct InviteFlowView: View {
             .accessibilityLabel("Back")
 
             HStack(spacing: 4) {
-                ForEach(1...3, id: \.self) { i in
+                ForEach(1...totalSteps, id: \.self) { i in
                     Capsule()
                         .fill(i <= step ? RB.accent : RB.surface2)
                         .frame(height: 4)
                 }
             }
 
-            Text("\(step)/3")
+            Text("\(step)/\(totalSteps)")
                 .font(.caption)
                 .foregroundStyle(RB.textMute)
                 .frame(width: 28, alignment: .trailing)
@@ -198,19 +233,21 @@ struct InviteFlowView: View {
 
     @ViewBuilder
     private var stepContent: some View {
-        switch step {
-        case 1:  step1View
-        case 2:  step2View
-        default: step3View
+        switch currentKind {
+        case .code:    codeStepView
+        case .account: accountStepView
+        case .running: runningStepView
         }
     }
 
-    // Step 1 — Create your account
-    private var step1View: some View {
+    // Account step — Create your account
+    private var accountStepView: some View {
         VStack(alignment: .leading, spacing: 20) {
             stepHeader(
                 title: "Create your account",
-                subtitle: "Start your training journey with RecBuddy.")
+                subtitle: requireCode && codeResolved
+                    ? "Coach \(coachName) set you up — confirm your details."
+                    : "Start your training journey with RecBuddy.")
 
             VStack(alignment: .leading, spacing: 6) {
                 RBLabel("FULL NAME")
@@ -248,12 +285,27 @@ struct InviteFlowView: View {
         }
     }
 
-    // Step 2 — Your running
-    private var step2View: some View {
+    // Running step — Your running (+ editable goal race when an invite set one)
+    private var runningStepView: some View {
         VStack(alignment: .leading, spacing: 20) {
             stepHeader(
                 title: "Your running",
                 subtitle: "This helps your coach tailor your plan.")
+
+            // Goal race name — coach's value is the default; the athlete's
+            // edit wins (synced to the plan right after the invite is redeemed).
+            if requireCode, inviteGoalRace != nil {
+                VStack(alignment: .leading, spacing: 6) {
+                    RBLabel("GOAL RACE")
+                    TextField("", text: $goalRace)
+                        .foregroundStyle(.white)
+                        .rbField()
+                        .accessibilityLabel("Goal race")
+                    Text("Set by your coach — edit it if it's not quite right.")
+                        .font(.caption)
+                        .foregroundStyle(RB.textFaint)
+                }
+            }
 
             // Experience level (4 radio cards)
             VStack(alignment: .leading, spacing: 10) {
@@ -296,12 +348,12 @@ struct InviteFlowView: View {
         }
     }
 
-    // Step 3 — Connect with your coach
-    private var step3View: some View {
+    // Code step — leads the wizard: the invite auto-populates the details
+    private var codeStepView: some View {
         VStack(alignment: .leading, spacing: 20) {
             stepHeader(
                 title: "Connect with your coach",
-                subtitle: "Enter the invite code your coach shared.")
+                subtitle: "Enter the invite code your coach shared — it fills in your details.")
 
             VStack(alignment: .leading, spacing: 6) {
                 RBLabel("COACH INVITE CODE")
@@ -328,14 +380,21 @@ struct InviteFlowView: View {
                     }
             }
 
-            // Inline match banner
+            // Inline match banner — coach + the goal they set for you
             if codeResolved {
-                HStack(spacing: 8) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(RB.accent)
-                    (Text("Code matches ")
-                        + Text("Coach \(coachName)").bold())
-                        .foregroundStyle(.white)
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(RB.accent)
+                        (Text("Code matches ")
+                            + Text("Coach \(coachName)").bold())
+                            .foregroundStyle(.white)
+                    }
+                    if let inviteGoalSummary {
+                        Text("Your goal: \(inviteGoalSummary)")
+                            .foregroundStyle(RB.textMute)
+                            .padding(.leading, 28)
+                    }
                 }
                 .font(.subheadline)
                 .padding(.horizontal, 14)
@@ -359,18 +418,18 @@ struct InviteFlowView: View {
 
     @ViewBuilder
     private var pinnedButton: some View {
-        if step < 3 {
+        if step < totalSteps {
             Button("CONTINUE ›") { advance() }
                 .buttonStyle(VoltButtonStyle())
-                .disabled(step == 1 ? !step1Valid : !step2Valid)
-                .accessibilityLabel(step == 1 ? "Continue to step 2" : "Continue to step 3")
+                .disabled(!currentStepValid)
+                .accessibilityLabel("Continue to step \(step + 1)")
         } else {
             VStack(spacing: 12) {
                 Button(busy ? "Creating account…" : "START TRAINING ›") {
                     Task { await signUp() }
                 }
                 .buttonStyle(VoltButtonStyle())
-                .disabled(busy || !step3Valid)
+                .disabled(busy || !currentStepValid)
                 .accessibilityLabel("Start training")
             }
         }
@@ -423,6 +482,53 @@ struct InviteFlowView: View {
         }
     }
 
+    // ── Existing-account screen ────────────────────────────────────────────
+    // The email already belongs to an account (e.g. a coach going dual-role):
+    // no second account is created and no email is sent — say so plainly and
+    // route to sign-in. The typed invite code stays queued and is applied
+    // automatically on that sign-in.
+
+    private var existingAccountScreen: some View {
+        VStack(spacing: 0) {
+            Spacer()
+            VStack(spacing: 20) {
+                Image(systemName: "person.crop.circle.badge.checkmark")
+                    .font(.system(size: 64))
+                    .foregroundStyle(RB.accent)
+                    .accessibilityHidden(true)
+                Text("You already have an account")
+                    .font(.title2.bold())
+                    .foregroundStyle(.white)
+                Text("\(email) is already registered. Sign in with that account's password — no new account or confirmation email is needed.")
+                    .font(.subheadline)
+                    .foregroundStyle(RB.textMute)
+                    .multilineTextAlignment(.center)
+                if requireCode {
+                    Text("Your invite code is saved and will be applied the moment you sign in.")
+                        .font(.footnote)
+                        .foregroundStyle(RB.textFaint)
+                        .multilineTextAlignment(.center)
+                }
+            }
+            .padding(.horizontal, 36)
+
+            Spacer()
+
+            VStack(spacing: 14) {
+                Button("Go to sign in") { dismiss() }
+                    .buttonStyle(VoltButtonStyle())
+                    .accessibilityLabel("Go to sign in")
+
+                Button("Use a different email") { existingAccount = false }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(RB.textMute)
+                    .accessibilityLabel("Use a different email")
+            }
+            .padding(.horizontal, 24)
+            .padding(.bottom, 48)
+        }
+    }
+
     // ── Helpers ────────────────────────────────────────────────────────────
 
     private func stepHeader(title: String, subtitle: String) -> some View {
@@ -452,7 +558,9 @@ struct InviteFlowView: View {
 
     // ── Network actions ────────────────────────────────────────────────────
 
-    /// Resolve an invite code — called from debounce on step 3.
+    /// Resolve an invite code — called from the debounce on the code step.
+    /// A match auto-populates the rest of the wizard from what the coach
+    /// entered (name, goal race) — all still editable by the athlete.
     private func resolve(trimmed: String) async {
         busy = true; error = nil
         do {
@@ -461,6 +569,18 @@ struct InviteFlowView: View {
             if let hit = rows.first {
                 coachName = hit.coachName
                 coachInitials = hit.coachInitials
+                inviteGoalRace = hit.goalRace
+                inviteGoalSummary = [hit.goalRace, hit.goalDistance, hit.goalTime]
+                    .compactMap { $0 }.filter { !$0.isEmpty }
+                    .joined(separator: " · ")
+                if inviteGoalSummary?.isEmpty == true { inviteGoalSummary = nil }
+                // Prefill without clobbering anything the athlete already typed.
+                if name.trimmingCharacters(in: .whitespaces).isEmpty, let n = hit.athleteName {
+                    name = n
+                }
+                if goalRace.trimmingCharacters(in: .whitespaces).isEmpty, let g = hit.goalRace {
+                    goalRace = g
+                }
                 codeResolved = true
             } else {
                 error = "That code is invalid, used, or expired."
@@ -476,10 +596,18 @@ struct InviteFlowView: View {
         busy = true; error = nil
         let trimmedCode = code.trimmingCharacters(in: .whitespaces).uppercased()
         do {
-            session.pendingInviteCode = trimmedCode // redeemed on first sign-in (SessionStore)
+            if requireCode {
+                session.pendingInviteCode = trimmedCode // redeemed on first sign-in (SessionStore)
+                // Athlete's goal-race edit WINS over the invite's default: queue
+                // it; SessionStore applies it right after the redeem seeds the plan.
+                let editedRace = goalRace.trimmingCharacters(in: .whitespaces)
+                if !editedRace.isEmpty, editedRace != inviteGoalRace {
+                    session.pendingGoalRace = editedRace
+                }
+            }
             let confirmRedirect = (Bundle.main.object(forInfoDictionaryKey: "EmailConfirmRedirect") as? String)
                 .flatMap(URL.init(string:)) ?? URL(string: "https://recbuddy.app/confirmed")
-            try await Supa.shared.auth.signUp(
+            let res = try await Supa.shared.auth.signUp(
                 email: email.trimmingCharacters(in: .whitespaces),
                 password: password,
                 data: [
@@ -488,9 +616,21 @@ struct InviteFlowView: View {
                     "primary_goal": .string(primaryGoal ?? "fit")
                 ],
                 redirectTo: confirmRedirect)
-            sent = true
+            // Existing account (e.g. a coach going dual-role): GoTrue returns
+            // 200 with EMPTY identities and sends no email — waiting on a
+            // confirmation that will never come stranded users. Say so and
+            // route to sign-in (pendingInviteCode stays queued and is applied
+            // there). Product call: the signup API exposes this signal to any
+            // direct caller anyway, and coach-web's signup already says it —
+            // the in-app message adds no meaningful enumeration surface.
+            if res.user.identities?.isEmpty ?? false {
+                existingAccount = true
+            } else {
+                sent = true
+            }
         } catch {
             session.pendingInviteCode = nil
+            session.pendingGoalRace = nil
             self.error = error.localizedDescription.lowercased().contains("already registered")
                 ? "That email is already registered — try signing in instead."
                 : "Could not create the account. Check your details and try again."

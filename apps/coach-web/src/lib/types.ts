@@ -1,16 +1,20 @@
 export type Role = 'coach' | 'athlete'
-export type WorkoutType = 'easy' | 'long' | 'speed' | 'tempo' | 'recovery' | 'cross' | 'rest' | 'race'
+export type WorkoutType = 'easy' | 'long' | 'speed' | 'tempo' | 'recovery' | 'cross' | 'rest' | 'race' | 'other'
 export type WorkoutStatus = 'done' | 'today' | 'planned' | 'missed' | 'rest'
 export type CoachTitle = 'Head Coach' | 'Assistant Coach' | 'Strength Coach' | 'Physio'
 
 export interface Profile {
   id: string; role: Role; name: string; email: string; initials: string
+  /** Dual-role flags — permission gates use these; `role` is the primary/display role. */
+  is_coach: boolean; is_athlete: boolean
   experience_level: string | null; primary_goal: string | null; title: CoachTitle | null
   avatar_url: string | null
 }
 export interface Plan {
   id: string; athlete_id: string; goal_race: string | null; goal_date: string | null
   goal_distance: string | null; goal_time: string | null; goal_pace: string | null
+  /** Training-block start; Week x of y derives from start_date -> goal_date. */
+  start_date: string | null
   plan_week: number; plan_weeks: number; status: 'On track' | 'Crushing it' | 'Needs check-in'
 }
 export interface Workout {
@@ -31,12 +35,15 @@ export interface LibraryWorkout {
 export interface Invite {
   id: string; code: string; coach_id: string; athlete_name: string | null; consumed_at: string | null
   goal_race: string | null; goal_distance: string | null; goal_date: string | null; goal_time: string | null
+  goal_start_date: string | null
 }
 export interface RosterEntry { relationship: 'head' | 'assistant'; athlete: Profile; plans: Plan[] }
 
 export type MessageKind = 'text' | 'runcard' | 'adjust' | 'workout' | 'image'
-/** payload for kind='runcard' (a completed run the athlete logged). */
-export interface RunCard { title: string; dist: string; pace: string; time: string; hr: number }
+/** payload for kind='runcard' (a completed run the athlete logged). `date`
+ *  (new shares) enables click-through to the day's results-vs-plan view;
+ *  `type` drives the type icon so the card matches shared-workout cards. */
+export interface RunCard { title: string; dist: string; pace: string; time: string; hr: number; date?: string; type?: WorkoutType; note?: string }
 /** payload for kind='adjust' (a workout change the coach pushed). */
 export interface AdjustCard { from: string; to: string; reason: string }
 /** payload for kind='workout' (a scheduled workout the coach shared). Snapshot

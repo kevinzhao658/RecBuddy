@@ -1,8 +1,10 @@
 import SwiftUI
 
-/// Lets the athlete edit their race goal (name, distance, date, goal time).
-/// Distance and time are WHEEL PICKERS (Timer-app style vertical drums) so
-/// malformed input is impossible. Writes via the update_my_goal RPC.
+/// Lets the athlete edit their race goal — the SAME fields the coach edits
+/// (name, training start, race date, distance, goal time), writing the same
+/// plan row, so either side's change shows on the other. Distance and time
+/// are WHEEL PICKERS (Timer-app style vertical drums) so malformed input is
+/// impossible. Writes via the update_my_goal RPC.
 struct GoalSettingsView: View {
     let profile: Profile
     let plan: Plan?
@@ -11,6 +13,7 @@ struct GoalSettingsView: View {
     private var unit: Unit { Unit(rawValue: unitRaw) ?? .mi }
 
     @State private var raceName: String
+    @State private var startDate: Date
     @State private var goalDate: Date
     // Distance drums (display unit): whole 0–99 + tenths 0–9
     @State private var distWhole: Int
@@ -32,6 +35,7 @@ struct GoalSettingsView: View {
         self.profile = profile
         self.plan = plan
         _raceName = State(initialValue: plan?.goalRace ?? "")
+        _startDate = State(initialValue: Self.parseDate(plan?.startDate))
         _goalDate = State(initialValue: Self.parseDate(plan?.goalDate))
         let (w, t) = Self.parseDistance(plan?.goalDistance)
         _distWhole = State(initialValue: w)
@@ -44,8 +48,10 @@ struct GoalSettingsView: View {
 
     // MARK: – Parsing (prefill from the stored plan)
 
+    /// LOCAL-day parsing: UTC parsing made DatePicker show the previous day
+    /// west of Greenwich (stored Nov 1 rendered as "Oct 31" in PDT).
     private static func parseDate(_ iso: String?) -> Date {
-        guard let iso, let d = Week.parse(iso) else { return Date() }
+        guard let iso, let d = Week.parseLocalDay(iso) else { return Date() }
         return d
     }
 
@@ -78,7 +84,8 @@ struct GoalSettingsView: View {
             ? "\(hours):" + String(format: "%02d:%02d", minutes, seconds)
             : "\(minutes):" + String(format: "%02d", seconds)
     }
-    private var goalDateString: String { Week.format(goalDate) }
+    private var startDateString: String { Week.formatLocalDay(startDate) }
+    private var goalDateString: String { Week.formatLocalDay(goalDate) }
 
     /// Common race distances in the current display unit → drum values.
     private var quickPicks: [(String, Int, Int)] {
@@ -99,6 +106,32 @@ struct GoalSettingsView: View {
                             .foregroundStyle(.white)
                             .rbField()
                             .onChange(of: raceName) { _, _ in saved = false }
+                    }
+
+                    // Training block — start + race date side by side, the same
+                    // pair the coach edits (drives WEEK x OF y).
+                    HStack(alignment: .top, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            RBLabel("TRAINING STARTS")
+                            DatePicker("", selection: $startDate, displayedComponents: .date)
+                                .datePickerStyle(.compact)
+                                .labelsHidden()
+                                .colorScheme(.dark)
+                                .tint(RB.accent)
+                                .onChange(of: startDate) { _, _ in saved = false }
+                                .accessibilityLabel("Training start date")
+                        }
+                        VStack(alignment: .leading, spacing: 8) {
+                            RBLabel("RACE DATE")
+                            DatePicker("", selection: $goalDate, displayedComponents: .date)
+                                .datePickerStyle(.compact)
+                                .labelsHidden()
+                                .colorScheme(.dark)
+                                .tint(RB.accent)
+                                .onChange(of: goalDate) { _, _ in saved = false }
+                                .accessibilityLabel("Race date")
+                        }
+                        Spacer(minLength: 0)
                     }
 
                     // Distance — quick picks + two vertical drums
@@ -136,17 +169,6 @@ struct GoalSettingsView: View {
                             .rbCard()
                             .transition(.opacity.combined(with: .move(edge: .top)))
                         }
-                    }
-
-                    // Date
-                    VStack(alignment: .leading, spacing: 8) {
-                        RBLabel("RACE DATE")
-                        DatePicker("", selection: $goalDate, in: Date()..., displayedComponents: .date)
-                            .datePickerStyle(.compact)
-                            .labelsHidden()
-                            .colorScheme(.dark)
-                            .tint(RB.accent)
-                            .onChange(of: goalDate) { _, _ in saved = false }
                     }
 
                     // Goal time — collapsed value field; H : MM : SS drums on tap
@@ -257,7 +279,8 @@ struct GoalSettingsView: View {
                 "p_goal_race":     raceName.trimmingCharacters(in: .whitespaces),
                 "p_goal_distance": distanceString,
                 "p_goal_date":     goalDateString,
-                "p_goal_time":     timeString
+                "p_goal_time":     timeString,
+                "p_start_date":    startDateString
             ]).execute()
             await session.refreshProfile()
             saved = true

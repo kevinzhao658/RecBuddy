@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { DndContext, DragOverlay, PointerSensor, TouchSensor, pointerWithin, useSensor, useSensors } from '@dnd-kit/core'
 import { RosterSidebar } from '../features/roster/RosterSidebar'
+import { AthleteSettingsModal } from '../features/roster/AthleteSettingsModal'
 import { TopBar } from '../features/plan-grid/TopBar'
 import { PlanToolbar, type PlanView } from '../features/plan-grid/PlanToolbar'
 import { WeekStats } from '../features/plan-grid/WeekStats'
@@ -92,7 +93,8 @@ export default function CoachPage() {
             view={view} setView={setView}
             selectedDate={selectedDate} setSelectedDate={setSelectedDate}
             clipboard={clipboard} sensors={sensors} flash={flash}
-            onMenu={() => setRosterOpen(true)} />
+            onMenu={() => setRosterOpen(true)}
+            onAthleteRemoved={() => { setSelectedId(null); flash('Athlete removed from roster') }} />
         : <main className="relative grid flex-1 place-items-center px-6 py-32 text-center">
             {/* Hamburger visible only on phones (no TopBar in empty state) */}
             <button aria-label="Open roster" onClick={() => setRosterOpen(true)}
@@ -110,7 +112,7 @@ export default function CoachPage() {
   )
 }
 
-function AthleteDashboard({ athleteId, coachId, monday, setMonday, monthAnchor, setMonthAnchor, view, setView, selectedDate, setSelectedDate, clipboard, sensors, flash, onMenu }: {
+function AthleteDashboard({ athleteId, coachId, monday, setMonday, monthAnchor, setMonthAnchor, view, setView, selectedDate, setSelectedDate, clipboard, sensors, flash, onMenu, onAthleteRemoved }: {
   athleteId: string; coachId: string
   monday: string; setMonday: (m: string) => void
   monthAnchor: string; setMonthAnchor: (m: string) => void
@@ -118,6 +120,7 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, monthAnchor, 
   selectedDate: string | null; setSelectedDate: (d: string | null) => void
   clipboard: ReturnType<typeof useClipboard>; sensors: ReturnType<typeof useSensors>; flash: (m: string) => void
   onMenu: () => void
+  onAthleteRemoved: () => void
 }) {
   useRealtimePlan(athleteId)
   const roster = useRoster()
@@ -148,6 +151,7 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, monthAnchor, 
 
   const [chatOpen, setChatOpen] = useState(false)
   const [libraryOpen, setLibraryOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   // Close library overlay when a day is selected (editor takes over)
   useEffect(() => { if (selectedDate) setLibraryOpen(false) }, [selectedDate])
@@ -183,7 +187,9 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, monthAnchor, 
           <TopBar
             athlete={entry.athlete}
             plan={entry.plans?.[0] ?? null}
+            monday={monday}
             onMenu={onMenu}
+            onSettings={() => setSettingsOpen(true)}
             actions={
               <>
                 <TeamPopover athleteId={athleteId} isHead={isHead} />
@@ -256,6 +262,10 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, monthAnchor, 
 
       {chatOpen && <ChatPanel athleteId={athleteId} athleteName={entry.athlete.name} onClose={() => setChatOpen(false)}
         onOpenDay={(date) => { setMonday(mondayOf(date)); setView('week'); setSelectedDate(date); setChatOpen(false) }} />}
+
+      {settingsOpen && <AthleteSettingsModal open onClose={() => setSettingsOpen(false)}
+        athlete={entry.athlete} plan={entry.plans?.[0] ?? null}
+        onSaved={() => flash('Goal updated')} onRemoved={onAthleteRemoved} />}
     </DndContext>
   )
 }

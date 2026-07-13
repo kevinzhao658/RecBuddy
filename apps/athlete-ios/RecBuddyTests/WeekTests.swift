@@ -52,3 +52,31 @@ import Testing
         #expect(july.contains("2026-07-31"))
     }
 }
+
+@Suite struct BlockWeekTests {
+    @Test func blockWeekCountsFromStartMonday() {
+        #expect(Week.blockWeek(monday: "2026-06-29", start: "2026-06-29") == 1)
+        #expect(Week.blockWeek(monday: "2026-06-29", start: "2026-07-01") == 1) // mid-week start -> same week
+        #expect(Week.blockWeek(monday: "2026-07-06", start: "2026-06-29") == 2)
+        #expect(Week.blockWeek(monday: "2026-06-22", start: "2026-06-29") == 0) // before the block
+    }
+    @Test func blockWeeksSpansStartThroughGoalWeek() {
+        #expect(Week.blockWeeks(start: "2026-06-29", goal: "2026-09-20") == 12) // Sunday race, 12th week
+        #expect(Week.blockWeeks(start: "2026-06-29", goal: "2026-06-30") == 1)
+    }
+}
+
+@Suite struct LocalDayTests {
+    @Test func localDayRoundTripsExactly() {
+        // The UTC-parse bug rendered stored Nov 1 as "Oct 31" in DatePickers
+        // west of Greenwich — local parse/format must round-trip the same day.
+        for iso in ["2026-11-01", "2026-01-01", "2026-12-31", "2026-07-04"] {
+            let d = Week.parseLocalDay(iso)
+            #expect(d != nil)
+            #expect(Week.formatLocalDay(d!) == iso)
+        }
+    }
+    @Test func localDayRejectsMalformed() {
+        #expect(Week.parseLocalDay("not-a-date") == nil)
+    }
+}

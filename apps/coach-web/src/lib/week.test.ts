@@ -29,3 +29,30 @@ describe('month helpers', () => {
     expect(grid).toContain('2026-07-31')
   })
 })
+
+// ── Training-block week math ──────────────────────────────────────────────
+import { blockWeekOf, blockWeeks, blockLabel, fmtDayDate } from './week'
+
+test('blockWeekOf counts 1-based weeks from the Monday of the start date', () => {
+  expect(blockWeekOf('2026-06-29', '2026-06-29')).toBe(1)   // start monday itself
+  expect(blockWeekOf('2026-06-29', '2026-07-01')).toBe(1)   // start mid-week -> same week
+  expect(blockWeekOf('2026-07-06', '2026-06-29')).toBe(2)
+  expect(blockWeekOf('2026-06-22', '2026-06-29')).toBe(0)   // week before the block
+})
+
+test('blockWeeks spans start through the week containing the goal', () => {
+  expect(blockWeeks('2026-06-29', '2026-09-20')).toBe(12)   // Sun race, 12th week
+  expect(blockWeeks('2026-06-29', '2026-06-30')).toBe(1)    // same week -> 1
+})
+
+test('blockLabel follows the viewed week and clamps at the edges', () => {
+  expect(blockLabel('2026-07-06', '2026-06-29', '2026-09-20')).toBe('Week 2 of 12')
+  expect(blockLabel('2026-06-22', '2026-06-29', '2026-09-20')).toBe('Starts Jun 29')
+  expect(blockLabel('2026-10-05', '2026-06-29', '2026-09-20')).toBe('Week 12 of 12')
+  expect(blockLabel('2026-07-06', null, '2026-09-20')).toBeNull()
+})
+
+test('fmtDayDate prefixes the weekday', () => {
+  expect(fmtDayDate('2026-08-23')).toBe('Sun, Aug 23')
+  expect(fmtDayDate('2026-07-13')).toBe('Mon, Jul 13')
+})

@@ -13,8 +13,37 @@ struct MessageRow: View {
     var showAvatar: Bool = false
     var senderAvatarUrl: String? = nil
     var grouped: Bool = false
+    /// A newer card for the same workout exists below — render as a compact
+    /// rolled-up placeholder instead of a full card.
+    var superseded: Bool = false
+    /// Scrolls the chat to the newest card for this workout (placeholder tap).
+    var onJumpToLatest: (() -> Void)? = nil
+    /// Tap-through for workout/runcard references — called with the workout id
+    /// so the chat can open results-vs-prescribed. Cards without a workout_id
+    /// (legacy shares) stay static.
+    var onOpenWorkout: ((String) -> Void)? = nil
     @AppStorage("unit") private var unitRaw = "mi"
     private var unit: Unit { Unit(rawValue: unitRaw) ?? .mi }
+
+    private var canOpen: Bool { onOpenWorkout != nil && message.workoutId != nil }
+
+    /// ' · SUN, AUG 23' header suffix when the payload carries the day.
+    private func daySuffix(_ iso: String?) -> String {
+        guard let iso else { return "" }
+        return " · \(Week.fmtDayDate(iso).uppercased())"
+    }
+
+    /// Wraps a card in a button when it can trace back to its workout.
+    @ViewBuilder
+    private func openable<C: View>(@ViewBuilder content: () -> C) -> some View {
+        if canOpen, let id = message.workoutId, let onOpenWorkout {
+            Button { onOpenWorkout(id) } label: { content() }
+                .buttonStyle(.plain)
+                .accessibilityHint("Opens the workout details")
+        } else {
+            content()
+        }
+    }
 
     // ── Layout ─────────────────────────────────────────────────────────────
 
@@ -82,6 +111,31 @@ struct MessageRow: View {
     // ── Per-kind content (no timestamp captions) ───────────────────────────
 
     @ViewBuilder private var content: some View {
+        if superseded {
+            // Rolled-up placeholder — tapping scrolls to the newest card below.
+            Button { onJumpToLatest?() } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.down")
+                    Text("\(message.payloadString("title") ?? "Workout") · \(message.kind == "runcard" ? "log updated below" : "re-shared below")")
+                        .lineLimit(1)
+                }
+                .font(.caption)
+                .foregroundStyle(RB.textFaint)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(RB.surface)
+                .clipShape(Capsule())
+                .overlay(Capsule().stroke(RB.line, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .disabled(onJumpToLatest == nil)
+            .accessibilityHint("Scrolls to the latest card for this workout")
+        } else {
+            fullContent
+        }
+    }
+
+    @ViewBuilder private var fullContent: some View {
         switch message.kind {
 
         case "text":
@@ -93,52 +147,52 @@ struct MessageRow: View {
                 .clipShape(RoundedRectangle(cornerRadius: 18))
 
         case "runcard":
-            if mine {
-                // Volt lime run stats card (reference: "9.1 mi  9:22  1:25:14  152")
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 16) {
-                        if let dist = message.payloadString("dist") {
-                            Text("\(dist) \(unit.rawValue)")
-                                .font(.subheadline.weight(.bold))
-                        }
-                        if let pace = message.payloadString("pace") {
-                            Text(Units.fmtPace(pace, unit))
-                                .font(.subheadline.weight(.bold))
-                        }
-                        if let time = message.payloadString("time") {
-                            Text(time).font(.subheadline.weight(.bold))
-                        }
-                        if let hr = message.payloadInt("hr") {
-                            Text("\(hr)").font(.subheadline.weight(.bold))
-                        }
+            // Logged-run widget — same composition as the calendar workout card
+            // (header eyebrow, title, divider, labeled stat columns), so a shared
+            // run reads like a card, not a bare stat string. Used for both the
+            // athlete's own share and the (rare) coach-sent variant.
+            openable {
+            darkCard(header: "LOGGED RUN\(daySuffix(message.payloadString("date")))",
+                     icon: message.payloadString("type").map { TypeBadge.symbol(for: $0) } ?? "figure.run",
+                     iconTint: message.payloadString("type").map { TypeBadge.tint(for: $0) },
+                     chevron: canOpen) {
+                Text(message.payloadString("title") ?? "Run")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                Divider()
+                    .overlay(RB.line)
+                    .padding(.vertical, 5)
+                HStack(alignment: .top, spacing: 26) {
+                    if let dist = message.payloadString("dist") {
+                        runStat("DISTANCE", dist)
                     }
-                    if let note = message.payloadString("note"), !note.isEmpty {
-                        Text(note).font(.caption)
+                    if let pace = message.payloadString("pace") {
+                        runStat("PACE", Units.fmtPace(pace, unit))
+                    }
+                    if let time = message.payloadString("time") {
+                        runStat("TIME", time)
+                    }
+                    if let hr = message.payloadInt("hr") {
+                        runStat("AVG HR", "\(hr)")
                     }
                 }
-                .foregroundStyle(RB.onAccent)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 14)
-                .background(RB.accent)
-                .clipShape(RoundedRectangle(cornerRadius: 16))
-            } else {
-                // Dark run card (coach-sent, rare)
-                darkCard(header: "LOGGED RUN", icon: "figure.run") {
-                    Text(message.payloadString("title") ?? "Run")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.white)
-                    Text("\(message.payloadString("dist") ?? "") · \(Units.fmtPace(message.payloadString("pace"), unit)) · \(message.payloadString("time") ?? "")")
+                if let note = message.payloadString("note"), !note.isEmpty {
+                    Text(note)
                         .font(.caption)
                         .foregroundStyle(RB.textMute)
-                    if let note = message.payloadString("note"), !note.isEmpty {
-                        Text(note).font(.caption).foregroundStyle(RB.textMute)
-                    }
+                        .padding(.top, 3)
                 }
+            }
             }
 
         case "workout":
-            darkCard(header: "WORKOUT · \(Week.fmtShortDate(message.payloadString("date")))",
-                     icon: "calendar") {
+            // Same card the coach sees: type icon + WORKOUT · day, date header,
+            // title, dist · pace, and a chevron when it traces to the live row.
+            openable {
+            darkCard(header: "WORKOUT\(daySuffix(message.payloadString("date")))",
+                     icon: TypeBadge.symbol(for: message.payloadString("type") ?? "easy"),
+                     iconTint: TypeBadge.tint(for: message.payloadString("type") ?? "easy"),
+                     chevron: canOpen) {
                 Text(message.payloadString("title") ?? "Workout")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.white)
@@ -147,6 +201,7 @@ struct MessageRow: View {
                         .font(.caption)
                         .foregroundStyle(RB.textMute)
                 }
+            }
             }
 
         case "adjust":
@@ -160,10 +215,34 @@ struct MessageRow: View {
             }
 
         case "image":
-            imageCard
+            VStack(alignment: mine ? .trailing : .leading, spacing: 4) {
+                imageCard
+                // Optional caption sent with the photo (staged-composer flow)
+                if let body = message.body, !body.isEmpty {
+                    Text(body)
+                        .foregroundStyle(mine ? RB.onAccent : .white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(mine ? RB.accent : RB.surface)
+                        .clipShape(RoundedRectangle(cornerRadius: 18))
+                }
+            }
 
         default:
             EmptyView()
+        }
+    }
+
+    /// One labeled stat column in the logged-run widget (uppercase eyebrow + bold value).
+    private func runStat(_ label: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(label)
+                .font(.system(size: 9, weight: .bold))
+                .tracking(1)
+                .foregroundStyle(RB.textFaint)
+            Text(value)
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(.white)
         }
     }
 
@@ -211,12 +290,25 @@ struct MessageRow: View {
     private func darkCard<C: View>(
         header: String,
         icon: String,
+        iconTint: Color? = nil,
+        chevron: Bool = false,
         @ViewBuilder content: () -> C
     ) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Label(header, systemImage: icon)
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(RB.accent)
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(iconTint ?? RB.accent)
+                Text(header)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(RB.accent)
+                if chevron {
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.right")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(RB.textFaint)
+                }
+            }
             content()
         }
         .padding(10)
