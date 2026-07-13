@@ -40,7 +40,7 @@ struct CoachesView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         RBLabel("ADD A COACH")
 
-                        Text("Assistants added by your head coach appear here automatically.")
+                        Text("Add another coach with the code they give you — they join as a co-coach and share your existing plan. Your first coach stays your head coach.")
                             .font(.caption)
                             .foregroundStyle(RB.textFaint)
 

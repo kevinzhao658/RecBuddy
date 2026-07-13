@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Modal } from '../../components/ui/Modal'
 import { Button } from '../../components/ui/Button'
 import { useCreateInvite } from '../../lib/queries/invites'
+import { AddExistingAthlete } from './AddExistingAthlete'
 
 const RACES: { label: string; dist: string }[] = [
   { label: '5K', dist: '3.1 mi' },
@@ -13,6 +14,7 @@ const field = 'rounded-[10px] border border-line bg-surface2 px-3 py-2.5 text-te
 const eyebrow = 'mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-text-faint'
 
 export function AddAthleteModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [mode, setMode] = useState<'new' | 'existing'>('new')
   const [name, setName] = useState('')
   const [race, setRace] = useState('')
   const [dist, setDist] = useState('')
@@ -25,7 +27,7 @@ export function AddAthleteModal({ open, onClose }: { open: boolean; onClose: () 
   // Reset internal state on close so reopening starts fresh (avoids showing a
   // previously-generated code when reopened, incl. when closed via the backdrop).
   useEffect(() => {
-    if (!open) { setCode(null); setName(''); setRace(''); setDist(''); setDate(''); setTime(''); setStart('') }
+    if (!open) { setMode('new'); setCode(null); setName(''); setRace(''); setDist(''); setDate(''); setTime(''); setStart('') }
   }, [open])
 
   const submit = () => create.mutate(
@@ -35,8 +37,24 @@ export function AddAthleteModal({ open, onClose }: { open: boolean; onClose: () 
 
   return (
     <Modal open={open} onClose={onClose}>
-      <h3 className="mb-1 font-display text-xl font-bold">Add athlete</h3>
-      {code ? (
+      <h3 className="mb-3 font-display text-xl font-bold">Add athlete</h3>
+
+      {/* New (invite a code) vs Existing (search someone already on RecBuddy).
+          Hidden once a code is generated — that view is a terminal confirmation. */}
+      {!code && (
+        <div className="mb-4 inline-flex rounded-[10px] bg-surface2 p-1">
+          {([['new', 'Invite new'], ['existing', 'Add existing']] as const).map(([val, label]) => (
+            <button key={val} onClick={() => setMode(val)}
+              className={`rounded-[8px] px-4 py-1.5 text-sm transition ${mode === val ? 'bg-surface font-semibold text-text shadow-sm' : 'font-medium text-text-faint hover:text-text'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {mode === 'existing' && !code ? (
+        <AddExistingAthlete onAdded={onClose} />
+      ) : code ? (
         <div className="flex flex-col gap-3">
           <p className="text-text-mute">Share this invite code with {name || 'your athlete'}:</p>
           <code className="rb-surface2 rounded-[10px] p-3 text-center font-num text-3xl tracking-[0.2em] text-accent">{code}</code>
