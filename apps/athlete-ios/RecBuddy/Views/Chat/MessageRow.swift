@@ -13,6 +13,9 @@ struct MessageRow: View {
     var showAvatar: Bool = false
     var senderAvatarUrl: String? = nil
     var grouped: Bool = false
+    /// A newer card for the same workout exists below — render as a compact
+    /// rolled-up placeholder instead of a full card.
+    var superseded: Bool = false
     /// Tap-through for workout/runcard references — called with the workout id
     /// so the chat can open results-vs-prescribed. Cards without a workout_id
     /// (legacy shares) stay static.
@@ -106,6 +109,28 @@ struct MessageRow: View {
     // ── Per-kind content (no timestamp captions) ───────────────────────────
 
     @ViewBuilder private var content: some View {
+        if superseded {
+            // Rolled-up placeholder — a newer card for this workout is below.
+            openable {
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                    Text("\(message.payloadString("title") ?? "Workout") · \(message.kind == "runcard" ? "log updated below" : "re-shared below")")
+                        .lineLimit(1)
+                }
+                .font(.caption)
+                .foregroundStyle(RB.textFaint)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(RB.surface)
+                .clipShape(Capsule())
+                .overlay(Capsule().stroke(RB.line, lineWidth: 1))
+            }
+        } else {
+            fullContent
+        }
+    }
+
+    @ViewBuilder private var fullContent: some View {
         switch message.kind {
 
         case "text":

@@ -32,6 +32,16 @@ test('a run card with a date shows day+date and opens that day on click', () => 
   expect(onOpenWorkout).toHaveBeenCalledWith('2026-08-23')
 })
 
+test('a superseded card rolls up into a compact placeholder', () => {
+  const onOpenWorkout = vi.fn()
+  render(<MessageItem mine={false} superseded onOpenWorkout={onOpenWorkout}
+    m={{ ...base, kind: 'runcard', body: null, workout_id: 'w1', payload: { title: 'Long Run', dist: '14 mi', pace: '9:00/mi', time: '2:06:00', hr: 150, date: '2026-07-12', type: 'long' } } as any} />)
+  expect(screen.getByText(/log updated below/)).toBeInTheDocument()
+  expect(screen.queryByText('14 mi')).toBeNull()          // full stats hidden
+  fireEvent.click(screen.getByText(/Long Run/))
+  expect(onOpenWorkout).toHaveBeenCalledWith('2026-07-12') // still traces through
+})
+
 test('a legacy run card without a date is not clickable', () => {
   const onOpenWorkout = vi.fn()
   render(<MessageItem mine={false} onOpenWorkout={onOpenWorkout}

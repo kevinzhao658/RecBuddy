@@ -107,11 +107,21 @@ function AdjustCardView({ p }: { p: AdjustCard }) {
  *    (on the first), so co-coaches and the athlete are distinguishable.
  *  `grouped` tightens same-sender stacking. Timestamps live in the centered
  *  session separators rendered by ChatPanel, not per message. */
-export function MessageItem({ m, mine, sender, showName, showAvatar, grouped, onOpenWorkout }: {
+export function MessageItem({ m, mine, sender, showName, showAvatar, grouped, superseded, onOpenWorkout }: {
   m: Message; mine: boolean; sender?: Sender; showName?: boolean; showAvatar?: boolean
-  grouped?: boolean; onOpenWorkout?: (date: string) => void
+  grouped?: boolean; superseded?: boolean; onOpenWorkout?: (date: string) => void
 }) {
-  const body = m.kind === 'text' ? (
+  // A newer card for the same workout exists below — roll this one up into a
+  // compact placeholder (still click-through to the workout's day).
+  const cardDate = superseded ? (m.payload as RunCard | WorkoutCard)?.date : undefined
+  const body = superseded ? (
+    <button onClick={onOpenWorkout && cardDate ? () => onOpenWorkout(cardDate) : undefined}
+      disabled={!onOpenWorkout || !cardDate}
+      className="flex items-center gap-1.5 rounded-full border border-line bg-surface2 px-3 py-1.5 text-xs text-text-faint transition enabled:hover:text-text-mute">
+      <span aria-hidden>↻</span>
+      {(m.payload as RunCard | WorkoutCard)?.title ?? 'Workout'} · {m.kind === 'runcard' ? 'log updated below' : 're-shared below'}
+    </button>
+  ) : m.kind === 'text' ? (
     <div className={`max-w-[85%] rounded-[14px] px-3 py-2 text-sm ${mine ? 'bg-accent text-on-accent' : 'bg-surface2 text-text'}`}>{m.body}</div>
   ) : m.kind === 'runcard' ? (
     <RunCardView p={m.payload as RunCard}

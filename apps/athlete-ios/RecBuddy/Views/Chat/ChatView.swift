@@ -108,6 +108,25 @@ struct ChatView: View {
                !Calendar.current.isDate(cur, inSameDayAs: prev)
     }
 
+    /// Re-shared cards for the same workout (re-logged runs, re-shared
+    /// prescriptions) roll up: only the NEWEST per kind+workout renders as a
+    /// full card; older ones become a compact placeholder. Same-kind only —
+    /// a result never rolls up a prescription. Legacy cards (no workout_id)
+    /// are never rolled up.
+    private var supersededIds: Set<String> {
+        var latest: [String: String] = [:]   // "kind:workoutId" -> newest message id
+        for m in store.messages {
+            guard m.kind == "runcard" || m.kind == "workout", let w = m.workoutId else { continue }
+            latest["\(m.kind):\(w)"] = m.id
+        }
+        var out = Set<String>()
+        for m in store.messages {
+            guard m.kind == "runcard" || m.kind == "workout", let w = m.workoutId else { continue }
+            if latest["\(m.kind):\(w)"] != m.id { out.insert(m.id) }
+        }
+        return out
+    }
+
     private var chatItems: [ChatItem] {
         let msgs = store.messages
         var items: [ChatItem] = []
@@ -197,6 +216,7 @@ struct ChatView: View {
                                         senderAvatarUrl: m.fromUserId != profile.id
                                             ? store.senders[m.fromUserId]?.avatarUrl : nil,
                                         grouped: !startsBlock,
+                                        superseded: supersededIds.contains(m.id),
                                         onOpenWorkout: { id in Task { await openTrace(id) } }
                                     )
                                     .id(m.id)
