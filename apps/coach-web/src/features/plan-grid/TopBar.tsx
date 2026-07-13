@@ -35,7 +35,7 @@ export function TopBar({ athlete, plan, monday, actions, onMenu, onSettings }: {
           <HamburgerIcon />
         </button>
       )}
-      <Avatar initials={athlete.initials} className="h-10 w-10 rounded-[12px] text-base md:h-12 md:w-12" />
+      <Avatar initials={athlete.initials} url={athlete.avatar_url} className="h-10 w-10 rounded-[12px] text-base md:h-12 md:w-12" />
       <div className="min-w-0 flex-1 basis-40">
         <div className="flex min-w-0 items-center gap-2">
           <h2 className="min-w-0 truncate text-xl font-bold leading-tight tracking-tight md:text-[26px]">{athlete.name}</h2>

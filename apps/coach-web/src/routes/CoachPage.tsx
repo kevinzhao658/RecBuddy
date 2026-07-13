@@ -260,7 +260,7 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, monthAnchor, 
 
       <DragOverlay dropAnimation={null}><DragGhost workout={dnd.activeGhost} /></DragOverlay>
 
-      {chatOpen && <ChatPanel athleteId={athleteId} athleteName={entry.athlete.name} onClose={() => setChatOpen(false)}
+      {chatOpen && <ChatPanel athleteId={athleteId} athleteName={entry.athlete.name} athleteAvatarUrl={entry.athlete.avatar_url} onClose={() => setChatOpen(false)}
         onOpenDay={(date) => { setMonday(mondayOf(date)); setView('week'); setSelectedDate(date); setChatOpen(false) }} />}
 
       {settingsOpen && <AthleteSettingsModal open onClose={() => setSettingsOpen(false)}

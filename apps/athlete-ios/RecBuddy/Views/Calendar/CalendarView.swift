@@ -120,9 +120,22 @@ struct CalendarView: View {
                     Circle()
                         .fill(RB.surface2)
                         .frame(width: 40, height: 40)
-                    Text(profile.initials)
-                        .font(.callout.weight(.semibold))
-                        .foregroundStyle(.white)
+                    // Profile photo when set (cache-busted URL), else initials
+                    if let url = profile.avatarUrl.flatMap(URL.init(string:)) {
+                        AsyncImage(url: url) { image in
+                            image.resizable().scaledToFill()
+                        } placeholder: {
+                            Text(profile.initials)
+                                .font(.callout.weight(.semibold))
+                                .foregroundStyle(.white)
+                        }
+                        .frame(width: 40, height: 40)
+                        .clipShape(Circle())
+                    } else {
+                        Text(profile.initials)
+                            .font(.callout.weight(.semibold))
+                            .foregroundStyle(.white)
+                    }
                 }
             }
             .buttonStyle(.plain)
