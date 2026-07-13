@@ -103,8 +103,10 @@ export function WorkoutFields({ draft: d, onChange, disabled = false }: {
             </div>
 
             <div>
-              <span className={labelEyebrow}>Total time (min){autoTag('time')} <span className="normal-case text-text-faint">— auto {autoEst}</span></span>
-              <input aria-label="Total time" type="number" placeholder={String(autoEst)} value={d.est_minutes ?? ''}
+              <span className={labelEyebrow}>Total time (min)</span>
+              {/* The auto estimate renders as a real value (not a faded
+                  placeholder) — the field always shows the live number. */}
+              <input aria-label="Total time" type="number" value={d.est_minutes ?? (autoEst || '')}
                 onChange={(e) => editMetric('time', { est_minutes: e.target.value ? Number(e.target.value) : null })} className={`${field} font-num`} />
             </div>
           </>
