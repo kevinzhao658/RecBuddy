@@ -60,11 +60,13 @@ final class PlanStore {
             if ids.isEmpty { actualsByWorkout = [:] }
             else {
                 let actuals: [WorkoutActual] = try await Supa.shared.from("workout_actuals")
-                    .select().in("workout_id", values: ids).execute().value
+                    .select().in("workout_id", values: ids)
+                    .order("recorded_at", ascending: false).execute().value
                 guard weekMonday == from else { return } // stale response — a newer week won
+                // Newest-first + keep-first: legacy duplicate rows resolve to the latest log.
                 actualsByWorkout = Dictionary(
                     actuals.compactMap { a in a.workoutId.map { ($0, a) } },
-                    uniquingKeysWith: { _, last in last })
+                    uniquingKeysWith: { first, _ in first })
             }
             phase = .idle
         } catch {
@@ -111,12 +113,19 @@ final class PlanStore {
         }
     }
 
-    /// Insert a manual actual and mark the workout done. Pessimistic (caller shows
-    /// busy state). Idempotent on retry: if an actual already exists for this
-    /// workout (e.g. a prior attempt saved the row but mark-done failed), skip the
-    /// insert and just complete the status step.
+    /// Save a manual actual and mark the workout done. Pessimistic (caller shows
+    /// busy state). Checks the DATABASE for an existing actual (the local cache
+    /// can be empty — e.g. logging from the chat trace — or stale): an existing
+    /// row is UPDATED with the new values, never duplicated and never silently
+    /// kept over what the athlete just entered.
     func logRun(workout: Workout, dist: Double, time: String, pace: String, hr: Int?, feel: Int?, note: String?) async throws {
-        if actualsByWorkout[workout.id] == nil {
+        struct ExistingRow: Decodable { let id: String }
+        let existing: [ExistingRow] = try await Supa.shared.from("workout_actuals")
+            .select("id").eq("workout_id", value: workout.id).limit(1).execute().value
+        if let row = existing.first {
+            try await updateRun(actualId: row.id, dist: dist, time: time, pace: pace,
+                                hr: hr, feel: feel, note: note)
+        } else {
             struct NewActual: Encodable {
                 let workout_id: String
                 let athlete_id: String
