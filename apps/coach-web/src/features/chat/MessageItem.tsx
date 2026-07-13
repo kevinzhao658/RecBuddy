@@ -110,7 +110,7 @@ function AdjustCardView({ p }: { p: AdjustCard }) {
 export function MessageItem({ m, mine, sender, showName, showAvatar, grouped, superseded, domId, onJumpToLatest, onOpenWorkout }: {
   m: Message; mine: boolean; sender?: Sender; showName?: boolean; showAvatar?: boolean
   grouped?: boolean; superseded?: boolean; domId?: string
-  onJumpToLatest?: () => void; onOpenWorkout?: (date: string) => void
+  onJumpToLatest?: () => void; onOpenWorkout?: (date: string, workoutId?: string) => void
 }) {
   // A newer card for the same workout exists below — roll this one up into a
   // compact placeholder that jumps the chat to that newest card.
@@ -124,9 +124,9 @@ export function MessageItem({ m, mine, sender, showName, showAvatar, grouped, su
     <div className={`max-w-[85%] rounded-[14px] px-3 py-2 text-sm ${mine ? 'bg-accent text-on-accent' : 'bg-surface2 text-text'}`}>{m.body}</div>
   ) : m.kind === 'runcard' ? (
     <RunCardView p={m.payload as RunCard}
-      onOpen={onOpenWorkout && (m.payload as RunCard).date ? () => onOpenWorkout((m.payload as RunCard).date!) : undefined} />
+      onOpen={onOpenWorkout && (m.payload as RunCard).date ? () => onOpenWorkout((m.payload as RunCard).date!, m.workout_id ?? undefined) : undefined} />
   ) : m.kind === 'workout' ? (
-    <WorkoutCardView p={m.payload as WorkoutCard} onOpen={onOpenWorkout ? () => onOpenWorkout((m.payload as WorkoutCard).date) : undefined} />
+    <WorkoutCardView p={m.payload as WorkoutCard} onOpen={onOpenWorkout ? () => onOpenWorkout((m.payload as WorkoutCard).date, m.workout_id ?? undefined) : undefined} />
   ) : m.kind === 'image' ? (
     <div className={`flex max-w-[85%] flex-col gap-1 ${mine ? 'items-end' : 'items-start'}`}>
       <ImageView p={m.payload as ImageCard} />

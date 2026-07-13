@@ -29,7 +29,7 @@ test('a run card with a date shows day+date and opens that day on click', () => 
   expect(screen.getByText(/Sun, Aug 23/)).toBeInTheDocument()
   expect(screen.getByText(/Legs felt heavy/)).toBeInTheDocument()  // athlete's comment visible to the coach
   fireEvent.click(screen.getByText('Tempo 5 mi'))
-  expect(onOpenWorkout).toHaveBeenCalledWith('2026-08-23')
+  expect(onOpenWorkout).toHaveBeenCalledWith('2026-08-23', 'w3')
 })
 
 test('a superseded card rolls up into a placeholder that jumps to the newest card', () => {
@@ -64,7 +64,7 @@ test('renders a shared-workout card and opens its day on click', () => {
   expect(screen.getByText('Long Run 11 mi')).toBeInTheDocument()
   expect(screen.getByText(/Aug 23/)).toBeInTheDocument()
   fireEvent.click(screen.getByText('Long Run 11 mi'))
-  expect(onOpenWorkout).toHaveBeenCalledWith('2026-08-23')
+  expect(onOpenWorkout).toHaveBeenCalledWith('2026-08-23', 'w9')
 })
 
 test('renders an image message via signed URL when path is provided', () => {

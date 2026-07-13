@@ -26,7 +26,7 @@ function sessionLabel(iso: string): string {
 
 export function ChatPanel({ athleteId, athleteName, athleteAvatarUrl, onClose, onOpenDay }: {
   athleteId: string; athleteName: string; athleteAvatarUrl?: string | null
-  onClose: () => void; onOpenDay?: (date: string) => void
+  onClose: () => void; onOpenDay?: (date: string, workoutId?: string) => void
 }) {
   const { session } = useAuth()
   const meId = session!.user.id

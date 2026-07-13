@@ -21,6 +21,15 @@ test('share button rewords to "Share changes" once the workout is edited', () =>
   expect(onShare).toHaveBeenCalledWith(true, expect.objectContaining({ title: 'Tempo 5 mi' }))
 })
 
+test('shows a "Delete workout" button only when editing an existing workout', () => {
+  const onClear = vi.fn()
+  const { rerender } = render(<WorkoutEditor date="2026-09-08" workout={null} onSave={() => {}} onClear={onClear} />)
+  expect(screen.queryByRole('button', { name: /delete workout/i })).toBeNull() // hidden for a new workout
+  rerender(<WorkoutEditor date="2026-09-08" workout={base} onSave={() => {}} onClear={onClear} canDelete />)
+  fireEvent.click(screen.getByRole('button', { name: /delete workout/i }))
+  expect(onClear).toHaveBeenCalled()
+})
+
 test('adds a workout-structure phase and includes it on save', () => {
   const onSave = vi.fn()
   render(<WorkoutEditor date="2026-09-08" workout={{ ...base, type: 'speed', title: 'Intervals' }} onSave={onSave} onClear={() => {}} />)

@@ -21,6 +21,8 @@ export const anon = () => createClient(SUPABASE_URL, ANON, noPersist)
 export async function makeCoach(name = 'Test Coach') {
   const email = `${randomUUID()}@test.recbuddy.app`
   const { data } = await admin().auth.admin.createUser({ email, password: 'pw1234', email_confirm: true, user_metadata: { name } })
-  await admin().from('profiles').update({ role: 'coach', title: 'Head Coach' }).eq('id', data.user!.id)
+  // Match the coach-signup edge function: dual-role gates check the is_coach
+  // FLAG (create_invite, is_coach_of…), not the legacy role column.
+  await admin().from('profiles').update({ role: 'coach', title: 'Head Coach', is_coach: true, is_athlete: false }).eq('id', data.user!.id)
   return { id: data.user!.id, email, password: 'pw1234' }
 }

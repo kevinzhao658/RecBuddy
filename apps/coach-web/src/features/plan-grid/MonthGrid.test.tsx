@@ -2,7 +2,7 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import { MonthGrid } from './MonthGrid'
 
 const byDate = {
-  '2026-06-03': { date: '2026-06-03', type: 'speed', title: '5 × 800m', dist: 6, pace: '7:30/mi', status: 'done' } as any,
+  '2026-06-03': [{ date: '2026-06-03', type: 'speed', title: '5 × 800m', dist: 6, pace: '7:30/mi', status: 'done' }] as any,
 }
 
 test('renders weekday + week-mileage headers, a day with mileage/status, and picks a day', () => {
@@ -14,4 +14,15 @@ test('renders weekday + week-mileage headers, a day with mileage/status, and pic
   // from the week-mileage summary. Click the "Done" day → onPick with its date.
   fireEvent.click(screen.getByRole('button', { name: /done/i }))
   expect(onPick).toHaveBeenCalledWith('2026-06-03')
+})
+
+test('a day with multiple workouts shows a +N count chip', () => {
+  const multi = {
+    '2026-06-03': [
+      { date: '2026-06-03', type: 'easy', title: 'AM', dist: 3, pace: '9:00/mi', status: 'planned' },
+      { date: '2026-06-03', type: 'speed', title: 'PM', dist: 5, pace: '7:30/mi', status: 'planned' },
+    ] as any,
+  }
+  render(<MonthGrid anchor="2026-06-01" byDate={multi} selectedDate={null} onPick={vi.fn()} />)
+  expect(screen.getByText('+1')).toBeInTheDocument()
 })
