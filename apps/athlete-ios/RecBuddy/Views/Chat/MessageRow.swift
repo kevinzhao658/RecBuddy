@@ -16,6 +16,8 @@ struct MessageRow: View {
     /// A newer card for the same workout exists below — render as a compact
     /// rolled-up placeholder instead of a full card.
     var superseded: Bool = false
+    /// Scrolls the chat to the newest card for this workout (placeholder tap).
+    var onJumpToLatest: (() -> Void)? = nil
     /// Tap-through for workout/runcard references — called with the workout id
     /// so the chat can open results-vs-prescribed. Cards without a workout_id
     /// (legacy shares) stay static.
@@ -110,10 +112,10 @@ struct MessageRow: View {
 
     @ViewBuilder private var content: some View {
         if superseded {
-            // Rolled-up placeholder — a newer card for this workout is below.
-            openable {
+            // Rolled-up placeholder — tapping scrolls to the newest card below.
+            Button { onJumpToLatest?() } label: {
                 HStack(spacing: 6) {
-                    Image(systemName: "arrow.triangle.2.circlepath")
+                    Image(systemName: "arrow.down")
                     Text("\(message.payloadString("title") ?? "Workout") · \(message.kind == "runcard" ? "log updated below" : "re-shared below")")
                         .lineLimit(1)
                 }
@@ -125,6 +127,9 @@ struct MessageRow: View {
                 .clipShape(Capsule())
                 .overlay(Capsule().stroke(RB.line, lineWidth: 1))
             }
+            .buttonStyle(.plain)
+            .disabled(onJumpToLatest == nil)
+            .accessibilityHint("Scrolls to the latest card for this workout")
         } else {
             fullContent
         }

@@ -107,18 +107,17 @@ function AdjustCardView({ p }: { p: AdjustCard }) {
  *    (on the first), so co-coaches and the athlete are distinguishable.
  *  `grouped` tightens same-sender stacking. Timestamps live in the centered
  *  session separators rendered by ChatPanel, not per message. */
-export function MessageItem({ m, mine, sender, showName, showAvatar, grouped, superseded, onOpenWorkout }: {
+export function MessageItem({ m, mine, sender, showName, showAvatar, grouped, superseded, domId, onJumpToLatest, onOpenWorkout }: {
   m: Message; mine: boolean; sender?: Sender; showName?: boolean; showAvatar?: boolean
-  grouped?: boolean; superseded?: boolean; onOpenWorkout?: (date: string) => void
+  grouped?: boolean; superseded?: boolean; domId?: string
+  onJumpToLatest?: () => void; onOpenWorkout?: (date: string) => void
 }) {
   // A newer card for the same workout exists below — roll this one up into a
-  // compact placeholder (still click-through to the workout's day).
-  const cardDate = superseded ? (m.payload as RunCard | WorkoutCard)?.date : undefined
+  // compact placeholder that jumps the chat to that newest card.
   const body = superseded ? (
-    <button onClick={onOpenWorkout && cardDate ? () => onOpenWorkout(cardDate) : undefined}
-      disabled={!onOpenWorkout || !cardDate}
+    <button onClick={onJumpToLatest} disabled={!onJumpToLatest}
       className="flex items-center gap-1.5 rounded-full border border-line bg-surface2 px-3 py-1.5 text-xs text-text-faint transition enabled:hover:text-text-mute">
-      <span aria-hidden>↻</span>
+      <span aria-hidden>↓</span>
       {(m.payload as RunCard | WorkoutCard)?.title ?? 'Workout'} · {m.kind === 'runcard' ? 'log updated below' : 're-shared below'}
     </button>
   ) : m.kind === 'text' ? (
@@ -138,10 +137,10 @@ export function MessageItem({ m, mine, sender, showName, showAvatar, grouped, su
   )
 
   if (mine) {
-    return <div className={`flex flex-col items-end ${grouped ? 'mt-0.5' : 'mt-3'}`}>{body}</div>
+    return <div id={domId} className={`flex flex-col items-end ${grouped ? 'mt-0.5' : 'mt-3'}`}>{body}</div>
   }
   return (
-    <div className={`flex items-end gap-2 ${grouped ? 'mt-0.5' : 'mt-3'}`}>
+    <div id={domId} className={`flex items-end gap-2 ${grouped ? 'mt-0.5' : 'mt-3'}`}>
       <div className="w-5 shrink-0">{showAvatar && sender && <Avatar initials={sender.initials} url={sender.avatarUrl} size="sm" />}</div>
       {/* flex-1 so bubbles wrap at 85% of the panel — without it the column
           shrink-wraps and short multi-word messages break one word per line */}

@@ -113,12 +113,18 @@ struct ChatView: View {
     /// full card; older ones become a compact placeholder. Same-kind only —
     /// a result never rolls up a prescription. Legacy cards (no workout_id)
     /// are never rolled up.
-    private var supersededIds: Set<String> {
-        var latest: [String: String] = [:]   // "kind:workoutId" -> newest message id
+    /// "kind:workoutId" -> newest card message id (the placeholder's jump target).
+    private var latestCardIds: [String: String] {
+        var latest: [String: String] = [:]
         for m in store.messages {
             guard m.kind == "runcard" || m.kind == "workout", let w = m.workoutId else { continue }
             latest["\(m.kind):\(w)"] = m.id
         }
+        return latest
+    }
+
+    private var supersededIds: Set<String> {
+        let latest = latestCardIds
         var out = Set<String>()
         for m in store.messages {
             guard m.kind == "runcard" || m.kind == "workout", let w = m.workoutId else { continue }
@@ -217,6 +223,11 @@ struct ChatView: View {
                                             ? store.senders[m.fromUserId]?.avatarUrl : nil,
                                         grouped: !startsBlock,
                                         superseded: supersededIds.contains(m.id),
+                                        onJumpToLatest: m.workoutId.flatMap { w in
+                                            latestCardIds["\(m.kind):\(w)"].map { target in
+                                                { withAnimation { proxy.scrollTo(target, anchor: .center) } }
+                                            }
+                                        },
                                         onOpenWorkout: { id in Task { await openTrace(id) } }
                                     )
                                     .id(m.id)
