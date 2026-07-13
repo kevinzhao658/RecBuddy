@@ -49,7 +49,7 @@ export function WorkoutEditor({ date, workout, onSave, onClear, onShare }: {
           )}
         </div>
 
-        <WorkoutFields draft={d} onChange={set} showEstimate />
+        <WorkoutFields draft={d} onChange={set} />
       </div>
 
       <div className="flex gap-2 border-t border-line p-4">

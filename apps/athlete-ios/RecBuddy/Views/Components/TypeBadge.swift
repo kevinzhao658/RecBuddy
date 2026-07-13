@@ -17,6 +17,7 @@ struct TypeBadge: View {
         case "cross": return "bicycle"
         case "rest": return "moon.zzz"
         case "race": return "flag.checkered"
+        case "other": return "ellipsis.circle"
         default: return "figure.run"
         }
     }
@@ -24,7 +25,7 @@ struct TypeBadge: View {
         switch type {
         case "speed", "tempo", "race": return .orange
         case "long": return .blue
-        case "rest": return .secondary
+        case "rest", "other": return .secondary
         default: return .green
         }
     }
