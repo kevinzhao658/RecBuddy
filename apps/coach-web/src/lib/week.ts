@@ -75,3 +75,10 @@ export function blockLabel(monday: string, start: string | null, goal: string | 
   if (w < 1) return `Starts ${fmtShortDate(start)}`
   return `Week ${Math.min(w, total)} of ${total}`
 }
+
+/** '2026-08-23' -> 'Sun, Aug 23' (UTC; falls back to the raw string). */
+export function fmtDayDate(iso: string): string {
+  const d = new Date(iso + 'T00:00:00Z')
+  if (isNaN(d.getTime())) return iso
+  return `${DOW[(d.getUTCDay() + 6) % 7]}, ${fmtShortDate(iso)}`
+}

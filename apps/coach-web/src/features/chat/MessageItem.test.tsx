@@ -22,6 +22,23 @@ test('renders a run card with its stats', () => {
   expect(screen.getByText(/152/)).toBeInTheDocument()
 })
 
+test('a run card with a date shows day+date and opens that day on click', () => {
+  const onOpenWorkout = vi.fn()
+  render(<MessageItem mine={false} onOpenWorkout={onOpenWorkout}
+    m={{ ...base, kind: 'runcard', body: null, workout_id: 'w3', payload: { title: 'Tempo 5 mi', dist: '5 mi', pace: '8:10/mi', time: '40:50', hr: 160, date: '2026-08-23' } } as any} />)
+  expect(screen.getByText(/Sun, Aug 23/)).toBeInTheDocument()
+  fireEvent.click(screen.getByText('Tempo 5 mi'))
+  expect(onOpenWorkout).toHaveBeenCalledWith('2026-08-23')
+})
+
+test('a legacy run card without a date is not clickable', () => {
+  const onOpenWorkout = vi.fn()
+  render(<MessageItem mine={false} onOpenWorkout={onOpenWorkout}
+    m={{ ...base, kind: 'runcard', body: null, payload: { title: 'Old Run', dist: '3 mi', pace: '9:00/mi', time: '27:00', hr: 140 } } as any} />)
+  fireEvent.click(screen.getByText('Old Run'))
+  expect(onOpenWorkout).not.toHaveBeenCalled()
+})
+
 test('renders an adjust card with from/to/reason', () => {
   render(<MessageItem mine={true} m={{ ...base, kind: 'adjust', body: null, payload: { from: '6 × 400m', to: '5 × 800m', reason: 'threshold' } } as any} />)
   expect(screen.getByText('6 × 400m')).toBeInTheDocument()

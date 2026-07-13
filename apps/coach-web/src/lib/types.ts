@@ -40,8 +40,9 @@ export interface Invite {
 export interface RosterEntry { relationship: 'head' | 'assistant'; athlete: Profile; plans: Plan[] }
 
 export type MessageKind = 'text' | 'runcard' | 'adjust' | 'workout' | 'image'
-/** payload for kind='runcard' (a completed run the athlete logged). */
-export interface RunCard { title: string; dist: string; pace: string; time: string; hr: number }
+/** payload for kind='runcard' (a completed run the athlete logged). `date`
+ *  (new shares) enables click-through to the day's results-vs-plan view. */
+export interface RunCard { title: string; dist: string; pace: string; time: string; hr: number; date?: string; note?: string }
 /** payload for kind='adjust' (a workout change the coach pushed). */
 export interface AdjustCard { from: string; to: string; reason: string }
 /** payload for kind='workout' (a scheduled workout the coach shared). Snapshot

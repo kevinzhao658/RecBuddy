@@ -15,6 +15,14 @@ struct ChatView: View {
     @State private var staged: [StagedImage] = []
     private static let maxPhotos = 6
 
+    // Workout trace: tapping a workout/runcard reference opens the detail
+    // sheet (prescribed + logged run) for that workout.
+    @State private var traceWorkout: Workout?
+    @State private var traceActual: WorkoutActual?
+    @State private var tracePlanStore = PlanStore()
+    @AppStorage("unit") private var unitRaw = "mi"
+    private var unit: Unit { Unit(rawValue: unitRaw) ?? .mi }
+
     private struct StagedImage: Identifiable {
         let id = UUID()
         let data: Data; let w: Int; let h: Int; let preview: UIImage
@@ -188,7 +196,8 @@ struct ChatView: View {
                                         showAvatar: showAvatar && m.fromUserId != profile.id,
                                         senderAvatarUrl: m.fromUserId != profile.id
                                             ? store.senders[m.fromUserId]?.avatarUrl : nil,
-                                        grouped: !startsBlock
+                                        grouped: !startsBlock,
+                                        onOpenWorkout: { id in Task { await openTrace(id) } }
                                     )
                                     .id(m.id)
                                 }
@@ -234,6 +243,10 @@ struct ChatView: View {
         // no-coach empty state and a fresh thread appear without a relaunch.
         .task(id: session.hasCoach) { await store.open(athleteId: profile.id) }
         .onDisappear { Task { await store.close() } }
+        .sheet(item: $traceWorkout) { w in
+            WorkoutDetailSheet(workout: w, store: tracePlanStore, unit: unit,
+                               fetchedActual: traceActual)
+        }
         .onChange(of: imageItems) { _, newItems in
             guard !newItems.isEmpty else { return }
             Task { await stageImagesFromPicker(newItems) }
@@ -410,6 +423,22 @@ struct ChatView: View {
         } catch {
             sendError = "Couldn't send — try again."
         }
+    }
+
+    /// Fetch the referenced workout (and its logged actual, if any) and open
+    /// the detail sheet — the same results-vs-prescribed view as the calendar.
+    private func openTrace(_ workoutId: String) async {
+        sendError = nil
+        let rows: [Workout] = (try? await Supa.shared.from("workouts")
+            .select().eq("id", value: workoutId).limit(1).execute().value) ?? []
+        guard let w = rows.first else {
+            sendError = "Couldn't open that workout — it may have been removed."
+            return
+        }
+        let actuals: [WorkoutActual] = (try? await Supa.shared.from("workout_actuals")
+            .select().eq("workout_id", value: workoutId).limit(1).execute().value) ?? []
+        traceActual = actuals.first
+        traceWorkout = w
     }
 
     /// Load + downscale the picked photos and hold them in the composer; the

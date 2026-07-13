@@ -227,7 +227,8 @@ struct LogRunSheet: View {
                                    note: trimmedNote.isEmpty ? nil : trimmedNote)
             if share {
                 try? await ChatShare.shareRunCard(
-                    athleteId: workout.athleteId, title: workout.title,
+                    athleteId: workout.athleteId, workoutId: workout.id, date: workout.date,
+                    title: workout.title,
                     dist: "\(Units.fmtDist(miles, .mi)) mi", pace: pace, time: time,
                     hr: Int(hr), note: trimmedNote.isEmpty ? nil : trimmedNote)
             }

@@ -4,13 +4,16 @@ struct WorkoutDetailSheet: View {
     let workout: Workout
     let store: PlanStore
     let unit: Unit
+    /// Pre-fetched actual for workouts outside the store's loaded week —
+    /// the chat trace passes it so the logged-run section still renders.
+    var fetchedActual: WorkoutActual? = nil
     @Environment(\.dismiss) private var dismiss
     @State private var logOpen = false
     @State private var busy = false
     @State private var error: String?
 
     private var live: Workout { store.workoutsByDate[workout.date] ?? workout }
-    private var actual: WorkoutActual? { store.actualsByWorkout[workout.id] }
+    private var actual: WorkoutActual? { store.actualsByWorkout[workout.id] ?? fetchedActual }
 
     var body: some View {
         // NOTE: previously a ZStack with an ignoresSafeArea gradient overlay +

@@ -13,8 +13,32 @@ struct MessageRow: View {
     var showAvatar: Bool = false
     var senderAvatarUrl: String? = nil
     var grouped: Bool = false
+    /// Tap-through for workout/runcard references — called with the workout id
+    /// so the chat can open results-vs-prescribed. Cards without a workout_id
+    /// (legacy shares) stay static.
+    var onOpenWorkout: ((String) -> Void)? = nil
     @AppStorage("unit") private var unitRaw = "mi"
     private var unit: Unit { Unit(rawValue: unitRaw) ?? .mi }
+
+    private var canOpen: Bool { onOpenWorkout != nil && message.workoutId != nil }
+
+    /// ' · SUN, AUG 23' header suffix when the payload carries the day.
+    private func daySuffix(_ iso: String?) -> String {
+        guard let iso else { return "" }
+        return " · \(Week.fmtDayDate(iso).uppercased())"
+    }
+
+    /// Wraps a card in a button when it can trace back to its workout.
+    @ViewBuilder
+    private func openable<C: View>(@ViewBuilder content: () -> C) -> some View {
+        if canOpen, let id = message.workoutId, let onOpenWorkout {
+            Button { onOpenWorkout(id) } label: { content() }
+                .buttonStyle(.plain)
+                .accessibilityHint("Opens the workout details")
+        } else {
+            content()
+        }
+    }
 
     // ── Layout ─────────────────────────────────────────────────────────────
 
@@ -97,7 +121,9 @@ struct MessageRow: View {
             // (header eyebrow, title, divider, labeled stat columns), so a shared
             // run reads like a card, not a bare stat string. Used for both the
             // athlete's own share and the (rare) coach-sent variant.
-            darkCard(header: "LOGGED RUN", icon: "figure.run") {
+            openable {
+            darkCard(header: "LOGGED RUN\(daySuffix(message.payloadString("date")))",
+                     icon: "figure.run", chevron: canOpen) {
                 Text(message.payloadString("title") ?? "Run")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.white)
@@ -125,10 +151,16 @@ struct MessageRow: View {
                         .padding(.top, 3)
                 }
             }
+            }
 
         case "workout":
-            darkCard(header: "WORKOUT · \(Week.fmtShortDate(message.payloadString("date")))",
-                     icon: "calendar") {
+            // Same card the coach sees: type icon + WORKOUT · day, date header,
+            // title, dist · pace, and a chevron when it traces to the live row.
+            openable {
+            darkCard(header: "WORKOUT\(daySuffix(message.payloadString("date")))",
+                     icon: TypeBadge.symbol(for: message.payloadString("type") ?? "easy"),
+                     iconTint: TypeBadge.tint(for: message.payloadString("type") ?? "easy"),
+                     chevron: canOpen) {
                 Text(message.payloadString("title") ?? "Workout")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.white)
@@ -137,6 +169,7 @@ struct MessageRow: View {
                         .font(.caption)
                         .foregroundStyle(RB.textMute)
                 }
+            }
             }
 
         case "adjust":
@@ -225,12 +258,25 @@ struct MessageRow: View {
     private func darkCard<C: View>(
         header: String,
         icon: String,
+        iconTint: Color? = nil,
+        chevron: Bool = false,
         @ViewBuilder content: () -> C
     ) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Label(header, systemImage: icon)
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(RB.accent)
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(iconTint ?? RB.accent)
+                Text(header)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(RB.accent)
+                if chevron {
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.right")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(RB.textFaint)
+                }
+            }
             content()
         }
         .padding(10)
