@@ -48,7 +48,7 @@ export function RosterSidebar({ selectedId, onSelect }: { selectedId: string | n
           return (
             <button key={r.athlete.id} onClick={() => onSelect(r.athlete.id)}
               className={`group mb-0.5 flex w-full items-center gap-3 rounded-[14px] px-2 py-2 text-left transition ${selectedId === r.athlete.id ? 'bg-surface2 ring-1 ring-line' : 'hover:bg-surface2/50'}`}>
-              <Avatar initials={r.athlete.initials} />
+              <Avatar initials={r.athlete.initials} url={r.athlete.avatar_url} />
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-semibold text-text">{r.athlete.name}</span>
                 <span className="block truncate text-xs text-text-mute">{sub}</span>

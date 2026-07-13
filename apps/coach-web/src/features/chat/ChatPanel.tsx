@@ -24,8 +24,9 @@ function sessionLabel(iso: string): string {
   return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} · ${time}`
 }
 
-export function ChatPanel({ athleteId, athleteName, onClose, onOpenDay }: {
-  athleteId: string; athleteName: string; onClose: () => void; onOpenDay?: (date: string) => void
+export function ChatPanel({ athleteId, athleteName, athleteAvatarUrl, onClose, onOpenDay }: {
+  athleteId: string; athleteName: string; athleteAvatarUrl?: string | null
+  onClose: () => void; onOpenDay?: (date: string) => void
 }) {
   const { session } = useAuth()
   const meId = session!.user.id
@@ -56,7 +57,7 @@ export function ChatPanel({ athleteId, athleteName, onClose, onOpenDay }: {
     document.getElementById(`msg-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
 
   // Resolve each from_user_id → name/initials: every coach on the team + the athlete.
-  const senders: Record<string, Sender> = { [athleteId]: { name: athleteName, initials: initialsOf(athleteName) } }
+  const senders: Record<string, Sender> = { [athleteId]: { name: athleteName, initials: initialsOf(athleteName), avatarUrl: athleteAvatarUrl } }
   for (const m of team.data ?? []) senders[m.coach_id] = { name: m.coach.name, initials: m.coach.initials, avatarUrl: m.coach.avatar_url }
 
   // Mark the athlete's unread messages read once the thread opens.
