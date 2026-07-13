@@ -45,7 +45,6 @@ export function WorkoutFields({ draft: d, onChange, disabled = false }: {
   // The two most-recently edited fields are authoritative; the remaining one
   // recomputes from them on every keystroke (dist × pace = time).
   const [touched, setTouched] = useState<Metric[]>([])
-  const derived = touched.length === 2 ? METRICS.find((f) => !touched.includes(f)) : null
   const editMetric = (field: Metric, patch: Partial<WorkoutFieldsDraft>) => {
     const order = [field, ...touched.filter((f) => f !== field)].slice(0, 2)
     setTouched(order)
@@ -64,9 +63,6 @@ export function WorkoutFields({ draft: d, onChange, disabled = false }: {
     }
     set(patch)
   }
-  /** '· auto' eyebrow suffix on the field the other two are computing. */
-  const autoTag = (f: Metric) =>
-    derived === f ? <span className="normal-case tracking-normal text-accent"> · auto</span> : null
 
   return (
     <div className={disabled ? 'opacity-80' : undefined}>
@@ -91,13 +87,13 @@ export function WorkoutFields({ draft: d, onChange, disabled = false }: {
           <>
             <div className="flex gap-2">
               <div className="flex-1">
-                <span className={labelEyebrow}>Distance ({unit}){autoTag('dist')}</span>
+                <span className={labelEyebrow}>Distance ({unit})</span>
                 <NumberField ariaLabel="Distance" step={0.5}
                   value={d.dist != null ? Math.round(fromMiles(d.dist, unit) * 10) / 10 : null}
                   onChange={(v) => editMetric('dist', { dist: v != null ? Math.round(toMiles(v, unit) * 100) / 100 : null })} />
               </div>
               <div className="flex-1">
-                <span className={labelEyebrow}>Pace{autoTag('pace')}</span>
+                <span className={labelEyebrow}>Pace</span>
                 <PaceField value={d.pace} onChange={(v) => editMetric('pace', { pace: v })} unit={unit} />
               </div>
             </div>

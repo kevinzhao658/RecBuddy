@@ -31,9 +31,8 @@ test('editing distance + total time derives the pace (third field auto-calcs)', 
   render(<Harness initial={{}} />)
   fireEvent.change(screen.getByLabelText('Distance'), { target: { value: '5' } })
   fireEvent.change(screen.getByLabelText('Total time'), { target: { value: '50' } })
-  // 50 min over 5 mi -> 10:00/mi, shown in the pace input and tagged · auto
+  // 50 min over 5 mi -> 10:00/mi, shown directly in the pace input
   expect((screen.getByLabelText('Pace') as HTMLInputElement).value).toBe('10:00')
-  expect(screen.getByText('· auto')).toBeInTheDocument()
 })
 
 test('editing pace + total time derives the distance', () => {
