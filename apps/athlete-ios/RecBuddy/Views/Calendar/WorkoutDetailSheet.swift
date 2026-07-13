@@ -79,6 +79,12 @@ struct WorkoutDetailSheet: View {
             if live.type != "rest" {
                 VStack(spacing: 10) {
                     if live.status == "done" {
+                        // Edit in place — no unmark-and-relog needed to fix a note.
+                        if actual != nil {
+                            Button("Edit logged run") { logOpen = true }
+                                .buttonStyle(VoltButtonStyle())
+                                .disabled(busy)
+                        }
                         Button("Mark as not done") { Task { await setStatus("planned") } }
                             .buttonStyle(VoltButtonStyle(prominent: false))
                             .disabled(busy)
@@ -103,7 +109,9 @@ struct WorkoutDetailSheet: View {
         }
         .presentationDetents([.large])
         .sheet(isPresented: $logOpen) {
-            LogRunSheet(workout: live, store: store, unit: unit)
+            // Done + actual present -> edit that log; otherwise a fresh completion.
+            LogRunSheet(workout: live, store: store, unit: unit,
+                        existing: live.status == "done" ? actual : nil)
         }
     }
 

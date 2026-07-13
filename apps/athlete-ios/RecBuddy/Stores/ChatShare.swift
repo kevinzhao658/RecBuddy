@@ -29,7 +29,7 @@ enum ChatShare {
     /// workout_id + payload.date trace the card back to the live workout row —
     /// both apps use them for tap-through to results-vs-prescribed.
     static func shareRunCard(athleteId: String, workoutId: String? = nil, date: String? = nil,
-                             title: String, dist: String,
+                             type: String? = nil, title: String, dist: String,
                              pace: String, time: String, hr: Int?, note: String? = nil) async throws {
         let thread = try await fetchOrCreateThread(athleteId: athleteId)
         struct NewMsg: Encodable {
@@ -44,6 +44,7 @@ enum ChatShare {
             "pace": .string(pace), "time": .string(time),
         ]
         if let date { payload["date"] = .string(date) }
+        if let type { payload["type"] = .string(type) }
         if let hr { payload["hr"] = .int(hr) }
         if let note, !note.isEmpty { payload["note"] = .string(note) }
         try await Supa.shared.from("messages")

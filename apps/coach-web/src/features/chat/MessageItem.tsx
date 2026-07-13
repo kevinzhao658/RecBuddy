@@ -30,6 +30,7 @@ function RunCardView({ p, onOpen }: { p: RunCard; onOpen?: () => void }) {
   return (
     <button onClick={onOpen} disabled={!onOpen}
       className="rb-card rb-card-sm flex w-full max-w-[85%] items-start gap-2 p-3 text-left transition enabled:hover:border-text-mute">
+      {p.type && <TypeIcon type={p.type} className="mt-0.5 shrink-0 text-text-mute" />}
       <div className="min-w-0 flex-1">
         <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-accent">
           Logged run{p.date ? ` · ${fmtDayDate(p.date)}` : ''}

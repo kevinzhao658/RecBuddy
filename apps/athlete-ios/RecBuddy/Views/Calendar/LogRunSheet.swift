@@ -5,10 +5,13 @@ import SwiftUI
 /// logs the prescribed values (total time derived). Workouts with no dist/pace
 /// targets (e.g. cross-training) save as a plain mark-complete. A partial
 /// entry (one field, not both) disables Save.
+/// Pass `existing` to EDIT a logged run in place (fields prefill from the
+/// actual, save updates the row) — no unmark-and-relog needed.
 struct LogRunSheet: View {
     let workout: Workout
     let store: PlanStore
     let unit: Unit
+    let existing: WorkoutActual?
     @Environment(\.dismiss) private var dismiss
     @State private var dist = ""
     @State private var paceDigits = ""   // raw typed digits, fills M:SS from the right
@@ -19,13 +22,24 @@ struct LogRunSheet: View {
     @State private var busy = false
     @State private var error: String?
 
-    init(workout: Workout, store: PlanStore, unit: Unit) {
+    init(workout: Workout, store: PlanStore, unit: Unit, existing: WorkoutActual? = nil) {
         self.workout = workout
         self.store = store
         self.unit = unit
-        // Prefill from the plan so most runs are a two-tap log.
-        _dist = State(initialValue: workout.dist.map { Units.fmtDist($0, unit) } ?? "")
-        _paceDigits = State(initialValue: Self.digits(fromPace: workout.pace, unit: unit))
+        self.existing = existing
+        if let existing {
+            // Edit: prefill from the logged actual; sharing an update is opt-in.
+            _dist = State(initialValue: Units.fmtDist(existing.dist, unit))
+            _paceDigits = State(initialValue: Self.digits(fromPace: existing.pace, unit: unit))
+            _hr = State(initialValue: existing.hr.map(String.init) ?? "")
+            _feel = State(initialValue: existing.feel)
+            _note = State(initialValue: existing.note ?? "")
+            _share = State(initialValue: false)
+        } else {
+            // Prefill from the plan so most runs are a two-tap log.
+            _dist = State(initialValue: workout.dist.map { Units.fmtDist($0, unit) } ?? "")
+            _paceDigits = State(initialValue: Self.digits(fromPace: workout.pace, unit: unit))
+        }
     }
 
     /// "9:30/mi" (canonical) -> "930" display-unit digit buffer; "" if none.
@@ -154,16 +168,16 @@ struct LogRunSheet: View {
 
                         // One Save: full log when dist+pace present (prefilled or typed);
                         // plain mark-complete when both are empty (no-target workouts).
-                        Button(busy ? "Saving…" : "Save run") { Task { await save() } }
+                        Button(busy ? "Saving…" : existing != nil ? "Save changes" : "Save run") { Task { await save() } }
                             .buttonStyle(VoltButtonStyle())
-                            .disabled(busy || !(derivedTimeSeconds != nil || bothEmpty))
+                            .disabled(busy || !(derivedTimeSeconds != nil || (bothEmpty && existing == nil)))
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 20)
                     .padding(.bottom, 32)
                 }
             }
-            .navigationTitle("Complete workout")
+            .navigationTitle(existing != nil ? "Edit logged run" : "Complete workout")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -212,23 +226,33 @@ struct LogRunSheet: View {
 
     private func save() async {
         busy = true; error = nil; defer { busy = false }
-        // No-target workout, nothing entered: plain mark-complete.
-        if bothEmpty {
+        // No-target workout, nothing entered: plain mark-complete (new logs only).
+        if bothEmpty && existing == nil {
             do { try await store.setStatus(workout, to: "done"); dismiss() }
             catch { self.error = "Couldn't update — try again." }
             return
         }
-        guard let miles, let pace = canonicalPace, let secs = derivedTimeSeconds else { return }
+        guard let miles, let pace = canonicalPace, let secs = derivedTimeSeconds else {
+            error = "Enter distance and pace."
+            return
+        }
         let time = Pace.timeString(fromSeconds: secs)
         let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
         do {
-            try await store.logRun(workout: workout, dist: miles, time: time,
-                                   pace: pace, hr: Int(hr), feel: feel,
-                                   note: trimmedNote.isEmpty ? nil : trimmedNote)
+            if let existing {
+                // Edit in place — the workout stays done, the actual row updates.
+                try await store.updateRun(actualId: existing.id, dist: miles, time: time,
+                                          pace: pace, hr: Int(hr), feel: feel,
+                                          note: trimmedNote.isEmpty ? nil : trimmedNote)
+            } else {
+                try await store.logRun(workout: workout, dist: miles, time: time,
+                                       pace: pace, hr: Int(hr), feel: feel,
+                                       note: trimmedNote.isEmpty ? nil : trimmedNote)
+            }
             if share {
                 try? await ChatShare.shareRunCard(
                     athleteId: workout.athleteId, workoutId: workout.id, date: workout.date,
-                    title: workout.title,
+                    type: workout.type, title: workout.title,
                     dist: "\(Units.fmtDist(miles, .mi)) mi", pace: pace, time: time,
                     hr: Int(hr), note: trimmedNote.isEmpty ? nil : trimmedNote)
             }

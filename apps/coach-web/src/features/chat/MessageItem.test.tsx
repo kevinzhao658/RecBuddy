@@ -25,7 +25,7 @@ test('renders a run card with its stats', () => {
 test('a run card with a date shows day+date and opens that day on click', () => {
   const onOpenWorkout = vi.fn()
   render(<MessageItem mine={false} onOpenWorkout={onOpenWorkout}
-    m={{ ...base, kind: 'runcard', body: null, workout_id: 'w3', payload: { title: 'Tempo 5 mi', dist: '5 mi', pace: '8:10/mi', time: '40:50', hr: 160, date: '2026-08-23' } } as any} />)
+    m={{ ...base, kind: 'runcard', body: null, workout_id: 'w3', payload: { title: 'Tempo 5 mi', dist: '5 mi', pace: '8:10/mi', time: '40:50', hr: 160, date: '2026-08-23', type: 'tempo' } } as any} />)
   expect(screen.getByText(/Sun, Aug 23/)).toBeInTheDocument()
   fireEvent.click(screen.getByText('Tempo 5 mi'))
   expect(onOpenWorkout).toHaveBeenCalledWith('2026-08-23')

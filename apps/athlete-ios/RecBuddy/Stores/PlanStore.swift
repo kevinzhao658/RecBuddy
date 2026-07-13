@@ -141,4 +141,21 @@ final class PlanStore {
         }
         await refresh()
     }
+
+    /// Update an existing logged actual in place (edit flow — the workout stays
+    /// done). Explicit nulls so clearing hr/feel/note actually clears them.
+    func updateRun(actualId: String, dist: Double, time: String, pace: String,
+                   hr: Int?, feel: Int?, note: String?) async throws {
+        let patch: [String: AnyJSON] = [
+            "dist": .double(dist),
+            "pace": .string(pace),
+            "time": .string(time),
+            "hr": hr.map { .integer($0) } ?? .null,
+            "feel": feel.map { .integer($0) } ?? .null,
+            "note": note.map { .string($0) } ?? .null,
+        ]
+        try await Supa.shared.from("workout_actuals")
+            .update(patch).eq("id", value: actualId).execute()
+        await refresh()
+    }
 }

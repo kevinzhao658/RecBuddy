@@ -123,7 +123,9 @@ struct MessageRow: View {
             // athlete's own share and the (rare) coach-sent variant.
             openable {
             darkCard(header: "LOGGED RUN\(daySuffix(message.payloadString("date")))",
-                     icon: "figure.run", chevron: canOpen) {
+                     icon: message.payloadString("type").map { TypeBadge.symbol(for: $0) } ?? "figure.run",
+                     iconTint: message.payloadString("type").map { TypeBadge.tint(for: $0) },
+                     chevron: canOpen) {
                 Text(message.payloadString("title") ?? "Run")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.white)
