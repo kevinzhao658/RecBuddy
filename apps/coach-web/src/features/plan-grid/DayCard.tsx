@@ -47,7 +47,7 @@ export function DayCard({ workout, selected, isToday, onClick, onCopy, canPaste,
           <span>＋ Add</span>
         </div>
       ) : (
-        <div className="m-auto text-xs text-text-faint">Rest</div>
+        <div className="m-auto text-xs text-text-faint" aria-hidden>—</div>
       )}
     </div>
   )
