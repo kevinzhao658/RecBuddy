@@ -15,9 +15,10 @@ const STATUS_RING: Record<string, string> = {
 const STATUS_DOT: Record<string, string> = { done: 'text-accent', missed: 'text-missed', today: 'text-text-faint', planned: 'text-text-faint', rest: 'text-text-faint' }
 const STATUS_LABEL: Record<string, string> = { done: 'Completed', missed: 'Missed', today: 'Planned', planned: 'Planned', rest: 'Rest' }
 
-/** One compact workout card — a day stacks any number of these. */
-export function DayCard({ workout, selected, onClick, onCopy }: {
-  workout: Workout; selected: boolean; onClick: () => void; onCopy: () => void
+/** One compact workout card — a day stacks any number of these. Read-only
+ *  coaches (`canEdit=false`) lose the copy affordance. */
+export function DayCard({ workout, selected, onClick, onCopy, canEdit = true }: {
+  workout: Workout; selected: boolean; onClick: () => void; onCopy: () => void; canEdit?: boolean
 }) {
   const { unit } = useUnit()
   // Selection wins (clear lime outline), then status.
@@ -34,7 +35,7 @@ export function DayCard({ workout, selected, onClick, onCopy }: {
         <span className={`text-sm leading-none ${STATUS_DOT[workout.status]}`} aria-label={STATUS_LABEL[workout.status]}>
           {workout.status === 'done' ? '✓' : workout.status === 'missed' ? '✕' : ''}
         </span>
-        <button aria-label="Copy workout" onClick={(e) => { e.stopPropagation(); onCopy() }} className="text-text-faint hover:text-text">⧉</button>
+        {canEdit && <button aria-label="Copy workout" onClick={(e) => { e.stopPropagation(); onCopy() }} className="text-text-faint hover:text-text">⧉</button>}
       </div>
     </div>
   )

@@ -30,6 +30,15 @@ test('shows a "Delete workout" button only when editing an existing workout', ()
   expect(onClear).toHaveBeenCalled()
 })
 
+test('readOnly hides Done/Delete and the share button, and disables the fields', () => {
+  render(<WorkoutEditor date="2026-09-08" workout={base} onSave={() => {}} onClear={() => {}} onShare={() => {}} canDelete readOnly />)
+  expect(screen.queryByRole('button', { name: /^done$/i })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /delete workout/i })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /share to chat/i })).not.toBeInTheDocument()
+  expect(screen.getByLabelText(/title/i)).toBeDisabled()
+  expect(screen.getByText(/view-only access/i)).toBeInTheDocument()
+})
+
 test('adds a workout-structure phase and includes it on save', () => {
   const onSave = vi.fn()
   render(<WorkoutEditor date="2026-09-08" workout={{ ...base, type: 'speed', title: 'Intervals' }} onSave={onSave} onClear={() => {}} />)

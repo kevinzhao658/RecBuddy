@@ -11,12 +11,13 @@ export async function fetchRoster(client: SupabaseClient): Promise<RosterEntry[]
   const { data: who } = await client.auth.getUser()
   const { data, error } = await client
     .from('coach_athlete')
-    .select('relationship, athlete:profiles!coach_athlete_athlete_id_fkey(*, plans(*))')
+    .select('relationship, permission, athlete:profiles!coach_athlete_athlete_id_fkey(*, plans(*))')
     .eq('coach_id', who.user!.id)
     .order('relationship')
   if (error) throw error
   return (data as any[]).map((r) => ({
     relationship: r.relationship,
+    permission: r.permission,
     athlete: r.athlete,
     plans: r.athlete?.plans ?? [],
   }))

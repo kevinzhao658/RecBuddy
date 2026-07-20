@@ -37,7 +37,9 @@ export interface Invite {
   goal_race: string | null; goal_distance: string | null; goal_date: string | null; goal_time: string | null
   goal_start_date: string | null
 }
-export interface RosterEntry { relationship: 'head' | 'assistant'; athlete: Profile; plans: Plan[] }
+export type CoachPermission = 'read' | 'edit' | 'admin'
+/** `permission` is the SIGNED-IN coach's access to this athlete (read/edit/admin). */
+export interface RosterEntry { relationship: 'head' | 'assistant'; permission: CoachPermission; athlete: Profile; plans: Plan[] }
 
 export type MessageKind = 'text' | 'runcard' | 'adjust' | 'workout' | 'image'
 /** payload for kind='runcard' (a completed run the athlete logged). `date`
