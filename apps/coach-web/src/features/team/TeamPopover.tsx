@@ -41,7 +41,7 @@ export function TeamPopover({ athleteId, isHead }: { athleteId: string; isHead: 
               {m.relationship === 'assistant' && <button aria-label={`Remove ${m.coach?.name ?? 'coach'}`} onClick={() => remove.mutate(m.coach_id)} className="text-text-faint hover:text-text">✕</button>}
             </div>
           ))}
-          <input aria-label="Search coaches" value={q} onChange={(e) => runSearch(e.target.value)} placeholder="Add an assistant…"
+          <input aria-label="Search coaches" value={q} onChange={(e) => runSearch(e.target.value)} placeholder="Add a co-coach by name or email…"
             className="mt-2 w-full rounded-[10px] border border-line bg-surface2 px-3 py-2 text-sm text-text" />
           {results.filter((r) => !members.some((m) => m.coach_id === r.id)).map((r) => (
             <button key={r.id} onClick={() => { add.mutate(r.id); setQ(''); setResults([]) }}
