@@ -3,12 +3,13 @@ import type { Workout } from '../../lib/types'
 import { DayCard } from './DayCard'
 import { DOW, weekDates, fmtShortDate, todayISO } from '../../lib/week'
 
-function DayCell({ date, dow, workout, selected, onSelectDate, onCopy, canPaste, onPaste }: {
+function DayCell({ date, dow, workout, selected, onSelectDate, onCopy, canPaste, onPaste, canEdit }: {
   date: string; dow: string; workout: Workout | null; selected: boolean
-  onSelectDate: (d: string) => void; onCopy: (w: Workout) => void; canPaste: boolean; onPaste: (d: string) => void
+  onSelectDate: (d: string) => void; onCopy: (w: Workout) => void; canPaste: boolean; onPaste: (d: string) => void; canEdit: boolean
 }) {
-  const drop = useDroppable({ id: date })
-  const drag = useDraggable({ id: date, disabled: !workout })
+  // Read-only coaches can't move or drop cards — disable both drag and drop.
+  const drop = useDroppable({ id: date, disabled: !canEdit })
+  const drag = useDraggable({ id: date, disabled: !canEdit || !workout })
   const isToday = date === todayISO()
   return (
     <div className="flex flex-col">
@@ -19,9 +20,9 @@ function DayCell({ date, dow, workout, selected, onSelectDate, onCopy, canPaste,
           : <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-mute">{dow}</span>}
         <span className="font-num text-[10px] tabular-nums text-text-faint">{fmtShortDate(date)}</span>
       </div>
-      <div ref={(el) => { drop.setNodeRef(el); drag.setNodeRef(el) }} {...(workout ? { ...drag.attributes, ...drag.listeners } : {})}
+      <div ref={(el) => { drop.setNodeRef(el); drag.setNodeRef(el) }} {...(canEdit && workout ? { ...drag.attributes, ...drag.listeners } : {})}
         className={`flex-1 rounded-[14px] transition ${drop.isOver ? '-translate-y-0.5 ring-2 ring-accent shadow-[0_0_22px_rgba(173,255,47,0.35)]' : ''}`}>
-        <DayCard workout={workout} selected={selected} isToday={isToday}
+        <DayCard workout={workout} selected={selected} isToday={isToday} canEdit={canEdit}
           onClick={() => onSelectDate(date)} onCopy={() => workout && onCopy(workout)}
           canPaste={!workout && canPaste} onPaste={() => onPaste(date)} />
       </div>
@@ -29,17 +30,17 @@ function DayCell({ date, dow, workout, selected, onSelectDate, onCopy, canPaste,
   )
 }
 
-export function WeekGrid({ monday, week, selectedDate, onSelectDate, onCopy, canPaste, onPaste }: {
+export function WeekGrid({ monday, week, selectedDate, onSelectDate, onCopy, canPaste, onPaste, canEdit = true }: {
   monday: string; week: (Workout | null)[]; selectedDate: string | null
   onSelectDate: (date: string) => void; onCopy: (w: Workout) => void
-  canPaste: boolean; onPaste: (date: string) => void
+  canPaste: boolean; onPaste: (date: string) => void; canEdit?: boolean
 }) {
   const dates = weekDates(monday)
   return (
     <div className="grid grid-cols-1 gap-2 md:grid-cols-7 md:gap-3">
       {dates.map((date, i) => (
         <DayCell key={date} date={date} dow={DOW[i]} workout={week[i]} selected={selectedDate === date}
-          onSelectDate={onSelectDate} onCopy={onCopy} canPaste={canPaste} onPaste={onPaste} />
+          onSelectDate={onSelectDate} onCopy={onCopy} canPaste={canPaste} onPaste={onPaste} canEdit={canEdit} />
       ))}
     </div>
   )

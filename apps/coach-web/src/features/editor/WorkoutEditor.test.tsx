@@ -21,6 +21,15 @@ test('share button rewords to "Share changes" once the workout is edited', () =>
   expect(onShare).toHaveBeenCalledWith(true, expect.objectContaining({ title: 'Tempo 5 mi' }))
 })
 
+test('readOnly hides Done/Clear and the share button, and disables the fields', () => {
+  render(<WorkoutEditor date="2026-09-08" workout={base} onSave={() => {}} onClear={() => {}} onShare={() => {}} readOnly />)
+  expect(screen.queryByRole('button', { name: /^done$/i })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /clear day/i })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /share to chat/i })).not.toBeInTheDocument()
+  expect(screen.getByLabelText(/title/i)).toBeDisabled()
+  expect(screen.getByText(/view-only access/i)).toBeInTheDocument()
+})
+
 test('adds a workout-structure phase and includes it on save', () => {
   const onSave = vi.fn()
   render(<WorkoutEditor date="2026-09-08" workout={{ ...base, type: 'speed', title: 'Intervals' }} onSave={onSave} onClear={() => {}} />)

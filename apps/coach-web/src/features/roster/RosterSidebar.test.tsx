@@ -13,7 +13,7 @@ function wrap(ui: React.ReactNode) {
 
 test('shows active athletes and dimmed pending invite rows', () => {
   vi.spyOn(authMod, 'useAuth').mockReturnValue({ session: { user: { id: 'c1' } }, role: 'coach', loading: false } as any)
-  vi.spyOn(roster, 'useRoster').mockReturnValue({ data: [{ relationship: 'head', athlete: { id: 'a1', name: 'Rita Real', initials: 'RR' }, plans: [{ goal_date: 'Aug 23', plan_week: 5, plan_weeks: 16 }] }], isLoading: false } as any)
+  vi.spyOn(roster, 'useRoster').mockReturnValue({ data: [{ relationship: 'head', permission: 'admin', athlete: { id: 'a1', name: 'Rita Real', initials: 'RR' }, plans: [{ goal_date: 'Aug 23', plan_week: 5, plan_weeks: 16 }] }], isLoading: false } as any)
   vi.spyOn(invites, 'usePendingInvites').mockReturnValue({ data: [{ id: 'i1', code: 'ABCD2345', athlete_name: 'Pending Pat' }], isLoading: false } as any)
   vi.spyOn(roster, 'useRemoveAthlete').mockReturnValue({ mutate: vi.fn() } as any)
   vi.spyOn(invites, 'useRevokeInvite').mockReturnValue({ mutate: vi.fn() } as any)

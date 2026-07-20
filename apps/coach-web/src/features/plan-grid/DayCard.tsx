@@ -15,9 +15,9 @@ const STATUS_RING: Record<string, string> = {
 const STATUS_DOT: Record<string, string> = { done: 'text-accent', missed: 'text-missed', today: 'text-text-faint', planned: 'text-text-faint', rest: 'text-text-faint' }
 const STATUS_LABEL: Record<string, string> = { done: 'Completed', missed: 'Missed', today: 'Planned', planned: 'Planned', rest: 'Rest' }
 
-export function DayCard({ workout, selected, isToday, onClick, onCopy, canPaste, onPaste }: {
+export function DayCard({ workout, selected, isToday, onClick, onCopy, canPaste, onPaste, canEdit = true }: {
   workout: Workout | null; selected: boolean; isToday?: boolean; onClick: () => void; onCopy: () => void
-  canPaste?: boolean; onPaste?: () => void; date?: string; dow?: string
+  canPaste?: boolean; onPaste?: () => void; canEdit?: boolean; date?: string; dow?: string
 }) {
   const { unit } = useUnit()
   // Selection wins (clear lime outline), then today's bright ring, then status.
@@ -38,14 +38,16 @@ export function DayCard({ workout, selected, isToday, onClick, onCopy, canPaste,
             <span className={`text-sm leading-none ${STATUS_DOT[workout.status]}`} aria-label={STATUS_LABEL[workout.status]}>
               {workout.status === 'done' ? '✓' : workout.status === 'missed' ? '✕' : ''}
             </span>
-            <button aria-label="Copy workout" onClick={(e) => { e.stopPropagation(); onCopy() }} className="text-text-faint hover:text-text">⧉</button>
+            {canEdit && <button aria-label="Copy workout" onClick={(e) => { e.stopPropagation(); onCopy() }} className="text-text-faint hover:text-text">⧉</button>}
           </div>
         </>
-      ) : (
+      ) : canEdit ? (
         <div className="m-auto flex flex-col items-center gap-1 text-text-faint">
           {canPaste && <button aria-label="Paste workout" onClick={(e) => { e.stopPropagation(); onPaste?.() }} className="text-sm text-accent hover:brightness-110">Paste</button>}
           <span>＋ Add</span>
         </div>
+      ) : (
+        <div className="m-auto text-xs text-text-faint">Rest</div>
       )}
     </div>
   )

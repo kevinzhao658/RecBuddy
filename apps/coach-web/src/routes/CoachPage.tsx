@@ -18,7 +18,6 @@ import { ChatPanel } from '../features/chat/ChatPanel'
 import { TeamPopover } from '../features/team/TeamPopover'
 import { Toast } from '../components/ui/Toast'
 import { useRoster } from '../lib/queries/roster'
-import { useTeam } from '../lib/queries/team'
 import { useLibrary } from '../lib/queries/library'
 import { useAthletePlan, useAthleteMonth, useUpsertWorkout, useClearDay, useMoveWorkout, usePasteWorkout, useDuplicateWeek } from '../lib/queries/plan'
 import { useShareWorkout, useShareAdjust, useUnreadCounts, useUnreadRealtime } from '../lib/queries/chat'
@@ -26,7 +25,6 @@ import { UnreadBadge } from '../components/ui/UnreadBadge'
 import { useClipboard } from '../features/plan-grid/useClipboard'
 import { useRealtimePlan } from '../lib/useRealtimePlan'
 import { mondayOf, addDays, fmtShortDate, firstOfMonth, addMonths, fmtMonthYear, todayISO } from '../lib/week'
-import { useAuth } from '../auth/AuthProvider'
 
 /** Short one-line summary of a workout for chat adjust cards (from → to). */
 const wSummary = (w: { title: string; dist: number | null; pace: string | null }) =>
@@ -49,7 +47,6 @@ function HamburgerIcon() {
 }
 
 export default function CoachPage() {
-  const { session } = useAuth()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [monday, setMonday] = useState<string>(() => mondayOf(todayISO()))
   const [monthAnchor, setMonthAnchor] = useState<string>(() => firstOfMonth(todayISO()))
@@ -88,7 +85,7 @@ export default function CoachPage() {
 
       {selectedId
         ? <AthleteDashboard
-            key={selectedId} athleteId={selectedId} coachId={session!.user.id}
+            key={selectedId} athleteId={selectedId}
             monday={monday} setMonday={setMonday} monthAnchor={monthAnchor} setMonthAnchor={setMonthAnchor}
             view={view} setView={setView}
             selectedDate={selectedDate} setSelectedDate={setSelectedDate}
@@ -112,8 +109,8 @@ export default function CoachPage() {
   )
 }
 
-function AthleteDashboard({ athleteId, coachId, monday, setMonday, monthAnchor, setMonthAnchor, view, setView, selectedDate, setSelectedDate, clipboard, sensors, flash, onMenu, onAthleteRemoved }: {
-  athleteId: string; coachId: string
+function AthleteDashboard({ athleteId, monday, setMonday, monthAnchor, setMonthAnchor, view, setView, selectedDate, setSelectedDate, clipboard, sensors, flash, onMenu, onAthleteRemoved }: {
+  athleteId: string
   monday: string; setMonday: (m: string) => void
   monthAnchor: string; setMonthAnchor: (m: string) => void
   view: PlanView; setView: (v: PlanView) => void
@@ -124,7 +121,6 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, monthAnchor, 
 }) {
   useRealtimePlan(athleteId)
   const roster = useRoster()
-  const team = useTeam(athleteId)
   const library = useLibrary()
   const planQ = useAthletePlan(athleteId, monday)
   const monthQ = useAthleteMonth(athleteId, monthAnchor, view === 'month')
@@ -139,7 +135,11 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, monthAnchor, 
 
   const entry = (roster.data ?? []).find((r) => r.athlete.id === athleteId)
   const week = planQ.data ?? Array(7).fill(null)
-  const isHead = (team.data ?? []).some((m) => m.coach_id === coachId && m.relationship === 'head')
+  // The signed-in coach's access to THIS athlete gates every editing affordance.
+  // RLS is the real backstop; this just hides/disables what they can't use.
+  const perm = entry?.permission ?? 'read'
+  const canEdit = perm !== 'read'
+  const isAdmin = perm === 'admin'
   const selectedWorkout = selectedDate ? (week.find((w) => w?.date === selectedDate) ?? null) : null
 
   const onError = (err: any) => flash(err.message)
@@ -168,7 +168,7 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, monthAnchor, 
   const editorPanel = view === 'week' && selectedDate
     ? selectedWorkout?.status === 'done'
       ? <WorkoutResults key={selectedDate} workout={selectedWorkout} onClose={() => setSelectedDate(null)} />
-      : <WorkoutEditor key={selectedDate} date={selectedDate} workout={selectedWorkout}
+      : <WorkoutEditor key={selectedDate} date={selectedDate} workout={selectedWorkout} readOnly={!canEdit}
           onSave={(draft) => { upsert.mutate({ date: selectedDate, draft }, { onSuccess: () => setSelectedDate(null), onError }) }}
           onClear={() => { clearDay.mutate(selectedDate, { onSuccess: () => setSelectedDate(null), onError }) }}
           onShare={selectedWorkout ? (changed, draft) => {
@@ -192,16 +192,18 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, monthAnchor, 
             onSettings={() => setSettingsOpen(true)}
             actions={
               <>
-                <TeamPopover athleteId={athleteId} isHead={isHead} />
+                <TeamPopover athleteId={athleteId} isAdmin={isAdmin} />
                 <button onClick={() => setChatOpen(true)}
                   className="flex items-center gap-1.5 rounded-[12px] bg-accent px-4 py-2 text-sm font-semibold text-on-accent hover:brightness-110">
                   <ChatIcon className="h-4 w-4" /> Message
                   <UnreadBadge count={unread.data?.[athleteId] ?? 0} className="ml-0.5" />
                 </button>
-                <button onClick={() => duplicate.mutate(undefined, { onSuccess: () => flash('Week duplicated to next week'), onError })}
-                  className="hidden items-center gap-1.5 rounded-[12px] border border-line bg-surface2 px-4 py-2 text-sm font-semibold text-text hover:border-text-mute sm:flex">
-                  <span className="text-accent">＋</span> Duplicate week
-                </button>
+                {canEdit && (
+                  <button onClick={() => duplicate.mutate(undefined, { onSuccess: () => flash('Week duplicated to next week'), onError })}
+                    className="hidden items-center gap-1.5 rounded-[12px] border border-line bg-surface2 px-4 py-2 text-sm font-semibold text-text hover:border-text-mute sm:flex">
+                    <span className="text-accent">＋</span> Duplicate week
+                  </button>
+                )}
               </>
             }
           />
@@ -216,13 +218,13 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, monthAnchor, 
           {view === 'week' ? (
             // Clicking blank space exits the editor (day cards stop propagation)
             <div className="flex-1 px-6 pb-6" onClick={() => selectedDate && setSelectedDate(null)}>
-              <WeekGrid monday={monday} week={week} selectedDate={selectedDate}
+              <WeekGrid monday={monday} week={week} selectedDate={selectedDate} canEdit={canEdit}
                 onSelectDate={(d) => setSelectedDate(d)}
                 onCopy={(w) => { clipboard.copy(w); flash('Workout copied') }}
                 canPaste={!!clipboard.clip}
                 onPaste={(d) => clipboard.clip && paste.mutate({ date: d, source: clipboard.clip }, { onError })} />
               <WorkoutKey />
-              <p className="mt-3 px-1 text-xs text-text-faint">Drag from the workout library or move cards between days · Click any day to edit</p>
+              <p className="mt-3 px-1 text-xs text-text-faint">{canEdit ? 'Drag from the workout library or move cards between days · Click any day to edit' : 'You have view-only access · Click any day to see the workout'}</p>
             </div>
           ) : (
             <div className="flex-1 px-6 pb-6">
@@ -264,7 +266,7 @@ function AthleteDashboard({ athleteId, coachId, monday, setMonday, monthAnchor, 
         onOpenDay={(date) => { setMonday(mondayOf(date)); setView('week'); setSelectedDate(date); setChatOpen(false) }} />}
 
       {settingsOpen && <AthleteSettingsModal open onClose={() => setSettingsOpen(false)}
-        athlete={entry.athlete} plan={entry.plans?.[0] ?? null}
+        athlete={entry.athlete} plan={entry.plans?.[0] ?? null} canEdit={canEdit} isAdmin={isAdmin}
         onSaved={() => flash('Goal updated')} onRemoved={onAthleteRemoved} />}
     </DndContext>
   )

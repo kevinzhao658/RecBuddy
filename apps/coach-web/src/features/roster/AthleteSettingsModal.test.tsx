@@ -39,6 +39,18 @@ test('disables goal fields when the athlete has no plan yet', () => {
   expect(screen.getByText(/No plan yet/)).toBeInTheDocument()
 })
 
+test('hides the Remove from roster danger zone for non-admin coaches', () => {
+  render(<AthleteSettingsModal open onClose={() => {}} athlete={athlete} plan={plan} onRemoved={() => {}} onSaved={() => {}} canEdit isAdmin={false} />)
+  expect(screen.queryByRole('button', { name: 'Remove from roster' })).not.toBeInTheDocument()
+})
+
+test('read-only coaches see disabled goal fields and no Save button', () => {
+  render(<AthleteSettingsModal open onClose={() => {}} athlete={athlete} plan={plan} onRemoved={() => {}} onSaved={() => {}} canEdit={false} isAdmin={false} />)
+  expect(screen.getByLabelText('Goal race')).toBeDisabled()
+  expect(screen.queryByRole('button', { name: 'Save changes' })).not.toBeInTheDocument()
+  expect(screen.getByText(/view-only access/i)).toBeInTheDocument()
+})
+
 test('removal asks for confirmation, then deletes the roster link', () => {
   render(<AthleteSettingsModal open onClose={() => {}} athlete={athlete} plan={plan} onRemoved={() => {}} onSaved={() => {}} />)
   fireEvent.click(screen.getByRole('button', { name: 'Remove from roster' }))

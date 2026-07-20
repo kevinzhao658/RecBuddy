@@ -17,7 +17,7 @@ function setup() {
   vi.spyOn(chat, 'useSendMessage').mockReturnValue(send as any)
   vi.spyOn(chat, 'useMarkThreadRead').mockReturnValue(markRead as any)
   vi.spyOn(chat, 'useRealtimeThread').mockReturnValue(undefined as any)
-  vi.spyOn(teamMod, 'useTeam').mockReturnValue({ data: [{ coach_id: 'coach1', relationship: 'head', coach: { name: 'Mara Whitlock', title: 'Head Coach', initials: 'MW' } }] } as any)
+  vi.spyOn(teamMod, 'useTeam').mockReturnValue({ data: [{ coach_id: 'coach1', relationship: 'head', permission: 'admin', coach: { name: 'Mara Whitlock', title: 'Head Coach', initials: 'MW' } }] } as any)
   return { send, markRead }
 }
 
