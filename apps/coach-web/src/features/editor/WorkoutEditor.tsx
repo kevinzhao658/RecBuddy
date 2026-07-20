@@ -13,9 +13,11 @@ function eyebrow(iso: string) {
   return `${WEEKDAY[dt.getUTCDay()]} · ${fmtShortDate(iso)}`
 }
 
-export function WorkoutEditor({ date, workout, onSave, onClear, onShare }: {
+export function WorkoutEditor({ date, workout, onSave, onClear, onShare, canDelete }: {
   date: string; workout: Workout | null; onSave: (d: WorkoutDraft) => void; onClear: () => void
   onShare?: (changed: boolean, draft: WorkoutDraft) => void
+  /** True when editing an existing workout — shows the "Delete workout" button. */
+  canDelete?: boolean
 }) {
   const [d, setD] = useState<WorkoutDraft>(() => ({
     type: workout?.type ?? 'easy', title: workout?.title ?? 'Easy Run',
@@ -53,7 +55,9 @@ export function WorkoutEditor({ date, workout, onSave, onClear, onShare }: {
       </div>
 
       <div className="flex gap-2 border-t border-line p-4">
-        <button onClick={onClear} className="flex-1 rounded-[12px] border border-missed/40 px-5 py-2.5 text-sm font-semibold text-missed transition hover:border-missed/60 hover:bg-missed/10">Clear day</button>
+        {canDelete && (
+          <button onClick={onClear} className="flex-1 rounded-[12px] border border-missed/40 px-5 py-2.5 text-sm font-semibold text-missed transition hover:border-missed/60 hover:bg-missed/10">Delete workout</button>
+        )}
         <Button onClick={() => onSave(d)} className="flex-1">Done</Button>
       </div>
     </aside>

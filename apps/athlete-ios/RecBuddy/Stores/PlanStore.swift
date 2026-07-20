@@ -9,17 +9,17 @@ import Supabase
 final class PlanStore {
     enum Phase: Equatable { case idle, loading, error(String) }
     private(set) var phase: Phase = .idle
-    private(set) var workoutsByDate: [String: Workout] = [:]  // date -> workout (one per day)
+    private(set) var workoutsByDate: [String: [Workout]] = [:]  // date -> that day's workouts (created_at order)
     private(set) var actualsByWorkout: [String: WorkoutActual] = [:]
     private(set) var plan: Plan?
-    private(set) var monthWorkouts: [String: Workout] = [:]
+    private(set) var monthWorkouts: [String: [Workout]] = [:]
     var weekMonday: String = Week.mondayOf(Week.todayISO())
 
     var weekDates: [String] { Week.weekDates(mondayIso: weekMonday) }
 
     /// Sum of planned distances for all non-rest workouts in the displayed week.
     var weekPlannedMiles: Double {
-        workoutsByDate.values
+        workoutsByDate.values.flatMap { $0 }
             .filter { $0.type != "rest" }
             .compactMap(\.dist)
             .reduce(0, +)
@@ -27,7 +27,7 @@ final class PlanStore {
 
     /// Sum of planned distances for workouts marked done in the displayed week.
     var weekDoneMiles: Double {
-        workoutsByDate.values
+        workoutsByDate.values.flatMap { $0 }
             .filter { $0.status == "done" }
             .compactMap(\.dist)
             .reduce(0, +)
@@ -53,9 +53,9 @@ final class PlanStore {
             let to = Week.addDays(weekMonday, 6)
             let workouts: [Workout] = try await Supa.shared.from("workouts")
                 .select().gte("date", value: from).lte("date", value: to)
-                .order("date").execute().value
+                .order("date").order("created_at").execute().value
             guard weekMonday == from else { return } // stale response — a newer week won
-            workoutsByDate = Dictionary(workouts.map { ($0.date, $0) }, uniquingKeysWith: { _, last in last })
+            workoutsByDate = Dictionary(grouping: workouts, by: \.date)
             let ids = workouts.map(\.id)
             if ids.isEmpty { actualsByWorkout = [:] }
             else {
@@ -82,9 +82,8 @@ final class PlanStore {
         do {
             let workouts: [Workout] = try await Supa.shared.from("workouts")
                 .select().gte("date", value: first).lte("date", value: last)
-                .order("date").execute().value
-            monthWorkouts = Dictionary(workouts.map { ($0.date, $0) },
-                                       uniquingKeysWith: { _, last in last })
+                .order("date").order("created_at").execute().value
+            monthWorkouts = Dictionary(grouping: workouts, by: \.date)
         } catch {
             // Silently ignore — month grid dots are best-effort.
         }
@@ -94,20 +93,23 @@ final class PlanStore {
     /// Uses explicit entry reassignment (not optional-chain mutation) so @Observable
     /// always sees the dictionary change and re-renders correctly.
     func setStatus(_ workout: Workout, to status: String) async throws {
-        let old = workoutsByDate[workout.date]?.status
+        // Find the workout by ID within its day (a date can hold several now).
+        let idx = workoutsByDate[workout.date]?.firstIndex { $0.id == workout.id }
+        let old = idx.flatMap { workoutsByDate[workout.date]?[$0].status }
         // Explicit reassignment ensures @Observable tracks the dictionary write.
-        if var w = workoutsByDate[workout.date] {
-            w.status = status
-            workoutsByDate[workout.date] = w
+        if let idx, var day = workoutsByDate[workout.date] {
+            day[idx].status = status
+            workoutsByDate[workout.date] = day
         }
         do {
             try await Supa.shared.rpc("mark_workout_status",
                 params: ["p_workout_id": workout.id, "p_status": status]).execute()
         } catch {
             // Roll back optimistic update.
-            if let old, var w = workoutsByDate[workout.date] {
-                w.status = old
-                workoutsByDate[workout.date] = w
+            if let old, var day = workoutsByDate[workout.date],
+               let idx = day.firstIndex(where: { $0.id == workout.id }) {
+                day[idx].status = old
+                workoutsByDate[workout.date] = day
             }
             throw error
         }

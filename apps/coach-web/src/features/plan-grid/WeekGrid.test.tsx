@@ -1,0 +1,45 @@
+import { render, screen, fireEvent } from '@testing-library/react'
+import { DndContext } from '@dnd-kit/core'
+import { WeekGrid } from './WeekGrid'
+
+const wk = (id: string, title: string) =>
+  ({ id, title, date: '2026-09-07', type: 'easy', dist: 4, pace: '9:00/mi', status: 'planned', sets: [] }) as any
+
+// Two workouts on Monday, everything else empty.
+const week = [[wk('w1', 'AM Shakeout'), wk('w2', 'PM Track')], [], [], [], [], [], []]
+
+function renderGrid(overrides: Partial<Parameters<typeof WeekGrid>[0]> = {}) {
+  const props = {
+    monday: '2026-09-07', week, selectedId: null,
+    onSelectWorkout: vi.fn(), onCopy: vi.fn(), canPaste: false, onPaste: vi.fn(),
+    ...overrides,
+  }
+  render(<DndContext><WeekGrid {...props} /></DndContext>)
+  return props
+}
+
+test('stacks two workouts on one day, each selectable', () => {
+  const { onSelectWorkout } = renderGrid()
+  expect(screen.getByText('AM Shakeout')).toBeInTheDocument()
+  expect(screen.getByText('PM Track')).toBeInTheDocument()
+  fireEvent.click(screen.getByText('AM Shakeout'))
+  expect(onSelectWorkout).toHaveBeenCalledWith('2026-09-07', 'w1')
+  fireEvent.click(screen.getByText('PM Track'))
+  expect(onSelectWorkout).toHaveBeenCalledWith('2026-09-07', 'w2')
+})
+
+test('every day keeps an Add affordance that opens a blank editor', () => {
+  const { onSelectWorkout } = renderGrid()
+  const adds = screen.getAllByRole('button', { name: /add workout/i })
+  expect(adds.length).toBe(7) // occupied days still offer Add
+  fireEvent.click(adds[0])
+  expect(onSelectWorkout).toHaveBeenCalledWith('2026-09-07', null)
+})
+
+test('paste is offered on occupied days too when the clipboard is full', () => {
+  const { onPaste } = renderGrid({ canPaste: true })
+  const pastes = screen.getAllByRole('button', { name: /paste workout/i })
+  expect(pastes.length).toBe(7)
+  fireEvent.click(pastes[0])
+  expect(onPaste).toHaveBeenCalledWith('2026-09-07')
+})

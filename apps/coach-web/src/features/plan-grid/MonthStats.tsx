@@ -5,10 +5,10 @@ import { useUnit } from '../../lib/useUnit'
 import { fromMiles } from '../../lib/units'
 
 /** Month totals (in-month days only): scheduled vs completed mileage + adherence. */
-export function MonthStats({ byDate, anchor }: { byDate: Record<string, Workout>; anchor: string }) {
+export function MonthStats({ byDate, anchor }: { byDate: Record<string, Workout[]>; anchor: string }) {
   const { unit } = useUnit()
   const m = monthOf(anchor)
-  const ws = Object.values(byDate).filter((w) => monthOf(w.date) === m)
+  const ws = Object.values(byDate).flat().filter((w) => monthOf(w.date) === m)
   const scheduled = ws.reduce((s, w) => s + (w.dist ?? 0), 0)
   const completed = ws.filter((w) => w.status === 'done').reduce((s, w) => s + (w.dist ?? 0), 0)
   const adherence = scheduled > 0 ? Math.round((completed / scheduled) * 100) : 0

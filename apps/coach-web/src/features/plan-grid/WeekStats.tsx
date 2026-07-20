@@ -6,9 +6,9 @@ import { useUnit } from '../../lib/useUnit'
 import { fromMiles } from '../../lib/units'
 
 /** The week's projected volume / time-on-feet / completion, shown in the controls row. */
-export function WeekStats({ week }: { week: (Workout | null)[] }) {
+export function WeekStats({ week }: { week: Workout[][] }) {
   const { unit } = useUnit()
-  const present = week.filter(Boolean) as Workout[]
+  const present = week.flat()
   const miles = present.reduce((s, w) => s + (w.dist ?? 0), 0)
   const minutes = present.reduce((s, w) => s + estMinutes(w), 0)
   const done = present.filter((w) => w.status === 'done').length
