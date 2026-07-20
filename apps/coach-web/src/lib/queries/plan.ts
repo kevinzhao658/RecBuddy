@@ -4,14 +4,16 @@ import { supabase } from '../supabase'
 import type { Workout } from '../types'
 import { weekDates, addDays, monthGridDates } from '../week'
 
-/** Returns a 7-slot array (Mon..Sun); null for empty days. */
-export async function fetchWeek(client: SupabaseClient, athleteId: string, monday: string): Promise<(Workout | null)[]> {
+/** Returns a 7-slot array (Mon..Sun); each slot holds that day's workouts ordered by created_at. */
+export async function fetchWeek(client: SupabaseClient, athleteId: string, monday: string): Promise<Workout[][]> {
   const dates = weekDates(monday)
   const { data, error } = await client.from('workouts').select('*')
     .eq('athlete_id', athleteId).gte('date', dates[0]).lte('date', dates[6])
+    .order('created_at')
   if (error) throw error
-  const byDate = new Map((data as Workout[]).map((w) => [w.date, w]))
-  return dates.map((d) => byDate.get(d) ?? null)
+  const byDate = new Map<string, Workout[]>(dates.map((d) => [d, []]))
+  for (const w of data as Workout[]) byDate.get(w.date)?.push(w)
+  return dates.map((d) => byDate.get(d)!)
 }
 export function useAthletePlan(athleteId: string | null, monday: string) {
   return useQuery({
@@ -22,14 +24,15 @@ export function useAthletePlan(athleteId: string | null, monday: string) {
 }
 export function planQueryKey(athleteId: string | null, monday: string) { return ['week', athleteId, monday] as const }
 
-/** Workouts for a whole calendar-month grid, keyed by date. */
-export async function fetchMonth(client: SupabaseClient, athleteId: string, anchor: string): Promise<Record<string, Workout>> {
+/** Workouts for a whole calendar-month grid, keyed by date (each day's list ordered by created_at). */
+export async function fetchMonth(client: SupabaseClient, athleteId: string, anchor: string): Promise<Record<string, Workout[]>> {
   const dates = monthGridDates(anchor)
   const { data, error } = await client.from('workouts').select('*')
     .eq('athlete_id', athleteId).gte('date', dates[0]).lte('date', dates[dates.length - 1])
+    .order('created_at')
   if (error) throw error
-  const byDate: Record<string, Workout> = {}
-  for (const w of data as Workout[]) byDate[w.date] = w
+  const byDate: Record<string, Workout[]> = {}
+  for (const w of data as Workout[]) (byDate[w.date] ??= []).push(w)
   return byDate
 }
 export function useAthleteMonth(athleteId: string | null, anchor: string, enabled = true) {
@@ -74,69 +77,69 @@ export async function getOrCreatePlanId(client: SupabaseClient, athleteId: strin
   return created!.id
 }
 
-export async function upsertWorkout(
+/** Save a workout: update the row when `workoutId` is given, otherwise insert a
+ *  new one on that date (days can hold any number of workouts). */
+export async function saveWorkout(
   client: SupabaseClient,
   athleteId: string,
   date: string,
   draft: WorkoutDraft,
+  workoutId?: string,
 ): Promise<void> {
-  const planId = await getOrCreatePlanId(client, athleteId)
   const status = draft.type === 'rest' ? 'rest' : 'planned'
-  const { error } = await client.from('workouts').upsert(
-    { plan_id: planId, athlete_id: athleteId, date, ...draft, status },
-    { onConflict: 'athlete_id,date' },
-  )
+  if (workoutId) {
+    const { error } = await client.from('workouts').update({ date, ...draft, status }).eq('id', workoutId)
+    if (error) throw error
+    return
+  }
+  const planId = await getOrCreatePlanId(client, athleteId)
+  const { error } = await client.from('workouts').insert({ plan_id: planId, athlete_id: athleteId, date, ...draft, status })
   if (error) throw error
 }
 
 export function useUpsertWorkout(athleteId: string, monday: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ date, draft }: { date: string; draft: WorkoutDraft }) => upsertWorkout(supabase, athleteId, date, draft),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['week', athleteId, monday] }),
-  })
-}
-export function useClearDay(athleteId: string, monday: string) {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async (date: string) => { const { error } = await supabase.from('workouts').delete().eq('athlete_id', athleteId).eq('date', date); if (error) throw error },
+    mutationFn: ({ date, draft, id }: { date: string; draft: WorkoutDraft; id?: string | null }) =>
+      saveWorkout(supabase, athleteId, date, draft, id ?? undefined),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['week', athleteId, monday] }),
   })
 }
 
-/** Move a workout from one date to another; if the target has a workout, swap dates.
- *  Uses a temp date to avoid the unique(athlete_id,date) collision during a swap. */
-export async function moveWorkout(client: SupabaseClient, { athleteId, from, to }: { athleteId: string; from: string; to: string }): Promise<void> {
-  if (from === to) return
-  const { data, error } = await client.from('workouts').select('id, date').eq('athlete_id', athleteId).in('date', [from, to])
+export async function deleteWorkout(client: SupabaseClient, workoutId: string): Promise<void> {
+  const { error } = await client.from('workouts').delete().eq('id', workoutId)
   if (error) throw error
-  const rows = data as { id: string; date: string }[]
-  const src = rows.find((w) => w.date === from)
-  const dst = rows.find((w) => w.date === to)
-  if (!src) return
-  const TMP = '1900-01-01'
-  const upd = (id: string, date: string) => client.from('workouts').update({ date }).eq('id', id)
-  let e = (await upd(src.id, TMP)).error; if (e) throw e
-  if (dst) { e = (await upd(dst.id, from)).error; if (e) throw e }
-  e = (await upd(src.id, to)).error; if (e) throw e
+}
+export function useDeleteWorkout(athleteId: string, monday: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (workoutId: string) => deleteWorkout(supabase, workoutId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['week', athleteId, monday] }),
+  })
+}
+
+/** Move a workout to another date. Moving onto an occupied day appends. */
+export async function moveWorkout(client: SupabaseClient, workoutId: string, toDate: string): Promise<void> {
+  const { error } = await client.from('workouts').update({ date: toDate }).eq('id', workoutId)
+  if (error) throw error
 }
 
 export function useMoveWorkout(athleteId: string, monday: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (args: { from: string; to: string }) => moveWorkout(supabase, { athleteId, ...args }),
+    mutationFn: ({ id, to }: { id: string; to: string }) => moveWorkout(supabase, id, to),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['week', athleteId, monday] }),
   })
 }
 
-/** Paste a copied workout onto a date (creating the plan if needed). */
+/** Paste a copied workout onto a date (creating the plan if needed). Pasting
+ *  onto an occupied day ADDS a workout. */
 export async function pasteWorkout(client: SupabaseClient, athleteId: string, date: string, source: Workout): Promise<void> {
   const planId = await getOrCreatePlanId(client, athleteId)
   const status = source.type === 'rest' ? 'rest' : 'planned'
-  const { error } = await client.from('workouts').upsert(
+  const { error } = await client.from('workouts').insert(
     { plan_id: planId, athlete_id: athleteId, date, type: source.type, title: source.title, dist: source.dist, pace: source.pace,
       est_minutes: source.est_minutes, dur: source.dur, note: source.note, sets: source.sets, status },
-    { onConflict: 'athlete_id,date' },
   )
   if (error) throw error
 }
@@ -149,18 +152,20 @@ export function usePasteWorkout(athleteId: string, monday: string) {
   })
 }
 
-/** Copy each workout in [monday..sun] into the following week (date + 7), status reset. */
+/** Copy each workout in [monday..sun] into the following week (date + 7), status
+ *  reset. Plain insert — appends to whatever the target week already holds. */
 export async function duplicateWeek(client: SupabaseClient, athleteId: string, monday: string): Promise<void> {
   const dates = weekDates(monday)
   const planId = await getOrCreatePlanId(client, athleteId)
-  const { data, error } = await client.from('workouts').select('*').eq('athlete_id', athleteId).gte('date', dates[0]).lte('date', dates[6])
+  const { data, error } = await client.from('workouts').select('*')
+    .eq('athlete_id', athleteId).gte('date', dates[0]).lte('date', dates[6]).order('created_at')
   if (error) throw error
   const rows = (data as Workout[]).map((w) => ({
     plan_id: planId, athlete_id: athleteId, date: addDays(w.date, 7), type: w.type, title: w.title,
     dist: w.dist, pace: w.pace, est_minutes: w.est_minutes, dur: w.dur, note: w.note, sets: w.sets,
     status: w.type === 'rest' ? 'rest' : 'planned',
   }))
-  if (rows.length) { const { error: upErr } = await client.from('workouts').upsert(rows, { onConflict: 'athlete_id,date' }); if (upErr) throw upErr }
+  if (rows.length) { const { error: insErr } = await client.from('workouts').insert(rows); if (insErr) throw insErr }
 }
 export function useDuplicateWeek(athleteId: string, monday: string) {
   const qc = useQueryClient()

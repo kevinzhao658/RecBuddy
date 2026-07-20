@@ -21,10 +21,19 @@ test('share button rewords to "Share changes" once the workout is edited', () =>
   expect(onShare).toHaveBeenCalledWith(true, expect.objectContaining({ title: 'Tempo 5 mi' }))
 })
 
-test('readOnly hides Done/Clear and the share button, and disables the fields', () => {
-  render(<WorkoutEditor date="2026-09-08" workout={base} onSave={() => {}} onClear={() => {}} onShare={() => {}} readOnly />)
+test('shows a "Delete workout" button only when editing an existing workout', () => {
+  const onClear = vi.fn()
+  const { rerender } = render(<WorkoutEditor date="2026-09-08" workout={null} onSave={() => {}} onClear={onClear} />)
+  expect(screen.queryByRole('button', { name: /delete workout/i })).toBeNull() // hidden for a new workout
+  rerender(<WorkoutEditor date="2026-09-08" workout={base} onSave={() => {}} onClear={onClear} canDelete />)
+  fireEvent.click(screen.getByRole('button', { name: /delete workout/i }))
+  expect(onClear).toHaveBeenCalled()
+})
+
+test('readOnly hides Done/Delete and the share button, and disables the fields', () => {
+  render(<WorkoutEditor date="2026-09-08" workout={base} onSave={() => {}} onClear={() => {}} onShare={() => {}} canDelete readOnly />)
   expect(screen.queryByRole('button', { name: /^done$/i })).not.toBeInTheDocument()
-  expect(screen.queryByRole('button', { name: /clear day/i })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /delete workout/i })).not.toBeInTheDocument()
   expect(screen.queryByRole('button', { name: /share to chat/i })).not.toBeInTheDocument()
   expect(screen.getByLabelText(/title/i)).toBeDisabled()
   expect(screen.getByText(/view-only access/i)).toBeInTheDocument()

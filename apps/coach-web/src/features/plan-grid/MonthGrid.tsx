@@ -17,11 +17,12 @@ const STATUS: Record<WorkoutStatus, { label: string; cls: string }> = {
   rest: { label: 'Rest', cls: 'text-text-faint' },
 }
 
-function DayCell({ date, w, inMonth, isToday, isSel, onPick }: {
-  date: string; w: Workout | undefined; inMonth: boolean; isToday: boolean; isSel: boolean; onPick: (d: string) => void
+function DayCell({ date, ws, inMonth, isToday, isSel, onPick }: {
+  date: string; ws: Workout[]; inMonth: boolean; isToday: boolean; isSel: boolean; onPick: (d: string) => void
 }) {
   const { unit } = useUnit()
   const day = Number(date.slice(8, 10))
+  const w = ws[0]
   const isRest = w?.type === 'rest' || w?.status === 'rest'
   // Today/selected get a ring; "Done" is shown by the lime status text only.
   const ring = isSel || isToday ? 'ring-2 ring-inset ring-accent' : ''
@@ -30,7 +31,10 @@ function DayCell({ date, w, inMonth, isToday, isSel, onPick }: {
       className={`flex min-h-[92px] flex-col border-b border-r border-line p-2 text-left transition hover:bg-surface2 ${inMonth ? '' : 'opacity-35'} ${ring}`}>
       <div className="flex items-start justify-between">
         <span className={`font-num text-xs ${isToday ? 'font-bold text-accent' : 'text-text-mute'}`}>{day}</span>
-        {w && !isRest && <TypeIcon type={w.type} className="h-3.5 w-3.5 text-text-faint" />}
+        <span className="flex items-center gap-1">
+          {ws.length > 1 && <span className="text-[10px] text-text-faint">+{ws.length - 1}</span>}
+          {w && !isRest && <TypeIcon type={w.type} className="h-3.5 w-3.5 text-text-faint" />}
+        </span>
       </div>
       {w && (isRest ? (
         <span className="m-auto text-xs text-text-faint">Rest</span>
@@ -44,9 +48,9 @@ function DayCell({ date, w, inMonth, isToday, isSel, onPick }: {
   )
 }
 
-function WeekSummary({ days, isCurrent }: { days: (Workout | null)[]; isCurrent: boolean }) {
+function WeekSummary({ days, isCurrent }: { days: Workout[][]; isCurrent: boolean }) {
   const { unit } = useUnit()
-  const present = days.filter(Boolean) as Workout[]
+  const present = days.flat()
   const scheduled = present.reduce((s, w) => s + (w.dist ?? 0), 0)
   const completed = present.filter((w) => w.status === 'done').reduce((s, w) => s + (w.dist ?? 0), 0)
   const pct = scheduled > 0 ? Math.round((completed / scheduled) * 100) : 0
@@ -70,7 +74,7 @@ function WeekSummary({ days, isCurrent }: { days: (Workout | null)[]; isCurrent:
 }
 
 export function MonthGrid({ anchor, byDate, selectedDate, onPick }: {
-  anchor: string; byDate: Record<string, Workout>; selectedDate: string | null; onPick: (date: string) => void
+  anchor: string; byDate: Record<string, Workout[]>; selectedDate: string | null; onPick: (date: string) => void
 }) {
   const weeks = chunk(monthGridDates(anchor), 7)
   const m = monthOf(anchor)
@@ -85,10 +89,10 @@ export function MonthGrid({ anchor, byDate, selectedDate, onPick }: {
         {weeks.map((week) => (
           <Fragment key={week[0]}>
             {week.map((date) => (
-              <DayCell key={date} date={date} w={byDate[date]} inMonth={monthOf(date) === m}
+              <DayCell key={date} date={date} ws={byDate[date] ?? []} inMonth={monthOf(date) === m}
                 isToday={date === todayIso} isSel={date === selectedDate} onPick={onPick} />
             ))}
-            <WeekSummary days={week.map((d) => byDate[d] ?? null)} isCurrent={week.includes(todayIso)} />
+            <WeekSummary days={week.map((d) => byDate[d] ?? [])} isCurrent={week.includes(todayIso)} />
           </Fragment>
         ))}
       </div>

@@ -13,9 +13,13 @@ function eyebrow(iso: string) {
   return `${WEEKDAY[dt.getUTCDay()]} · ${fmtShortDate(iso)}`
 }
 
-export function WorkoutEditor({ date, workout, onSave, onClear, onShare, readOnly = false }: {
+export function WorkoutEditor({ date, workout, onSave, onClear, onShare, canDelete, readOnly = false }: {
   date: string; workout: Workout | null; onSave: (d: WorkoutDraft) => void; onClear: () => void
-  onShare?: (changed: boolean, draft: WorkoutDraft) => void; readOnly?: boolean
+  onShare?: (changed: boolean, draft: WorkoutDraft) => void
+  /** True when editing an existing workout — shows the "Delete workout" button. */
+  canDelete?: boolean
+  /** Read-only coach: fields disabled, no save/delete/share. */
+  readOnly?: boolean
 }) {
   const [d, setD] = useState<WorkoutDraft>(() => ({
     type: workout?.type ?? 'easy', title: workout?.title ?? 'Easy Run',
@@ -56,7 +60,9 @@ export function WorkoutEditor({ date, workout, onSave, onClear, onShare, readOnl
         <p className="border-t border-line p-4 text-center text-sm text-text-mute">You have view-only access to this athlete.</p>
       ) : (
         <div className="flex gap-2 border-t border-line p-4">
-          <button onClick={onClear} className="flex-1 rounded-[12px] border border-missed/40 px-5 py-2.5 text-sm font-semibold text-missed transition hover:border-missed/60 hover:bg-missed/10">Clear day</button>
+          {canDelete && (
+            <button onClick={onClear} className="flex-1 rounded-[12px] border border-missed/40 px-5 py-2.5 text-sm font-semibold text-missed transition hover:border-missed/60 hover:bg-missed/10">Delete workout</button>
+          )}
           <Button onClick={() => onSave(d)} className="flex-1">Done</Button>
         </div>
       )}

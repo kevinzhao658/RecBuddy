@@ -13,11 +13,11 @@ struct CalendarView: View {
     @State private var mode: Mode = .week
     @State private var monthAnchor: String = Week.todayISO()
 
-    // Today's workout only when today falls in the currently displayed week.
-    private var todayWorkout: Workout? {
+    // Today's workouts only when today falls in the currently displayed week.
+    private var todayWorkouts: [Workout] {
         let today = Week.todayISO()
-        guard store.weekDates.contains(today) else { return nil }
-        return store.workoutsByDate[today]
+        guard store.weekDates.contains(today) else { return [] }
+        return store.workoutsByDate[today] ?? []
     }
 
     var body: some View {
@@ -38,8 +38,13 @@ struct CalendarView: View {
                         mileageBlock
                     }
 
-                    if let w = todayWorkout {
-                        todayHeroCard(w)
+                    // Hero shows the first unfinished workout; the day's other
+                    // workouts render as compact rows so none are hidden.
+                    if let hero = todayWorkouts.first(where: { $0.status != "done" }) ?? todayWorkouts.first {
+                        todayHeroCard(hero)
+                        ForEach(todayWorkouts.filter { $0.id != hero.id }, id: \.id) { w in
+                            weekDayCard(date: w.date, workout: w)
+                        }
                     }
 
                     modeToggle
@@ -120,9 +125,22 @@ struct CalendarView: View {
                     Circle()
                         .fill(RB.surface2)
                         .frame(width: 40, height: 40)
-                    Text(profile.initials)
-                        .font(.callout.weight(.semibold))
-                        .foregroundStyle(.white)
+                    // Profile photo when set (cache-busted URL), else initials
+                    if let url = profile.avatarUrl.flatMap(URL.init(string:)) {
+                        AsyncImage(url: url) { image in
+                            image.resizable().scaledToFill()
+                        } placeholder: {
+                            Text(profile.initials)
+                                .font(.callout.weight(.semibold))
+                                .foregroundStyle(.white)
+                        }
+                        .frame(width: 40, height: 40)
+                        .clipShape(Circle())
+                    } else {
+                        Text(profile.initials)
+                            .font(.callout.weight(.semibold))
+                            .foregroundStyle(.white)
+                    }
                 }
             }
             .buttonStyle(.plain)
@@ -289,7 +307,7 @@ struct CalendarView: View {
             .buttonStyle(.plain)
 
             // Day cards — only days with workouts
-            let workoutDays = store.weekDates.filter { store.workoutsByDate[$0] != nil }
+            let workoutDays = store.weekDates.filter { !(store.workoutsByDate[$0] ?? []).isEmpty }
 
             if workoutDays.isEmpty && store.phase == .loading {
                 // First-load skeleton rows
@@ -307,7 +325,8 @@ struct CalendarView: View {
                     .padding(.vertical, 32)
             } else {
                 ForEach(workoutDays, id: \.self) { date in
-                    if let w = store.workoutsByDate[date] {
+                    // A day can hold several workouts — one card each.
+                    ForEach(store.workoutsByDate[date] ?? [], id: \.id) { w in
                         weekDayCard(date: date, workout: w)
                     }
                 }
@@ -445,11 +464,11 @@ struct CalendarView: View {
     private func monthDayCell(date: String) -> some View {
         let currentMonth = Week.firstOfMonth(date) == Week.firstOfMonth(monthAnchor)
         let isToday = date == Week.todayISO()
-        let workout = store.monthWorkouts[date]
+        let workouts = store.monthWorkouts[date] ?? []
         let dayNum = String(Int(date.suffix(2)) ?? 0)
 
         return Button {
-            if let w = workout { selected = w }
+            if let w = workouts.first { selected = w }
         } label: {
             VStack(spacing: 3) {
                 ZStack {
@@ -467,11 +486,19 @@ struct CalendarView: View {
                 }
                 .frame(height: 28)
 
-                // Workout type dot
-                if let w = workout {
-                    Circle()
-                        .fill(TypeBadge.tint(for: w.type))
-                        .frame(width: 4, height: 4)
+                // Workout type dot (first workout) + "+N" when the day has more
+                if let w = workouts.first {
+                    HStack(spacing: 2) {
+                        Circle()
+                            .fill(TypeBadge.tint(for: w.type))
+                            .frame(width: 4, height: 4)
+                        if workouts.count > 1 {
+                            Text("+\(workouts.count - 1)")
+                                .font(.system(size: 8))
+                                .foregroundStyle(RB.textFaint)
+                        }
+                    }
+                    .frame(height: 4)
                 } else {
                     Color.clear.frame(width: 4, height: 4)
                 }
@@ -479,7 +506,7 @@ struct CalendarView: View {
             .frame(maxWidth: .infinity)
         }
         .buttonStyle(.plain)
-        .disabled(workout == nil)
+        .disabled(workouts.isEmpty)
     }
 
     private var typeLegend: some View {
