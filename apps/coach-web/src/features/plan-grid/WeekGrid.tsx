@@ -1,17 +1,22 @@
 import { useDraggable, useDroppable } from '@dnd-kit/core'
 import type { Workout } from '../../lib/types'
 import { DayCard } from './DayCard'
+import { WorkoutSliver } from './WorkoutSliver'
 import { DOW, weekDates, fmtShortDate, todayISO } from '../../lib/week'
 
+// The top-of-stack card is always this tall — the same height a lone workout
+// has always had, so adding a second workout never shrinks the headline card.
+const CARD_H = 'h-24'
+
 /** One workout card, individually draggable (id `w:<workoutId>`). Drag is
- *  disabled for read-only coaches. */
+ *  disabled for read-only coaches. Fixed height + a raised z-index so the
+ *  workouts behind it read as tabs poking out from underneath. */
 function DraggableWorkout({ workout, selected, canEdit, onClick, onCopy }: {
   workout: Workout; selected: boolean; canEdit: boolean; onClick: () => void; onCopy: () => void
 }) {
   const drag = useDraggable({ id: `w:${workout.id}`, disabled: !canEdit })
-  // flex-1 so a lone workout fills the cell; multiple share the height.
   return (
-    <div ref={drag.setNodeRef} {...(canEdit ? { ...drag.attributes, ...drag.listeners } : {})} className="min-h-0 flex-1">
+    <div ref={drag.setNodeRef} {...(canEdit ? { ...drag.attributes, ...drag.listeners } : {})} className={`relative z-10 shrink-0 ${CARD_H}`}>
       <DayCard workout={workout} selected={selected} canEdit={canEdit} onClick={onClick} onCopy={onCopy} />
     </div>
   )
@@ -35,7 +40,7 @@ function DayCell({ date, dow, workouts, selectedId, canEdit, onSelectWorkout, on
         <span className="font-num text-[10px] tabular-nums text-text-faint">{fmtShortDate(date)}</span>
       </div>
       <div ref={drop.setNodeRef}
-        className={`flex min-h-[128px] flex-1 flex-col gap-1.5 rounded-[14px] transition ${isToday ? 'ring-2 ring-text' : ''} ${drop.isOver ? '-translate-y-0.5 ring-2 ring-accent shadow-[0_0_22px_rgba(173,255,47,0.35)]' : ''}`}>
+        className={`flex min-h-[128px] flex-1 flex-col rounded-[14px] transition ${isToday ? 'ring-2 ring-text' : ''} ${drop.isOver ? '-translate-y-0.5 ring-2 ring-accent shadow-[0_0_22px_rgba(173,255,47,0.35)]' : ''}`}>
         {workouts.length === 0 ? (
           canEdit ? (
             // Empty day — the add card fills the cell.
@@ -53,13 +58,29 @@ function DayCell({ date, dow, workouts, selectedId, canEdit, onSelectWorkout, on
           )
         ) : (
           <>
-            {workouts.map((w) => (
-              <DraggableWorkout key={w.id} workout={w} selected={w.id === selectedId} canEdit={canEdit}
-                onClick={() => onSelectWorkout(date, w.id)} onCopy={() => onCopy(w)} />
-            ))}
+            {/* Stacked day: the selected workout (or the first) is the full,
+                fixed-height headline card; the rest poke out from behind it as
+                tabs, so a busy day grows a little instead of shrinking the card. */}
+            {(() => {
+              const active = workouts.find((w) => w.id === selectedId) ?? workouts[0]
+              const rest = workouts.filter((w) => w.id !== active.id)
+              return (
+                <div className="flex flex-col">
+                  <DraggableWorkout key={active.id} workout={active} selected={active.id === selectedId} canEdit={canEdit}
+                    onClick={() => onSelectWorkout(date, active.id)} onCopy={() => onCopy(active)} />
+                  {rest.map((w, i) => (
+                    // Tucked up under the card/tab above (zIndex descends so each
+                    // layer sits behind the previous), leaving just a tab showing.
+                    <div key={w.id} className="relative -mt-2" style={{ zIndex: rest.length - i }}>
+                      <WorkoutSliver workout={w} onClick={() => onSelectWorkout(date, w.id)} />
+                    </div>
+                  ))}
+                </div>
+              )
+            })()}
             {/* Slim sliver so a single workout keeps the card; add another below. Edit coaches only. */}
             {canEdit && (
-              <div className="flex shrink-0 items-center gap-1">
+              <div className="mt-1.5 flex shrink-0 items-center gap-1">
                 {canPaste && (
                   <button aria-label="Paste workout" onClick={(e) => { e.stopPropagation(); onPaste(date) }}
                     className="rounded-[8px] border border-dashed border-line px-2 py-1 text-[11px] leading-none text-accent hover:brightness-110">Paste</button>
@@ -82,7 +103,9 @@ export function WeekGrid({ monday, week, selectedId, onSelectWorkout, onCopy, ca
 }) {
   const dates = weekDates(monday)
   return (
-    <div className="grid grid-cols-1 gap-2 md:grid-cols-7 md:gap-3">
+    // items-start so a day that gains a second workout grows on its own —
+    // the rest keep the base height instead of stretching to match the tallest.
+    <div className="grid grid-cols-1 items-start gap-2 md:grid-cols-7 md:gap-3">
       {dates.map((date, i) => (
         <DayCell key={date} date={date} dow={DOW[i]} workouts={week[i] ?? []} selectedId={selectedId} canEdit={canEdit}
           onSelectWorkout={onSelectWorkout} onCopy={onCopy} canPaste={canPaste} onPaste={onPaste} />

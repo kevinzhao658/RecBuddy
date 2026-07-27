@@ -8,6 +8,7 @@ import { WeekStats } from '../features/plan-grid/WeekStats'
 import { MonthStats } from '../features/plan-grid/MonthStats'
 import { WeekGrid } from '../features/plan-grid/WeekGrid'
 import { MonthGrid } from '../features/plan-grid/MonthGrid'
+import { MonthDayModal } from '../features/plan-grid/MonthDayModal'
 import { WorkoutKey } from '../features/plan-grid/WorkoutKey'
 import { DragGhost } from '../features/plan-grid/DragGhost'
 import { useAthleteDnd } from '../features/plan-grid/useAthleteDnd'
@@ -162,6 +163,8 @@ function AthleteDashboard({ athleteId, monday, setMonday, monthAnchor, setMonthA
   const [chatOpen, setChatOpen] = useState(false)
   const [libraryOpen, setLibraryOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  // Month day with 2+ workouts opens this read-only picker instead of jumping.
+  const [monthModalDate, setMonthModalDate] = useState<string | null>(null)
 
   // Close library overlay when a day is selected (editor takes over)
   useEffect(() => { if (selectedDate) setLibraryOpen(false) }, [selectedDate])
@@ -169,20 +172,37 @@ function AthleteDashboard({ athleteId, monday, setMonday, monthAnchor, setMonthA
   const goMonth = () => { setMonthAnchor(firstOfMonth(monday)); setView('month') }
   const prev = () => view === 'week' ? setMonday(addDays(monday, -7)) : setMonthAnchor(addMonths(monthAnchor, -1))
   const next = () => view === 'week' ? setMonday(addDays(monday, 7)) : setMonthAnchor(addMonths(monthAnchor, 1))
-  // From the month overview, clicking a day jumps to that week's editor,
-  // targeting the day's first workout (or a new one when the day is empty).
+  // From the month overview: a day with 2+ workouts opens a read-only picker so
+  // the coach chooses which to edit; 0 or 1 opens it (or a blank editor) in the
+  // right-hand panel right there — the month view never routes to the week.
   const pickMonthDay = (date: string) => {
+    const ws = monthQ.data?.[date] ?? []
+    if (ws.length >= 2) { setMonthModalDate(date); return }
     setMonday(mondayOf(date)); setSelectedDate(date)
-    setSelectedWorkoutId(monthQ.data?.[date]?.[0]?.id ?? null)
-    setView('week')
+    setSelectedWorkoutId(ws[0]?.id ?? null)
+  }
+  // Picking a workout in that modal opens it in the editor panel, in place.
+  const openMonthWorkout = (workoutId: string) => {
+    if (!monthModalDate) return
+    setMonday(mondayOf(monthModalDate)); setSelectedDate(monthModalDate)
+    setSelectedWorkoutId(workoutId); setMonthModalDate(null)
   }
 
   if (!entry) return <main className="flex-1 p-6 text-text-mute">Loading…</main>
 
-  // Editor/results panel — null when no date selected or not in week view.
+  // Editor/results panel — renders in BOTH week and month view so a month-view
+  // pick edits in place instead of routing to the week. While an existing
+  // workout's week is still loading, hold a placeholder so the editor never
+  // mounts against stale/blank data (its state seeds once, from the workout).
   // Key includes the workout id ('new' while composing) so switching workouts remounts.
-  const editorPanel = view === 'week' && selectedDate
-    ? selectedWorkout?.status === 'done'
+  const editorReady = selectedWorkoutId == null || selectedWorkout != null
+  const editorPanel = !selectedDate
+    ? null
+    : !editorReady
+    ? (planQ.isFetching
+        ? <aside className="rb-surface flex h-full w-80 shrink-0 items-center justify-center border-l border-line text-sm text-text-mute">Loading…</aside>
+        : null)
+    : selectedWorkout?.status === 'done'
       ? <WorkoutResults key={selectedWorkoutId ?? selectedDate} workout={selectedWorkout} onClose={clearSelection} />
       : <WorkoutEditor key={`${selectedDate}:${selectedWorkoutId ?? 'new'}`} date={selectedDate} workout={selectedWorkout}
           canDelete={!!selectedWorkoutId} readOnly={!canEdit}
@@ -195,7 +215,6 @@ function AthleteDashboard({ athleteId, monday, setMonday, monthAnchor, setMonthA
             if (changed) shareAdjust.mutate({ from: wSummary(selectedWorkout), to: wSummary(draft) }, { onSuccess: () => flash('Change shared to chat'), onError })
             else shareWorkout.mutate(selectedWorkout, { onSuccess: () => flash('Shared to chat'), onError })
           } : undefined} />
-    : null
 
   // Desktop right rail: editor when day selected, otherwise library
   const desktopRail = editorPanel ?? <WorkoutLibrary />
@@ -237,19 +256,21 @@ function AthleteDashboard({ athleteId, monday, setMonday, monthAnchor, setMonthA
 
           {view === 'week' ? (
             // Clicking blank space exits the editor (workout cards stop propagation)
-            <div className="flex-1 px-6 pb-6" onClick={() => selectedDate && clearSelection()}>
+            <div className="flex-1 px-6 pb-6 pt-5" onClick={() => selectedDate && clearSelection()}>
               <WeekGrid monday={monday} week={week} selectedId={selectedWorkoutId} canEdit={canEdit}
                 onSelectWorkout={(date, id) => { setSelectedDate(date); setSelectedWorkoutId(id) }}
                 onCopy={(w) => { clipboard.copy(w); flash('Workout copied') }}
                 canPaste={!!clipboard.clip}
                 onPaste={(d) => clipboard.clip && paste.mutate({ date: d, source: clipboard.clip }, { onError })} />
               <WorkoutKey />
-              <p className="mt-3 px-1 text-xs text-text-faint">{canEdit ? 'Drag from the workout library or move cards between days · Click any day to edit' : 'You have view-only access · Click any day to see the workout'}</p>
+              <p className="mt-4 px-1 text-xs text-text-faint">{canEdit ? 'Drag from the workout library or move cards between days · Click any day to edit' : 'You have view-only access · Click any day to see the workout'}</p>
             </div>
           ) : (
-            <div className="flex-1 px-6 pb-6">
-              <MonthGrid anchor={monthAnchor} byDate={monthQ.data ?? {}} selectedDate={selectedDate} onPick={pickMonthDay} />
-              <p className="mt-3 px-1 text-xs text-text-faint">Each row shows miles completed vs scheduled for the week · Click a day to open that week and edit.</p>
+            // Clicking blank space closes the editor (day cells stop propagation),
+            // which brings the workout library back into the rail to drag from.
+            <div className="flex-1 px-6 pb-6 pt-5" onClick={() => selectedDate && clearSelection()}>
+              <MonthGrid anchor={monthAnchor} byDate={monthQ.data ?? {}} selectedDate={selectedDate} canEdit={canEdit} onPick={pickMonthDay} />
+              <p className="mt-4 px-1 text-xs text-text-faint">{canEdit ? 'Click a day to edit it here · drag a workout from the library onto a day to add it' : 'Click a day to see its workouts'}</p>
             </div>
           )}
         </div>
@@ -294,6 +315,10 @@ function AthleteDashboard({ athleteId, monday, setMonday, monthAnchor, setMonthA
       {settingsOpen && <AthleteSettingsModal open onClose={() => setSettingsOpen(false)}
         athlete={entry.athlete} plan={entry.plans?.[0] ?? null} canEdit={canEdit} isAdmin={isAdmin}
         onSaved={() => flash('Goal updated')} onRemoved={onAthleteRemoved} />}
+
+      {monthModalDate && <MonthDayModal open date={monthModalDate}
+        workouts={monthQ.data?.[monthModalDate] ?? []}
+        onPick={openMonthWorkout} onClose={() => setMonthModalDate(null)} />}
     </DndContext>
   )
 }

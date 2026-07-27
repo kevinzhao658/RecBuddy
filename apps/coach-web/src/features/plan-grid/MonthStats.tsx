@@ -1,22 +1,31 @@
 import type { Workout } from '../../lib/types'
 import { monthOf } from '../../lib/week'
-import { Stat } from '../../components/ui/Stat'
 import { useUnit } from '../../lib/useUnit'
 import { fromMiles } from '../../lib/units'
+import { estMinutes } from '../../lib/estMinutes'
+import { fmtDur } from '../../lib/fmtDur'
+import { ProgressStat } from '../../components/ui/ProgressStat'
 
-/** Month totals (in-month days only): scheduled vs completed mileage + adherence. */
+/** Month completion against plan (in-month days only): mileage (accent) and time
+ *  on feet (grey) — the weekly KPIs, summed over the month. */
 export function MonthStats({ byDate, anchor }: { byDate: Record<string, Workout[]>; anchor: string }) {
   const { unit } = useUnit()
   const m = monthOf(anchor)
   const ws = Object.values(byDate).flat().filter((w) => monthOf(w.date) === m)
-  const scheduled = ws.reduce((s, w) => s + (w.dist ?? 0), 0)
-  const completed = ws.filter((w) => w.status === 'done').reduce((s, w) => s + (w.dist ?? 0), 0)
-  const adherence = scheduled > 0 ? Math.round((completed / scheduled) * 100) : 0
+  const isDone = (w: Workout) => w.status === 'done'
+  const plannedMi = ws.reduce((s, w) => s + (w.dist ?? 0), 0)
+  const doneMi = ws.filter(isDone).reduce((s, w) => s + (w.dist ?? 0), 0)
+  const plannedMin = ws.reduce((s, w) => s + estMinutes(w), 0)
+  const doneMin = ws.filter(isDone).reduce((s, w) => s + estMinutes(w), 0)
   return (
-    <div className="flex gap-7 text-right">
-      <Stat label="Scheduled" value={`${Math.round(fromMiles(scheduled, unit))} ${unit}`} />
-      <Stat label="Completed" value={`${Math.round(fromMiles(completed, unit))} ${unit}`} />
-      <Stat label="Adherence" value={`${adherence}%`} />
+    <div className="flex flex-wrap gap-x-6 gap-y-2">
+      <ProgressStat label="Monthly mileage" done={doneMi} planned={plannedMi}
+        doneText={fromMiles(doneMi, unit).toFixed(1)}
+        plannedText={`${fromMiles(plannedMi, unit).toFixed(1)} ${unit}`}
+        tint="bg-accent" />
+      <ProgressStat label="Time on feet" done={doneMin} planned={plannedMin}
+        doneText={fmtDur(doneMin)} plannedText={fmtDur(plannedMin)}
+        tint="bg-text-mute" />
     </div>
   )
 }
