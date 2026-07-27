@@ -256,7 +256,7 @@ function AthleteDashboard({ athleteId, monday, setMonday, monthAnchor, setMonthA
 
           {view === 'week' ? (
             // Clicking blank space exits the editor (workout cards stop propagation)
-            <div className="flex-1 px-6 pb-6 pt-5" onClick={() => selectedDate && clearSelection()}>
+            <div className="flex-1 px-6 pb-6 pt-5" onClick={() => { if (selectedDate) clearSelection(); if (clipboard.clip) clipboard.clear() }}>
               <WeekGrid monday={monday} week={week} selectedId={selectedWorkoutId} canEdit={canEdit}
                 onSelectWorkout={(date, id) => { setSelectedDate(date); setSelectedWorkoutId(id) }}
                 onCopy={(w) => { clipboard.copy(w); flash('Workout copied') }}
@@ -268,7 +268,7 @@ function AthleteDashboard({ athleteId, monday, setMonday, monthAnchor, setMonthA
           ) : (
             // Clicking blank space closes the editor (day cells stop propagation),
             // which brings the workout library back into the rail to drag from.
-            <div className="flex-1 px-6 pb-6 pt-5" onClick={() => selectedDate && clearSelection()}>
+            <div className="flex-1 px-6 pb-6 pt-5" onClick={() => { if (selectedDate) clearSelection(); if (clipboard.clip) clipboard.clear() }}>
               <MonthGrid anchor={monthAnchor} byDate={monthQ.data ?? {}} selectedDate={selectedDate} canEdit={canEdit} onPick={pickMonthDay} />
               <p className="mt-4 px-1 text-xs text-text-faint">{canEdit ? 'Click a day to edit it here · drag a workout from the library onto a day to add it' : 'Click a day to see its workouts'}</p>
             </div>
