@@ -6,7 +6,6 @@ import { useUnreadCounts } from '../../lib/queries/chat'
 import { Avatar } from '../../components/ui/Avatar'
 import { UnreadBadge } from '../../components/ui/UnreadBadge'
 import { Wordmark } from '../../components/ui/Wordmark'
-import { TypeIcon } from '../../components/ui/Icon'
 import { AddAthleteModal } from './AddAthleteModal'
 import { SettingsModal } from '../settings/SettingsModal'
 import { supabase } from '../../lib/supabase'
@@ -48,7 +47,7 @@ export function RosterSidebar({ selectedId, onSelect }: { selectedId: string | n
           return (
             <button key={r.athlete.id} onClick={() => onSelect(r.athlete.id)}
               className={`group mb-0.5 flex w-full items-center gap-3 rounded-[14px] px-2 py-2 text-left transition ${selectedId === r.athlete.id ? 'bg-surface2 ring-1 ring-line' : 'hover:bg-surface2/50'}`}>
-              <Avatar initials={r.athlete.initials} />
+              <Avatar initials={r.athlete.initials} url={r.athlete.avatar_url} />
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-semibold text-text">{r.athlete.name}</span>
                 <span className="block truncate text-xs text-text-mute">{sub}</span>
@@ -98,10 +97,6 @@ export function RosterSidebar({ selectedId, onSelect }: { selectedId: string | n
             </div>
           )}
         </div>
-        <button disabled title="Available when the athlete app ships"
-          className="mt-1 flex w-full items-center justify-center gap-2 rounded-[12px] border border-line px-3 py-2 text-sm font-medium text-text-mute disabled:opacity-70">
-          <TypeIcon type="easy" className="h-4 w-4" /> Preview as athlete
-        </button>
       </div>
 
       <AddAthleteModal open={addOpen} onClose={() => setAddOpen(false)} />

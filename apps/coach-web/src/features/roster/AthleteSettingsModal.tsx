@@ -22,9 +22,9 @@ const eyebrow = 'mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em
  *  attach a new coach with a fresh invite code.
  *  Render conditionally ({open && <AthleteSettingsModal …/>}) — the form seeds
  *  from the plan at mount, so each open starts fresh. */
-export function AthleteSettingsModal({ open, onClose, athlete, plan, onRemoved, onSaved }: {
+export function AthleteSettingsModal({ open, onClose, athlete, plan, onRemoved, onSaved, canEdit = true, isAdmin = true }: {
   open: boolean; onClose: () => void; athlete: Profile; plan: Plan | null
-  onRemoved: () => void; onSaved: () => void
+  onRemoved: () => void; onSaved: () => void; canEdit?: boolean; isAdmin?: boolean
 }) {
   const { session } = useAuth()
   const update = useUpdateAthleteGoal(athlete.id)
@@ -37,6 +37,8 @@ export function AthleteSettingsModal({ open, onClose, athlete, plan, onRemoved, 
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Read coaches see the goal but can't touch it; only plan presence + edit rights unlock the fields.
+  const goalDisabled = !plan || !canEdit
   const save = () => update.mutate(
     { goalRace: race, goalDistance: dist, goalDate: date, goalTime: time, startDate: start },
     { onSuccess: () => { onSaved(); onClose() }, onError: (e: any) => setError(e.message) },
@@ -51,19 +53,19 @@ export function AthleteSettingsModal({ open, onClose, athlete, plan, onRemoved, 
         <div>
           <span className={eyebrow}>Goal race</span>
           <input aria-label="Goal race" value={race} onChange={(e) => setRace(e.target.value)}
-            placeholder="Riverside Half Marathon" disabled={!plan} className={`${field} w-full disabled:opacity-50`} />
+            placeholder="Riverside Half Marathon" disabled={goalDisabled} className={`${field} w-full disabled:opacity-50`} />
         </div>
 
         <div className="flex gap-2">
           <div className="flex-1">
             <span className={eyebrow}>Training starts</span>
             <input aria-label="Training start date" type="date" value={start} onChange={(e) => setStart(e.target.value)}
-              disabled={!plan} className={`${field} w-full font-num disabled:opacity-50`} />
+              disabled={goalDisabled} className={`${field} w-full font-num disabled:opacity-50`} />
           </div>
           <div className="flex-1">
             <span className={eyebrow}>Race date</span>
             <input aria-label="Goal date" type="date" value={date} onChange={(e) => setDate(e.target.value)}
-              disabled={!plan} className={`${field} w-full font-num disabled:opacity-50`} />
+              disabled={goalDisabled} className={`${field} w-full font-num disabled:opacity-50`} />
           </div>
         </div>
 
@@ -71,7 +73,7 @@ export function AthleteSettingsModal({ open, onClose, athlete, plan, onRemoved, 
           <div className="flex-1">
             <span className={eyebrow}>Distance</span>
             <select aria-label="Goal distance" value={dist} onChange={(e) => setDist(e.target.value)}
-              disabled={!plan} className={`${field} w-full disabled:opacity-50`}>
+              disabled={goalDisabled} className={`${field} w-full disabled:opacity-50`}>
               <option value="">—</option>
               {RACES.map((r) => <option key={r.dist} value={r.dist}>{r.label}</option>)}
             </select>
@@ -79,27 +81,32 @@ export function AthleteSettingsModal({ open, onClose, athlete, plan, onRemoved, 
           <div className="flex-1">
             <span className={eyebrow}>Goal time <span className="normal-case text-text-faint">(optional)</span></span>
             <input aria-label="Goal time" value={time} onChange={(e) => setTime(e.target.value)}
-              placeholder="1:48:00" disabled={!plan} className={`${field} w-full font-num disabled:opacity-50`} />
+              placeholder="1:48:00" disabled={goalDisabled} className={`${field} w-full font-num disabled:opacity-50`} />
           </div>
         </div>
 
-        {!plan && <p className="text-xs text-text-faint">No plan yet — add a workout to their week first, then set the goal.</p>}
+        {!plan && canEdit && <p className="text-xs text-text-faint">No plan yet — add a workout to their week first, then set the goal.</p>}
+        {!canEdit && <p className="text-xs text-text-faint">You have view-only access to this athlete.</p>}
         {error && <p className="text-xs text-missed">{error}</p>}
 
-        <Button disabled={!plan || update.isPending} onClick={save}>
-          {update.isPending ? 'Saving…' : 'Save changes'}
-        </Button>
+        {canEdit && (
+          <Button disabled={!plan || update.isPending} onClick={save}>
+            {update.isPending ? 'Saving…' : 'Save changes'}
+          </Button>
+        )}
 
-        {/* Danger zone — removal keeps their plan; they re-attach with a new code */}
-        <div className="mt-2 border-t border-line pt-3">
-          <button onClick={() => setConfirmOpen(true)}
-            className="w-full rounded-[12px] border border-line px-3 py-2 text-sm font-medium text-missed hover:border-missed">
-            Remove from roster
-          </button>
-          <p className="mt-2 text-xs text-text-faint">
-            {athlete.name.split(' ')[0]} keeps their training plan and can add a new coach with a fresh invite code.
-          </p>
-        </div>
+        {/* Danger zone — admin only. Removal keeps their plan; they re-attach with a new code */}
+        {isAdmin && (
+          <div className="mt-2 border-t border-line pt-3">
+            <button onClick={() => setConfirmOpen(true)}
+              className="w-full rounded-[12px] border border-line px-3 py-2 text-sm font-medium text-missed hover:border-missed">
+              Remove from roster
+            </button>
+            <p className="mt-2 text-xs text-text-faint">
+              {athlete.name.split(' ')[0]} keeps their training plan and can add a new coach with a fresh invite code.
+            </p>
+          </div>
+        )}
       </div>
 
       <ConfirmDialog open={confirmOpen} title={`Remove ${athlete.name} from your roster?`}

@@ -12,7 +12,9 @@ struct WorkoutDetailSheet: View {
     @State private var busy = false
     @State private var error: String?
 
-    private var live: Workout { store.workoutsByDate[workout.date] ?? workout }
+    private var live: Workout {
+        store.workoutsByDate[workout.date]?.first { $0.id == workout.id } ?? workout
+    }
     private var actual: WorkoutActual? { store.actualsByWorkout[workout.id] ?? fetchedActual }
 
     var body: some View {

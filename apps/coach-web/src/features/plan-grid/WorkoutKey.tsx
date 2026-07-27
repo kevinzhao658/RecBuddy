@@ -9,7 +9,7 @@ const TYPES: [WorkoutType, string][] = [
 /** Decode key: type icon → name, and the completion-status colors. */
 export function WorkoutKey() {
   return (
-    <div className="rb-card rb-card-sm mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 p-4">
+    <div className="rb-card rb-card-sm mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 p-4">
       <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-text-faint">Workout key</span>
       {TYPES.map(([t, label]) => (
         <span key={t} className="flex items-center gap-1.5 text-xs text-text-mute">

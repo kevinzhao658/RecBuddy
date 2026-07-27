@@ -3,8 +3,10 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabase } from '../supabase'
 import type { CoachTitle } from '../types'
 
+import type { CoachPermission } from '../types'
+
 export interface CoachHit { id: string; name: string; title: CoachTitle; initials: string; avatar_url: string | null }
-export interface TeamMember { coach_id: string; relationship: 'head' | 'assistant'; coach: { name: string; title: CoachTitle; initials: string; avatar_url: string | null } }
+export interface TeamMember { coach_id: string; relationship: 'head' | 'assistant'; permission: CoachPermission; coach: { name: string; title: CoachTitle; initials: string; avatar_url: string | null } }
 
 export async function searchCoaches(client: SupabaseClient, query: string): Promise<CoachHit[]> {
   const { data, error } = await client.rpc('search_coaches', { p_query: query }); if (error) throw error; return data as CoachHit[]
@@ -17,8 +19,19 @@ export async function fetchTeam(client: SupabaseClient, athleteId: string): Prom
   return (data as any[]).map((r) => ({
     coach_id: r.coach_id,
     relationship: r.relationship,
+    permission: r.permission,
     coach: { name: r.name, title: r.title, initials: r.initials, avatar_url: r.avatar_url ?? null },
   }))
+}
+export function useSetCoachPermission(athleteId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ coachId, permission }: { coachId: string; permission: CoachPermission }) => {
+      const { error } = await supabase.rpc('set_coach_permission', { p_coach_id: coachId, p_athlete_id: athleteId, p_permission: permission })
+      if (error) throw error
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['team', athleteId] }); qc.invalidateQueries({ queryKey: ['roster'] }) },
+  })
 }
 export async function addAssistant(client: SupabaseClient, { coachId, athleteId }: { coachId: string; athleteId: string }) {
   const { error } = await client.from('coach_athlete').insert({ coach_id: coachId, athlete_id: athleteId, relationship: 'assistant' }); if (error) throw error

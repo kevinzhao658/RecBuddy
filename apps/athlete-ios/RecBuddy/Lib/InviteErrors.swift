@@ -7,11 +7,11 @@ import Supabase
 enum InviteErrors {
     static func friendly(_ error: Error) -> String {
         let msg = ((error as? PostgrestError)?.message ?? error.localizedDescription).lowercased()
+        if msg.contains("already connected to this coach") {
+            return "You're already connected to this coach."
+        }
         if msg.contains("already used") {
             return "That code has already been used — ask your coach for a new one."
-        }
-        if msg.contains("already has a head coach") {
-            return "You're already linked to a head coach — remove them first to switch."
         }
         if msg.contains("confirm your email") {
             return "Confirm your email first, then enter the code again."

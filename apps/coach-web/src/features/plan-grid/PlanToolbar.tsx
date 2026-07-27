@@ -20,8 +20,8 @@ export function PlanToolbar({ view, onWeek, onMonth, onPrev, onNext, label, isCu
     `rounded-[8px] px-4 py-1.5 text-sm transition ${active ? 'bg-surface font-semibold text-text shadow-sm' : 'font-medium text-text-faint hover:text-text'}`
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-6 py-3">
-      <div className="flex items-center gap-4">
+    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-6 py-4">
+      <div className="flex items-center gap-5">
         <div className="inline-flex rounded-[10px] bg-surface2 p-1">
           <button onClick={onWeek} className={tab(view === 'week')}>Week</button>
           <button onClick={onMonth} className={tab(view === 'month')}>Month</button>
