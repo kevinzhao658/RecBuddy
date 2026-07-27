@@ -28,6 +28,18 @@ test('stacks two workouts on one day, each selectable', () => {
   expect(onSelectWorkout).toHaveBeenCalledWith('2026-09-07', 'w2')
 })
 
+test('stacks behind the selected workout — the rest collapse to slivers', () => {
+  // Nothing selected: the first workout is the full card, the second a sliver.
+  const { rerender } = render(<DndContext><WeekGrid {...{ monday: '2026-09-07', week, selectedId: null, onSelectWorkout: vi.fn(), onCopy: vi.fn(), canPaste: false, onPaste: vi.fn() }} /></DndContext>)
+  expect(screen.getByRole('button', { name: /show pm track/i })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /show am shakeout/i })).toBeNull()
+
+  // Selecting the second floats it up; the first drops to a sliver.
+  rerender(<DndContext><WeekGrid {...{ monday: '2026-09-07', week, selectedId: 'w2', onSelectWorkout: vi.fn(), onCopy: vi.fn(), canPaste: false, onPaste: vi.fn() }} /></DndContext>)
+  expect(screen.getByRole('button', { name: /show am shakeout/i })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /show pm track/i })).toBeNull()
+})
+
 test('every day keeps an Add affordance that opens a blank editor', () => {
   const { onSelectWorkout } = renderGrid()
   const adds = screen.getAllByRole('button', { name: /add workout/i })

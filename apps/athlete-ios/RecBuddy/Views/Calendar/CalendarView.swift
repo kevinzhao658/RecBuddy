@@ -1,11 +1,24 @@
 import SwiftUI
 
+/// A day's worth of workouts, keyed by date — lets `.sheet(item:)` present the
+/// multi-workout day sheet.
+private struct DayWorkouts: Identifiable {
+    let id: String   // the date, 'YYYY-MM-DD'
+    let workouts: [Workout]
+}
+
 struct CalendarView: View {
     let profile: Profile
     @Environment(SessionStore.self) private var session
     @State private var store = PlanStore()
     @State private var selected: Workout?
     @State private var accountOpen = false
+    // Which of today's workouts sits on top of the headliner stack. nil =
+    // fall back to the first unfinished (the natural "up next").
+    @State private var activeTodayId: String?
+    // A month day with 2+ workouts opens this high-level sheet instead of a
+    // single workout's detail.
+    @State private var multiDay: DayWorkouts?
     @AppStorage("unit") private var unitRaw = "mi"
     private var unit: Unit { Unit(rawValue: unitRaw) ?? .mi }
 
@@ -18,6 +31,32 @@ struct CalendarView: View {
         let today = Week.todayISO()
         guard store.weekDates.contains(today) else { return [] }
         return store.workoutsByDate[today] ?? []
+    }
+
+    // Today's stack order: still-to-do workouts first (in plan order), completed
+    // ones sink to the bottom.
+    private var uncompletedToday: [Workout] { todayWorkouts.filter { $0.status != "done" } }
+    private var orderedToday: [Workout] { uncompletedToday + todayWorkouts.filter { $0.status == "done" } }
+
+    // The workout shown full in the headliner: whichever the athlete floated up
+    // (done or not), else the first unfinished, else the first. Only this top
+    // card opens details — tabs just reorder the stack.
+    private var activeToday: Workout? {
+        todayWorkouts.first(where: { $0.id == activeTodayId })
+            ?? uncompletedToday.first
+            ?? orderedToday.first
+    }
+
+    // Drives the stack's reflow animation: changes when a card is floated up or a
+    // workout is completed (which reorders + re-highlights).
+    private var todayStackKey: String {
+        (activeTodayId ?? "") + orderedToday.map { "\($0.id):\($0.status)" }.joined()
+    }
+
+    // Signature of today's completed workouts; grows when one is finished, which
+    // drives the auto-advance in .onChange.
+    private var doneTodayKey: String {
+        todayWorkouts.filter { $0.status == "done" }.map(\.id).joined()
     }
 
     var body: some View {
@@ -38,14 +77,9 @@ struct CalendarView: View {
                         mileageBlock
                     }
 
-                    // Hero shows the first unfinished workout; the day's other
-                    // workouts render as compact rows so none are hidden.
-                    if let hero = todayWorkouts.first(where: { $0.status != "done" }) ?? todayWorkouts.first {
-                        todayHeroCard(hero)
-                        ForEach(todayWorkouts.filter { $0.id != hero.id }, id: \.id) { w in
-                            weekDayCard(date: w.date, workout: w)
-                        }
-                    }
+                    // Headliner: the active workout shows full; the day's other
+                    // workouts tuck behind it as tappable slivers (icon + name).
+                    todayStack
 
                     modeToggle
 
@@ -62,8 +96,18 @@ struct CalendarView: View {
         }
         .task { await store.refresh() }
         .task(id: monthAnchor) { await store.loadMonth(anchor: monthAnchor) }
+        .onChange(of: doneTodayKey) { _, _ in
+            // A workout was just completed — if it was the one on top, advance the
+            // headliner to the next uncompleted by dropping the manual pick.
+            if let id = activeTodayId, todayWorkouts.first(where: { $0.id == id })?.status == "done" {
+                activeTodayId = nil
+            }
+        }
         .sheet(item: $selected) { w in
             WorkoutDetailSheet(workout: w, store: store, unit: unit)
+        }
+        .sheet(item: $multiDay) { day in
+            MultiWorkoutDaySheet(date: day.id, workouts: day.workouts, store: store, unit: unit)
         }
         .sheet(isPresented: $accountOpen) {
             AccountSheet(profile: profile, plan: store.plan)
@@ -183,10 +227,84 @@ struct CalendarView: View {
         }
     }
 
+    // MARK: - TODAY Headliner Stack
+
+    /// A day with several workouts reads as a deck: the active one is the full
+    /// hero card, the rest peek beneath as slivers you can tap to bring forward.
+    /// A single-workout day is just the hero, unchanged.
+    @ViewBuilder
+    private var todayStack: some View {
+        if let active = activeToday {
+            let behind = orderedToday.filter { $0.id != active.id }
+            VStack(spacing: 0) {
+                todayHeroCard(active)
+                    .zIndex(Double(behind.count + 1))
+                // Each tab tucks a little further under the card above it (same
+                // width — like the coach view), leaving just a strip showing.
+                ForEach(Array(behind.enumerated()), id: \.element.id) { i, w in
+                    todaySliver(w)
+                        .padding(.top, i == 0 ? -12 : -16)
+                        .zIndex(Double(behind.count - i))
+                }
+            }
+            .animation(.spring(response: 0.34, dampingFraction: 0.82), value: todayStackKey)
+        }
+    }
+
+    /// A tab behind the headliner — squared top (it slides under the card above)
+    /// and a rounded bottom edge, so it reads as a drawer rather than a pill.
+    /// Tapping any tab (done or not) floats it to the top; only the top card
+    /// opens details. Completed tabs are faded and marked done.
+    private func todaySliver(_ w: Workout) -> some View {
+        let isDone = w.status == "done"
+        // Flat top, rounded bottom = the "poking out from under the card" look.
+        let tab = UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: 16,
+                                         bottomTrailingRadius: 16, topTrailingRadius: 0)
+        return Button {
+            withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) { activeTodayId = w.id }
+        } label: {
+            HStack(spacing: 12) {
+                iconTile(type: w.type, size: 30, cornerRadius: 8)
+                Text(w.title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                Spacer()
+                if isDone {
+                    HStack(spacing: 4) {
+                        Image(systemName: "checkmark.circle.fill")
+                        Text("Completed")
+                    }
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(RB.accent)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+                } else {
+                    Text("To Do")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(RB.textMute)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.top, 18) // content sits low, in the strip below the card
+            .padding(.bottom, 11)
+            .frame(maxWidth: .infinity)
+            .background(RB.surface2, in: tab)
+            .overlay(tab.stroke(RB.line, lineWidth: 1))
+            .opacity(isDone ? 0.55 : 1)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
     // MARK: - TODAY Hero Card
 
     private func todayHeroCard(_ w: Workout) -> some View {
-        Button { selected = w } label: {
+        // A completed workout on top shows what was actually logged, not the plan.
+        let actual = w.status == "done" ? store.actualsByWorkout[w.id] : nil
+        return Button { selected = w } label: {
             VStack(alignment: .leading, spacing: 0) {
                 // Top row: TODAY badge + date
                 HStack {
@@ -222,28 +340,40 @@ struct CalendarView: View {
                 Divider()
                     .overlay(RB.line)
 
-                // Bottom: stats + Details link
+                // Bottom: stats + completion status (To Do / Completed). Once
+                // logged, distance/pace reflect the actual run, not the plan.
                 HStack(alignment: .top, spacing: 20) {
-                    if let dist = w.dist {
+                    if let dist = actual?.dist ?? w.dist {
                         VStack(alignment: .leading, spacing: 4) {
-                            RBLabel("DISTANCE")
+                            RBLabel(actual != nil ? "LOGGED DIST" : "DISTANCE")
                             Text("\(Units.fmtDist(dist, unit)) \(unit.rawValue)")
                                 .font(.body.weight(.bold))
                                 .foregroundStyle(.white)
                         }
                     }
-                    if let pace = w.pace, !pace.isEmpty {
+                    if let pace = actual?.pace ?? w.pace, !pace.isEmpty {
                         VStack(alignment: .leading, spacing: 4) {
-                            RBLabel("TARGET PACE")
+                            RBLabel(actual != nil ? "AVG PACE" : "TARGET PACE")
                             Text(Units.fmtPace(pace, unit))
                                 .font(.body.weight(.bold))
                                 .foregroundStyle(.white)
                         }
                     }
                     Spacer()
-                    Text("Details ›")
-                        .font(.body)
-                        .foregroundStyle(RB.textMute)
+                    if w.status == "done" {
+                        Label("Completed", systemImage: "checkmark.circle.fill")
+                            .labelStyle(.titleAndIcon)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(RB.accent)
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
+                    } else {
+                        Text("To Do")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(RB.textMute)
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
+                    }
                 }
                 .padding(.top, 14)
             }
@@ -343,6 +473,8 @@ struct CalendarView: View {
     private func weekDayCard(date: String, workout w: Workout) -> some View {
         let isToday = date == Week.todayISO()
         let isDone = w.status == "done"
+        // Once logged, the card carries the actual run's distance/pace.
+        let actual = isDone ? store.actualsByWorkout[w.id] : nil
         let dowIndex = store.weekDates.firstIndex(of: date) ?? 0
         let dow = Week.DOW[dowIndex].uppercased()
         let dayNum = String(Int(date.suffix(2)) ?? 0)
@@ -368,8 +500,8 @@ struct CalendarView: View {
                     Text(w.title)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.white)
-                    if let dist = w.dist {
-                        Text("\(Units.fmtDist(dist, unit)) \(unit.rawValue) · \(Units.fmtPace(w.pace, unit))")
+                    if let dist = actual?.dist ?? w.dist {
+                        Text("\(Units.fmtDist(dist, unit)) \(unit.rawValue) · \(Units.fmtPace(actual?.pace ?? w.pace, unit))")
                             .font(.caption)
                             .foregroundStyle(RB.textMute)
                     }
@@ -468,7 +600,13 @@ struct CalendarView: View {
         let dayNum = String(Int(date.suffix(2)) ?? 0)
 
         return Button {
-            if let w = workouts.first { selected = w }
+            // 2+ workouts open the high-level day sheet; a lone one goes straight
+            // to its detail.
+            if workouts.count > 1 {
+                multiDay = DayWorkouts(id: date, workouts: workouts)
+            } else if let w = workouts.first {
+                selected = w
+            }
         } label: {
             VStack(spacing: 3) {
                 ZStack {
@@ -486,19 +624,28 @@ struct CalendarView: View {
                 }
                 .frame(height: 28)
 
-                // Workout type dot (first workout) + "+N" when the day has more
-                if let w = workouts.first {
-                    HStack(spacing: 2) {
-                        Circle()
-                            .fill(TypeBadge.tint(for: w.type))
-                            .frame(width: 4, height: 4)
-                        if workouts.count > 1 {
-                            Text("+\(workouts.count - 1)")
+                // One dot per workout, tinted by type (a checkmark once done),
+                // up to three, then "+N".
+                if !workouts.isEmpty {
+                    HStack(spacing: 3) {
+                        ForEach(workouts.prefix(3)) { w in
+                            if w.status == "done" {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 7, weight: .bold))
+                                    .foregroundStyle(TypeBadge.tint(for: w.type))
+                            } else {
+                                Circle()
+                                    .fill(TypeBadge.tint(for: w.type))
+                                    .frame(width: 5, height: 5)
+                            }
+                        }
+                        if workouts.count > 3 {
+                            Text("+\(workouts.count - 3)")
                                 .font(.system(size: 8))
                                 .foregroundStyle(RB.textFaint)
                         }
                     }
-                    .frame(height: 4)
+                    .frame(height: 6)
                 } else {
                     Color.clear.frame(width: 4, height: 4)
                 }

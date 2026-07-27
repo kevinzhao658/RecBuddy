@@ -6,7 +6,6 @@ import { useUnreadCounts } from '../../lib/queries/chat'
 import { Avatar } from '../../components/ui/Avatar'
 import { UnreadBadge } from '../../components/ui/UnreadBadge'
 import { Wordmark } from '../../components/ui/Wordmark'
-import { TypeIcon } from '../../components/ui/Icon'
 import { AddAthleteModal } from './AddAthleteModal'
 import { SettingsModal } from '../settings/SettingsModal'
 import { supabase } from '../../lib/supabase'
@@ -98,10 +97,6 @@ export function RosterSidebar({ selectedId, onSelect }: { selectedId: string | n
             </div>
           )}
         </div>
-        <button disabled title="Available when the athlete app ships"
-          className="mt-1 flex w-full items-center justify-center gap-2 rounded-[12px] border border-line px-3 py-2 text-sm font-medium text-text-mute disabled:opacity-70">
-          <TypeIcon type="easy" className="h-4 w-4" /> Preview as athlete
-        </button>
       </div>
 
       <AddAthleteModal open={addOpen} onClose={() => setAddOpen(false)} />

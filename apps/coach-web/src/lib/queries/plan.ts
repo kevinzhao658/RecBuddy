@@ -102,7 +102,10 @@ export function useUpsertWorkout(athleteId: string, monday: string) {
   return useMutation({
     mutationFn: ({ date, draft, id }: { date: string; draft: WorkoutDraft; id?: string | null }) =>
       saveWorkout(supabase, athleteId, date, draft, id ?? undefined),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['week', athleteId, monday] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['week', athleteId, monday] })
+      qc.invalidateQueries({ queryKey: ['month', athleteId] })
+    },
   })
 }
 
@@ -114,7 +117,10 @@ export function useDeleteWorkout(athleteId: string, monday: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (workoutId: string) => deleteWorkout(supabase, workoutId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['week', athleteId, monday] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['week', athleteId, monday] })
+      qc.invalidateQueries({ queryKey: ['month', athleteId] })
+    },
   })
 }
 
@@ -128,7 +134,10 @@ export function useMoveWorkout(athleteId: string, monday: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ id, to }: { id: string; to: string }) => moveWorkout(supabase, id, to),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['week', athleteId, monday] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['week', athleteId, monday] })
+      qc.invalidateQueries({ queryKey: ['month', athleteId] })
+    },
   })
 }
 
@@ -148,7 +157,10 @@ export function usePasteWorkout(athleteId: string, monday: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ date, source }: { date: string; source: Workout }) => pasteWorkout(supabase, athleteId, date, source),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['week', athleteId, monday] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['week', athleteId, monday] })
+      qc.invalidateQueries({ queryKey: ['month', athleteId] })
+    },
   })
 }
 
@@ -171,6 +183,9 @@ export function useDuplicateWeek(athleteId: string, monday: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: () => duplicateWeek(supabase, athleteId, monday),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['week', athleteId] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['week', athleteId] })
+      qc.invalidateQueries({ queryKey: ['month', athleteId] })
+    },
   })
 }
