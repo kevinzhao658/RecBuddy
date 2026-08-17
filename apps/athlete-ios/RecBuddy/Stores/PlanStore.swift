@@ -11,6 +11,9 @@ final class PlanStore {
     private(set) var phase: Phase = .idle
     private(set) var workoutsByDate: [String: [Workout]] = [:]  // date -> that day's workouts (created_at order)
     private(set) var actualsByWorkout: [String: WorkoutActual] = [:]
+    /// Off-plan "extra" runs/rides (workout_id null) for the displayed week,
+    /// keyed by LOCAL day of recorded_at.
+    private(set) var standaloneByDate: [String: [WorkoutActual]] = [:]
     private(set) var plan: Plan?
     private(set) var monthWorkouts: [String: [Workout]] = [:]
     var weekMonday: String = Week.mondayOf(Week.todayISO())
@@ -68,6 +71,19 @@ final class PlanStore {
                     actuals.compactMap { a in a.workoutId.map { ($0, a) } },
                     uniquingKeysWith: { first, _ in first })
             }
+            // Standalone extras: fetch a padded UTC range, bucket by local day.
+            let padFrom = Week.addDays(from, -1) + "T00:00:00+00:00"
+            let padTo = Week.addDays(to, 2) + "T00:00:00+00:00"
+            let extras: [WorkoutActual] = try await Supa.shared.from("workout_actuals")
+                .select().is("workout_id", value: nil)
+                .gte("recorded_at", value: padFrom).lt("recorded_at", value: padTo)
+                .order("recorded_at").execute().value
+            guard weekMonday == from else { return } // stale response — a newer week won
+            let wanted = Set(Week.weekDates(mondayIso: from))
+            standaloneByDate = Dictionary(grouping: extras.filter { a in
+                guard let ts = a.recordedAt, let day = Week.localDay(fromTimestamp: ts) else { return false }
+                return wanted.contains(day)
+            }, by: { Week.localDay(fromTimestamp: $0.recordedAt ?? "") ?? "" })
             phase = .idle
         } catch {
             phase = .error("Couldn't load your plan. Pull to retry.")
@@ -164,6 +180,13 @@ final class PlanStore {
         ]
         try await Supa.shared.from("workout_actuals")
             .update(patch).eq("id", value: actualId).execute()
+        await refresh()
+    }
+
+    /// Delete an actual row (used by the extra-card delete flow; the caller
+    /// records the source_id in the excluded set so sync never re-imports it).
+    func deleteActual(id: String) async throws {
+        try await Supa.shared.from("workout_actuals").delete().eq("id", value: id).execute()
         await refresh()
     }
 }
