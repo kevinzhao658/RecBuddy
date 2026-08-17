@@ -23,19 +23,24 @@ sees the result live, including off-plan extra runs and rides.
 | Coach visibility | **Coach sees extra runs/rides** as cards on the day, live |
 | Activity scope (v1) | **Running + cycling.** Runs match running workout types; rides match `cross`. Everything else skipped |
 | Matching location | **Client-side (iOS)** — pure `HealthMatcher`; backend delta kept to one migration |
+| Multi-provider future | **Provider-agnostic core** — matcher/coordinator/write contract are source-neutral; Apple Health is the first `ActivityProvider`, Garmin/Coros slot in later without rework |
+| Auto-sync control | **Per-provider toggle in athlete Settings** — off stops all syncing (observer unregistered); already-synced records remain |
+| Post-sync edits | **Synced records stay editable** — ordinary actuals, existing edit flow; edits are never clobbered by re-sync; deleted/dismissed activities are never re-imported |
 | Prerequisite | Paid Apple Developer Program (HealthKit entitlement; background delivery). User is enrolling |
 
 ## Architecture
 
 New iOS layer `apps/athlete-ios/RecBuddy/Health/`, three units with one job each:
 
-### HealthKitGateway
-The only component that touches `HKHealthStore`. Behind a protocol
-(`HealthGateway`) so tests inject a fake.
+### HealthKitGateway (first `ActivityProvider`)
+The only component that touches `HKHealthStore`. It implements the
+provider-neutral `ActivityProvider` protocol so tests inject a fake and future
+providers (Garmin, Coros) slot in beside it — see *Provider extensibility*.
 - `requestAuthorization()` — read access: workouts, distance (running+cycling), heart rate.
-- `fetchWorkouts(since: Date) -> [HealthRun]` — `HKWorkout` samples mapped to a
-  plain value: `uuid`, `startDate`, `distanceMeters`, `durationSeconds`,
-  `avgHR?`, `activity` (`.running` / `.cycling` / `.other`).
+- `fetchActivities(since: Date) -> [ActivitySample]` — `HKWorkout` samples
+  mapped to a plain, provider-neutral value: `sourceId`, `source`
+  (`.appleHealth`), `startDate`, `distanceMeters`, `durationSeconds`, `avgHR?`,
+  `activity` (`.running` / `.cycling` / `.other`).
 - `startObserving(handler:)` — registers `HKObserverQuery` +
   `enableBackgroundDelivery` so a newly recorded workout wakes the app. The
   handler **always** calls HealthKit's completion handler, success or failure.
@@ -45,23 +50,31 @@ A **pure function** — no HealthKit, no network, no store. The correctness core
 and primary unit-test surface.
 
 ```
-classify(run: HealthRun,
+classify(activity: ActivitySample,      // provider-neutral value
          dayWorkouts: [Workout],        // that local calendar day
          loggedWorkoutIds: Set<String>, // already have an actual
-         seenSourceIds: Set<String>)    // already-synced HK UUIDs
+         excludedSourceIds: Set<String>) // synced, dismissed, or deleted
   -> MatchOutcome
 ```
+
+The matcher never sees a provider type — only `ActivitySample` — so the same
+rules apply verbatim to any future source.
 
 `MatchOutcome`: `.autoLog(workoutId)` | `.needsConfirm(candidateWorkoutIds)` |
 `.standalone` | `.skip(reason)`.
 
 ### HealthSyncCoordinator
-Orchestrates a sync pass; owns `lastSync` and the pending-confirmation queue.
-- Pull runs since `lastSync` (minus an overlap window; `source_id` dedup absorbs it).
-- Classify each via `HealthMatcher`; route: auto → `PlanStore.logRun(...)`;
+Orchestrates a sync pass over any registered `ActivityProvider`; owns
+`lastSync`, the pending-confirmation queue, and the excluded-ids set.
+- **Gated by the per-provider auto-sync toggle** — when off, no passes run and
+  the background observer is unregistered.
+- Pull activities since `lastSync` (minus an overlap window; dedup absorbs it).
+- Classify each via the matcher; route: auto → `PlanStore.logRun(...)`;
   standalone/ambiguous → pending confirmation (+ local notification when in
   background).
-- Persist `lastSync` (UserDefaults) and pending confirmations (survive relaunch).
+- Persist per provider: `lastSync`, pending confirmations, and
+  `excludedSourceIds` (activities the athlete dismissed **or whose synced
+  record was later deleted**) — all survive relaunch, so nothing re-imports.
 
 ### Reused: PlanStore
 - `logRun` gains `source`/`sourceId` parameters (default `manual`/nil — existing
@@ -91,7 +104,7 @@ ambiguous).
 | 1 activity + 1 candidate | **Auto-log** silently (even if distance ≠ prescription — ambiguity is about *which workout*, not target attainment) |
 | ≥2 candidates, or ≥2 activities | **Confirm card** — attach each activity to a workout, or keep as its own extra card |
 | Activity, 0 candidates | **Confirm card → extra card** (athlete confirms inclusion) |
-| Sub-noise-floor, unsupported activity type, or `source_id` already seen | **Skip** |
+| Sub-noise-floor, unsupported activity type, or `source_id` excluded (synced / dismissed / deleted) | **Skip** |
 
 Nothing runnable/rideable is silently dropped except sub-noise-floor and
 unsupported activity types.
@@ -116,8 +129,10 @@ unsupported activity types.
   the same transaction** (Postgres restriction); split the migration so the
   enum addition commits before any statement references the value.
 - `alter table workout_actuals add column source_id text` + partial unique
-  index `(athlete_id, source_id) where source_id is not null` → idempotent
-  sync, including standalone rows.
+  index `(athlete_id, source, source_id) where source_id is not null` →
+  idempotent sync, including standalone rows. Keying by `source` too means two
+  providers can never collide on an id — the same index serves Garmin/Coros
+  later with no further migration.
 
 Verified free rides (no changes needed):
 - RLS `actuals_write` already permits `workout_id is null` for the athlete.
@@ -137,14 +152,56 @@ Verified free rides (no changes needed):
   = attach to one of the day's candidate workouts / keep as extra card. From a
   background wake, a local notification ("Confirm your run" / "Confirm your
   ride") opens it.
-- Settings gains a "Connect Apple Health" row (authorization state; deep-link
-  to Settings if denied).
+- Settings gains a **"Connected services"** section (built as a list, not a
+  one-off row, so future providers append). The Apple Health entry shows
+  connection state (connect / connected / denied → deep-link to iOS Settings)
+  and an **Auto-sync toggle**: off = no foreground or background sync passes,
+  observer unregistered; flipping back on resumes from `lastSync`.
+  Already-synced records are untouched by the toggle.
+
+**Editing & deleting synced records:**
+- A synced actual is an **ordinary `workout_actuals` row** — the existing
+  edit-logged-run flow works on it unchanged (attached records via the workout
+  detail sheet as today; the extra-run/ride card opens its own detail with the
+  same edit affordance, plus delete).
+- Edits stick: never-overwrite + `source_id` dedup mean a later sync pass sees
+  the row exists and skips it — an athlete's correction is never clobbered.
+- Edits keep `source = apple_health` (the row's origin doesn't change because
+  its values were corrected).
+- **Deleting** a synced record adds its `source_id` to the excluded set, so the
+  next pass doesn't silently re-import the same activity.
 
 **Coach (web):**
 - Standalone actuals fetched by athlete + date range (`workout_id is null`,
   bucketed by `recorded_at` local date) via a new query in the existing
   `lib/queries/actuals.ts`; rendered as an "Extra run · 5.2 mi" (or ride) card
   on the day in week and month views. Realtime keeps it live.
+
+## Provider extensibility (Garmin, Coros, …)
+
+Apple Health is the first provider, not a special case. The seams that make the
+next one cheap:
+
+- **`ActivityProvider` protocol** (iOS): `requestAuthorization`,
+  `fetchActivities(since:)`, optional observation. `HealthKitGateway` is one
+  implementation; an on-device Coros/Garmin SDK would be another.
+- **`ActivitySample`** is the lingua franca — matcher, coordinator, confirm UI,
+  and write paths only ever see this value + its `source` tag. Adding a
+  provider adds zero matching or UI logic.
+- **The write contract is provider-neutral**: `workout_actuals` with `source`
+  (enum — add a value per provider), `source_id`, nullable `workout_id`, and
+  the `(athlete_id, source, source_id)` dedup index. Any ingestion path —
+  on-device or server-side — targets the same contract.
+- **Server-side providers**: Garmin/Coros also offer webhook APIs. If we later
+  ingest server-side (an Edge Function receiving webhooks), it writes to the
+  same contract; the matching rules in `HealthMatcher` are pure and portable if
+  matching must move server-side for that path. Out of scope now, but nothing
+  in v1 assumes matching happens on-device.
+- **Settings** renders providers as a list; each gets the same
+  connect/auto-sync affordances.
+
+Per-provider persisted state (`lastSync`, pending confirmations, excluded ids)
+is namespaced by provider from day one.
 
 ## Error handling
 
@@ -158,7 +215,7 @@ Verified free rides (no changes needed):
 ## Testing
 
 - **HealthMatcher (CI, pure):** table-driven — auto 1:1; two candidates → confirm; two runs → confirm; run+ride vs easy+cross → both auto; ride w/o cross → standalone; logged workout excluded; noise-floor skip; unsupported type skip; seen `source_id` skip.
-- **HealthSyncCoordinator (CI, fakes):** routing (auto→write, ambiguous→queue), `lastSync` advancement, idempotent re-run, pending queue persistence.
+- **HealthSyncCoordinator (CI, fakes):** routing (auto→write, ambiguous→queue), `lastSync` advancement, idempotent re-run, pending queue persistence, **auto-sync-off gate (no pass runs)**, and **deleted/dismissed ids never re-import**.
 - **HealthKitGateway:** thin adapter; manual on-device verification (gated on paid account + entitlement).
 - **coach-web:** unit test for the standalone-card rendering + query.
 - Live integration tests (`lib/queries/*.test.ts`) extended for the standalone fetch, run manually against dev.
@@ -168,7 +225,9 @@ Verified free rides (no changes needed):
 - Activities other than running/cycling (walking, swimming, hiking…).
 - Writing anything back to Health.
 - Avg-speed display for rides; auto-matching `other`-type workouts.
-- Server-side matching or webhook-based sync (Garmin/Strava direct).
+- Additional providers (Garmin, Coros, Strava) and webhook-based server-side
+  ingestion — the seams are in place (see *Provider extensibility*), but only
+  Apple Health ships in v1.
 
 ## Rollout prerequisite
 
