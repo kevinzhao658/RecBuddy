@@ -50,4 +50,17 @@ import Foundation
         #expect(vals["score"] == .double(3.5))
         #expect(vals["nothing"] == .null)
     }
+
+    @Test func decodesActualWithSourceIdAndNullPace() throws {
+        let json = """
+        {"id":"a1","workout_id":null,"athlete_id":"u1","dist":12.4,"pace":null,
+         "time":"52:10","hr":128,"feel":null,"note":null,"source":"apple_health",
+         "source_id":"HK-UUID-1","recorded_at":"2026-08-17T14:03:22+00:00"}
+        """.data(using: .utf8)!
+        let a = try decoder.decode(WorkoutActual.self, from: json)
+        #expect(a.workoutId == nil)
+        #expect(a.pace == nil)
+        #expect(a.sourceId == "HK-UUID-1")
+        #expect(a.recordedAt == "2026-08-17T14:03:22+00:00")
+    }
 }

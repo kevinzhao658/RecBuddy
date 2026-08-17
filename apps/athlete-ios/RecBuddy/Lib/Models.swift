@@ -83,16 +83,20 @@ struct WorkoutActual: Codable, Identifiable, Equatable {
     let workoutId: String?
     let athleteId: String
     let dist: Double
-    let pace: String
+    let pace: String?            // nil for rides — pace is a running concept
     let time: String
     let hr: Int?
     let feel: Int?
     let note: String?
     let source: String
+    let sourceId: String?        // provider's stable id (HealthKit UUID); nil for manual
+    let recordedAt: String?      // timestamptz — the activity's start time for synced rows
     enum CodingKeys: String, CodingKey {
         case id, dist, pace, time, hr, feel, note, source
         case workoutId = "workout_id"
         case athleteId = "athlete_id"
+        case sourceId = "source_id"
+        case recordedAt = "recorded_at"
     }
 }
 

@@ -115,12 +115,11 @@ final class PlanStore {
         }
     }
 
-    /// Save a manual actual and mark the workout done. Pessimistic (caller shows
-    /// busy state). Checks the DATABASE for an existing actual (the local cache
-    /// can be empty — e.g. logging from the chat trace — or stale): an existing
-    /// row is UPDATED with the new values, never duplicated and never silently
-    /// kept over what the athlete just entered.
-    func logRun(workout: Workout, dist: Double, time: String, pace: String, hr: Int?, feel: Int?, note: String?) async throws {
+    /// Save a manual actual and mark the workout done. `pace` is optional so
+    /// the extra-activity edit flow (rides have no pace) reuses updateRun.
+    /// Sync writes go through SupabaseLogSink, not this method.
+    func logRun(workout: Workout, dist: Double, time: String, pace: String?,
+                hr: Int?, feel: Int?, note: String?) async throws {
         struct ExistingRow: Decodable { let id: String }
         let existing: [ExistingRow] = try await Supa.shared.from("workout_actuals")
             .select("id").eq("workout_id", value: workout.id).limit(1).execute().value
@@ -132,7 +131,7 @@ final class PlanStore {
                 let workout_id: String
                 let athlete_id: String
                 let dist: Double
-                let pace: String
+                let pace: String?
                 let time: String
                 let hr: Int?
                 let feel: Int?
@@ -153,13 +152,11 @@ final class PlanStore {
         await refresh()
     }
 
-    /// Update an existing logged actual in place (edit flow — the workout stays
-    /// done). Explicit nulls so clearing hr/feel/note actually clears them.
-    func updateRun(actualId: String, dist: Double, time: String, pace: String,
+    func updateRun(actualId: String, dist: Double, time: String, pace: String?,
                    hr: Int?, feel: Int?, note: String?) async throws {
         let patch: [String: AnyJSON] = [
             "dist": .double(dist),
-            "pace": .string(pace),
+            "pace": pace.map { .string($0) } ?? .null,
             "time": .string(time),
             "hr": hr.map { .integer($0) } ?? .null,
             "feel": feel.map { .integer($0) } ?? .null,
