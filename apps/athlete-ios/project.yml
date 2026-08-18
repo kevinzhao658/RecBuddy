@@ -25,13 +25,22 @@ targets:
         CFBundleDisplayName: RecBuddy
         UILaunchScreen: {}
         UIAppFonts: [SairaCondensed-ExtraBold.ttf]
+        # Standard HTTPS/Supabase traffic is exempt encryption. Setting this to
+        # NO skips the export-compliance question on every App Store upload.
+        ITSAppUsesNonExemptEncryption: false
         SupabaseURL: $(SUPABASE_URL)
         SupabaseAnonKey: $(SUPABASE_ANON_KEY)
         ResetPasswordRedirect: $(RESET_PASSWORD_REDIRECT)
         EmailConfirmRedirect: $(EMAIL_CONFIRM_REDIRECT)
+        NSHealthShareUsageDescription: RecBuddy reads your recorded runs and rides to automatically log completed workouts against your training plan.
         CFBundleURLTypes:
           - CFBundleURLName: app.recbuddy.athlete
             CFBundleURLSchemes: [recbuddy]
+    entitlements:
+      path: RecBuddy/RecBuddy.entitlements
+      properties:
+        com.apple.developer.healthkit: true
+        com.apple.developer.healthkit.background-delivery: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.recbuddy.athlete
