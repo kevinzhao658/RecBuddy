@@ -20,32 +20,40 @@ final class PlanStore {
 
     var weekDates: [String] { Week.weekDates(mondayIso: weekMonday) }
 
-    /// Sum of planned distances for all non-rest workouts in the displayed week.
-    var weekPlannedMiles: Double {
+    /// Run and ride volumes are tracked SEPARATELY so the gauge never mixes
+    /// them: cross workouts (and ride actuals — pace == nil) are the ride
+    /// side; every other non-rest type is the run side.
+    var weekPlannedRunMiles: Double { plannedMiles(ride: false) }
+    var weekPlannedRideMiles: Double { plannedMiles(ride: true) }
+    var weekDoneRunMiles: Double { doneMiles(ride: false) }
+    var weekDoneRideMiles: Double { doneMiles(ride: true) }
+    /// Any ride volume this week? Drives the gauge's Run/Ride swap chip.
+    var weekHasRideVolume: Bool { weekPlannedRideMiles > 0 || weekDoneRideMiles > 0 }
+
+    private func plannedMiles(ride: Bool) -> Double {
         workoutsByDate.values.flatMap { $0 }
-            .filter { $0.type != "rest" }
+            .filter { $0.type != "rest" && (($0.type == "cross") == ride) }
             .compactMap(\.dist)
             .reduce(0, +)
     }
 
-    /// ACTUAL miles completed this week: each done workout counts its logged
-    /// run's distance (falling back to the plan when it was marked complete
-    /// without a log), plus off-plan extra RUNS. Ride actuals carry no pace
-    /// and don't count toward run mileage — a done cross day still contributes
-    /// its planned dist, matching the planned side of the gauge.
-    var weekDoneMiles: Double {
+    /// ACTUAL miles completed: each done workout counts its logged actual's
+    /// distance, bucketed by the log's kind (pace == nil -> ride); a workout
+    /// marked complete WITHOUT a log falls back to its planned dist, bucketed
+    /// by its type. Off-plan extras bucket by the same kind rule.
+    private func doneMiles(ride: Bool) -> Double {
         let attached = workoutsByDate.values.flatMap { $0 }
             .filter { $0.status == "done" }
             .map { w -> Double in
-                if let a = actualsByWorkout[w.id], a.pace != nil { return a.dist }
-                return w.dist ?? 0
+                if let a = actualsByWorkout[w.id] { return ((a.pace == nil) == ride) ? a.dist : 0 }
+                return ((w.type == "cross") == ride) ? (w.dist ?? 0) : 0
             }
             .reduce(0, +)
-        let extraRuns = standaloneByDate.values.flatMap { $0 }
-            .filter { $0.pace != nil }
+        let extras = standaloneByDate.values.flatMap { $0 }
+            .filter { ($0.pace == nil) == ride }
             .map(\.dist)
             .reduce(0, +)
-        return attached + extraRuns
+        return attached + extras
     }
 
     func goToWeek(offset: Int) async {

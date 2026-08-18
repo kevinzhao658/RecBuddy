@@ -22,6 +22,9 @@ struct CalendarView: View {
     // A month day with 2+ workouts opens this high-level sheet instead of a
     // single workout's detail.
     @State private var multiDay: DayWorkouts?
+    // Which volume the weekly mileage gauge shows (chip only appears when the
+    // week has any ride volume).
+    @State private var showRideMileage = false
     @AppStorage("unit") private var unitRaw = "mi"
     private var unit: Unit { Unit(rawValue: unitRaw) ?? .mi }
 
@@ -96,7 +99,7 @@ struct CalendarView: View {
                         .rbCard(highlighted: true)
                     }
 
-                    if store.weekPlannedMiles > 0 {
+                    if store.weekPlannedRunMiles > 0 || store.weekHasRideVolume {
                         mileageBlock
                     }
 
@@ -273,15 +276,23 @@ struct CalendarView: View {
     // MARK: - Weekly Mileage Block
 
     private var mileageBlock: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        // Run and ride volumes never mix — the chip swaps which one the gauge
+        // shows. Pure runners never see the chip (zero added chrome).
+        let ride = showRideMileage && store.weekHasRideVolume
+        let planned = ride ? store.weekPlannedRideMiles : store.weekPlannedRunMiles
+        let done = ride ? store.weekDoneRideMiles : store.weekDoneRunMiles
+        return VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
                 RBLabel("WEEKLY MILEAGE")
+                if store.weekHasRideVolume {
+                    mileageModeToggle
+                }
                 Spacer()
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text(fmtMiles(store.weekDoneMiles))
+                    Text(fmtMiles(done))
                         .font(.subheadline.weight(.bold))
                         .foregroundStyle(RB.accent)
-                    Text("/ \(fmtMiles(store.weekPlannedMiles)) mi")
+                    Text("/ \(fmtMiles(planned)) mi")
                         .font(.subheadline)
                         .foregroundStyle(RB.textMute)
                 }
@@ -289,20 +300,53 @@ struct CalendarView: View {
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
                     Capsule().fill(RB.surface2)
-                    let frac = store.weekPlannedMiles > 0
-                        ? min(store.weekDoneMiles / store.weekPlannedMiles, 1.0)
-                        : 0.0
+                    let frac = planned > 0 ? min(done / planned, 1.0) : 0.0
                     Capsule()
                         .fill(RB.accent)
                         .frame(width: proxy.size.width * CGFloat(frac))
                 }
             }
             .frame(height: 6)
-            let remaining = max(store.weekPlannedMiles - store.weekDoneMiles, 0)
-            Text("\(fmtMiles(remaining)) mi to go this week")
-                .font(.caption)
-                .foregroundStyle(RB.textFaint)
+            if planned > 0 {
+                Text("\(fmtMiles(max(planned - done, 0))) mi to go this week")
+                    .font(.caption)
+                    .foregroundStyle(RB.textFaint)
+            } else {
+                // Done volume with nothing planned (e.g. off-plan rides only).
+                Text(ride ? "No rides planned this week" : "No runs planned this week")
+                    .font(.caption)
+                    .foregroundStyle(RB.textFaint)
+            }
         }
+    }
+
+    /// Tiny Run/Ride swap beside the gauge label.
+    private var mileageModeToggle: some View {
+        HStack(spacing: 2) {
+            mileageChip("Run", isRide: false)
+            mileageChip("Ride", isRide: true)
+        }
+        .padding(2)
+        .background(RB.surface2)
+        .clipShape(Capsule())
+    }
+
+    private func mileageChip(_ label: String, isRide: Bool) -> some View {
+        let selected = showRideMileage == isRide
+        return Button {
+            withAnimation(.easeInOut(duration: 0.15)) { showRideMileage = isRide }
+        } label: {
+            Text(label)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(selected ? RB.accent : RB.textFaint)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(selected ? RB.accent.opacity(0.12) : .clear)
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(label) mileage")
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     // MARK: - TODAY Headliner Stack
