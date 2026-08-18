@@ -79,4 +79,12 @@ import Testing
     @Test func localDayRejectsMalformed() {
         #expect(Week.parseLocalDay("not-a-date") == nil)
     }
+    @Test func localDayParsesSupabaseTimestamps() {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        // 2026-08-18 02:03 UTC == Aug 17 in LA (fractional + non-fractional forms).
+        #expect(Week.localDay(fromTimestamp: "2026-08-18T02:03:22.123456+00:00", calendar: cal) == "2026-08-17")
+        #expect(Week.localDay(fromTimestamp: "2026-08-18T02:03:22+00:00", calendar: cal) == "2026-08-17")
+        #expect(Week.localDay(fromTimestamp: "not a date", calendar: cal) == nil)
+    }
 }

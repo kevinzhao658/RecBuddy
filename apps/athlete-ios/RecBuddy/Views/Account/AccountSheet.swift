@@ -36,6 +36,7 @@ struct AccountSheet: View {
                         profileSection
                         coachesSection
                         preferencesSection
+                        connectedServicesSection
                         supportSection
                         accountSection
                     }
@@ -186,6 +187,12 @@ struct AccountSheet: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 14)
             .rbCard()
+        }
+    }
+
+    private var connectedServicesSection: some View {
+        sectionGroup(title: "CONNECTED SERVICES") {
+            ConnectedServicesSection(athleteId: profile.id)
         }
     }
 

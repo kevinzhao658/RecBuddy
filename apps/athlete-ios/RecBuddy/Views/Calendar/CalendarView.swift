@@ -10,15 +10,23 @@ private struct DayWorkouts: Identifiable {
 struct CalendarView: View {
     let profile: Profile
     @Environment(SessionStore.self) private var session
+    @Environment(HealthSyncService.self) private var health
     @State private var store = PlanStore()
     @State private var selected: Workout?
+    @State private var selectedExtra: WorkoutActual?
     @State private var accountOpen = false
+    @State private var confirmOpen = false
     // Which of today's workouts sits on top of the headliner stack. nil =
     // fall back to the first unfinished (the natural "up next").
     @State private var activeTodayId: String?
     // A month day with 2+ workouts opens this high-level sheet instead of a
     // single workout's detail.
     @State private var multiDay: DayWorkouts?
+    // Which volume the weekly mileage gauge shows (chip only appears when the
+    // week has any ride volume).
+    @State private var showRideMileage = false
+    // Drives the sync badge's arrow rotation while a pass runs.
+    @State private var syncSpin = false
     @AppStorage("unit") private var unitRaw = "mi"
     private var unit: Unit { Unit(rawValue: unitRaw) ?? .mi }
 
@@ -31,6 +39,10 @@ struct CalendarView: View {
         let today = Week.todayISO()
         guard store.weekDates.contains(today) else { return [] }
         return store.workoutsByDate[today] ?? []
+    }
+
+    private var todayExtras: [WorkoutActual] {
+        store.standaloneByDate[Week.todayISO()] ?? []
     }
 
     // Today's stack order: still-to-do workouts first (in plan order), completed
@@ -73,7 +85,23 @@ struct CalendarView: View {
                         noCoachBanner
                     }
 
-                    if store.weekPlannedMiles > 0 {
+                    if !health.state.pending.isEmpty {
+                        Button { confirmOpen = true } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "heart.text.square.fill").foregroundStyle(RB.accent)
+                                Text("\(health.state.pending.count) \(health.state.pending.count == 1 ? "activity" : "activities") to confirm")
+                                    .font(.subheadline.weight(.semibold)).foregroundStyle(.white)
+                                Spacer()
+                                Image(systemName: "chevron.right").font(.caption).foregroundStyle(RB.textFaint)
+                            }
+                            .padding(14)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .rbCard(highlighted: true)
+                    }
+
+                    if store.weekPlannedRunMiles > 0 || store.weekHasRideVolume {
                         mileageBlock
                     }
 
@@ -92,9 +120,16 @@ struct CalendarView: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 56) // clears the tab bar so the month legend is fully visible
             }
-            .refreshable { await store.refresh() }
+            .refreshable {
+                await health.syncNow(athleteId: profile.id)
+                await store.refresh()
+            }
         }
-        .task { await store.refresh() }
+        .task {
+            health.startObservingIfNeeded(athleteId: profile.id)
+            await health.syncNow(athleteId: profile.id)
+            await store.refresh()
+        }
         .task(id: monthAnchor) { await store.loadMonth(anchor: monthAnchor) }
         .onChange(of: doneTodayKey) { _, _ in
             // A workout was just completed — if it was the one on top, advance the
@@ -109,8 +144,14 @@ struct CalendarView: View {
         .sheet(item: $multiDay) { day in
             MultiWorkoutDaySheet(date: day.id, workouts: day.workouts, store: store, unit: unit)
         }
+        .sheet(item: $selectedExtra) { a in
+            ExtraActivitySheet(actual: a, store: store, unit: unit)
+        }
         .sheet(isPresented: $accountOpen) {
             AccountSheet(profile: profile, plan: store.plan)
+        }
+        .sheet(isPresented: $confirmOpen) {
+            ConfirmActivitySheet(store: store, unit: unit)
         }
     }
 
@@ -164,6 +205,9 @@ struct CalendarView: View {
                     .foregroundStyle(.white)
             }
             Spacer()
+            if health.state.connected {
+                healthSyncBadge
+            }
             Button { accountOpen = true } label: {
                 ZStack {
                     Circle()
@@ -192,18 +236,78 @@ struct CalendarView: View {
         }
     }
 
+    /// Apple Health sync badge beside the profile icon. Synced = arrows with a
+    /// checkmark in the open center. Tapping it (or pull-to-refresh — both run
+    /// the same pass) hides the check and spins the arrows until the sync
+    /// completes, which reveals the checkmark again. Hidden until Health is
+    /// connected so non-Health users never see it.
+    private var healthSyncBadge: some View {
+        Button {
+            Task {
+                await health.syncNow(athleteId: profile.id)
+                await store.refresh()
+            }
+        } label: {
+            ZStack {
+                Circle()
+                    .fill(RB.surface2)
+                    .frame(width: 40, height: 40)
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(health.isSyncing || health.state.lastSync != nil ? RB.accent : RB.textMute)
+                    .rotationEffect(.degrees(syncSpin ? 360 : 0))
+                // The check lives in the arrows' open center once synced;
+                // it disappears while a pass runs and pops back on completion.
+                if !health.isSyncing, health.state.lastSync != nil {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 8, weight: .heavy))
+                        .foregroundStyle(RB.accent)
+                        .transition(.scale.combined(with: .opacity))
+                }
+            }
+            .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .disabled(health.isSyncing)
+        .accessibilityLabel(syncBadgeLabel)
+        .animation(.spring(response: 0.28, dampingFraction: 0.7), value: health.isSyncing)
+        .onChange(of: health.isSyncing) { _, syncing in
+            if syncing {
+                withAnimation(.linear(duration: 0.8).repeatForever(autoreverses: false)) { syncSpin = true }
+            } else {
+                withAnimation(.easeOut(duration: 0.2)) { syncSpin = false }
+            }
+        }
+    }
+
+    /// "Apple Health synced 5 min. ago" — the badge's VoiceOver + long-press label.
+    private var syncBadgeLabel: String {
+        guard let last = health.state.lastSync else { return "Sync Apple Health" }
+        let rel = RelativeDateTimeFormatter()
+        rel.unitsStyle = .abbreviated
+        return "Apple Health synced \(rel.localizedString(for: last, relativeTo: Date()))"
+    }
+
     // MARK: - Weekly Mileage Block
 
     private var mileageBlock: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        // Run and ride volumes never mix — the chip swaps which one the gauge
+        // shows. Pure runners never see the chip (zero added chrome).
+        let ride = showRideMileage && store.weekHasRideVolume
+        let planned = ride ? store.weekPlannedRideMiles : store.weekPlannedRunMiles
+        let done = ride ? store.weekDoneRideMiles : store.weekDoneRunMiles
+        return VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
                 RBLabel("WEEKLY MILEAGE")
+                if store.weekHasRideVolume {
+                    mileageModeToggle
+                }
                 Spacer()
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text(fmtMiles(store.weekDoneMiles))
+                    Text(fmtMiles(done))
                         .font(.subheadline.weight(.bold))
                         .foregroundStyle(RB.accent)
-                    Text("/ \(fmtMiles(store.weekPlannedMiles)) mi")
+                    Text("/ \(fmtMiles(planned)) mi")
                         .font(.subheadline)
                         .foregroundStyle(RB.textMute)
                 }
@@ -211,20 +315,53 @@ struct CalendarView: View {
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
                     Capsule().fill(RB.surface2)
-                    let frac = store.weekPlannedMiles > 0
-                        ? min(store.weekDoneMiles / store.weekPlannedMiles, 1.0)
-                        : 0.0
+                    let frac = planned > 0 ? min(done / planned, 1.0) : 0.0
                     Capsule()
                         .fill(RB.accent)
                         .frame(width: proxy.size.width * CGFloat(frac))
                 }
             }
             .frame(height: 6)
-            let remaining = max(store.weekPlannedMiles - store.weekDoneMiles, 0)
-            Text("\(fmtMiles(remaining)) mi to go this week")
-                .font(.caption)
-                .foregroundStyle(RB.textFaint)
+            if planned > 0 {
+                Text("\(fmtMiles(max(planned - done, 0))) mi to go this week")
+                    .font(.caption)
+                    .foregroundStyle(RB.textFaint)
+            } else {
+                // Done volume with nothing planned (e.g. off-plan rides only).
+                Text(ride ? "No rides planned this week" : "No runs planned this week")
+                    .font(.caption)
+                    .foregroundStyle(RB.textFaint)
+            }
         }
+    }
+
+    /// Tiny Run/Ride swap beside the gauge label.
+    private var mileageModeToggle: some View {
+        HStack(spacing: 2) {
+            mileageChip("Run", isRide: false)
+            mileageChip("Ride", isRide: true)
+        }
+        .padding(2)
+        .background(RB.surface2)
+        .clipShape(Capsule())
+    }
+
+    private func mileageChip(_ label: String, isRide: Bool) -> some View {
+        let selected = showRideMileage == isRide
+        return Button {
+            withAnimation(.easeInOut(duration: 0.15)) { showRideMileage = isRide }
+        } label: {
+            Text(label)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(selected ? RB.accent : RB.textFaint)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(selected ? RB.accent.opacity(0.12) : .clear)
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(label) mileage")
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     // MARK: - TODAY Headliner Stack
@@ -245,6 +382,11 @@ struct CalendarView: View {
                     todaySliver(w)
                         .padding(.top, i == 0 ? -12 : -16)
                         .zIndex(Double(behind.count - i))
+                }
+                ForEach(Array(todayExtras.enumerated()), id: \.element.id) { i, a in
+                    extraSliver(a)
+                        .padding(.top, (behind.isEmpty && i == 0) ? -12 : -16)
+                        .zIndex(Double(-(i + 1)))
                 }
             }
             .animation(.spring(response: 0.34, dampingFraction: 0.82), value: todayStackKey)
@@ -294,6 +436,37 @@ struct CalendarView: View {
             .background(RB.surface2, in: tab)
             .overlay(tab.stroke(RB.line, lineWidth: 1))
             .opacity(isDone ? 0.55 : 1)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Off-plan extra activity as a completed-style tab behind the stack.
+    private func extraSliver(_ a: WorkoutActual) -> some View {
+        let isRide = a.pace == nil
+        let tab = UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: 16,
+                                         bottomTrailingRadius: 16, topTrailingRadius: 0)
+        return Button { selectedExtra = a } label: {
+            HStack(spacing: 12) {
+                Image(systemName: isRide ? "bicycle" : "figure.run")
+                    .font(.footnote).foregroundStyle(RB.accent).frame(width: 30)
+                Text(isRide ? "Extra ride" : "Extra run")
+                    .font(.subheadline.weight(.semibold)).foregroundStyle(.white).lineLimit(1)
+                Spacer()
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.circle.fill")
+                    Text("\(Units.fmtDist(a.dist, unit)) \(unit.rawValue)")
+                }
+                .font(.caption2.weight(.semibold)).foregroundStyle(RB.accent)
+                .lineLimit(1).fixedSize(horizontal: true, vertical: false)
+            }
+            .padding(.horizontal, 14)
+            .padding(.top, 18)
+            .padding(.bottom, 11)
+            .frame(maxWidth: .infinity)
+            .background(RB.surface2, in: tab)
+            .overlay(tab.stroke(RB.line, lineWidth: 1))
+            .opacity(0.55)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -437,7 +610,9 @@ struct CalendarView: View {
             .buttonStyle(.plain)
 
             // Day cards — only days with workouts
-            let workoutDays = store.weekDates.filter { !(store.workoutsByDate[$0] ?? []).isEmpty }
+            let workoutDays = store.weekDates.filter {
+                !(store.workoutsByDate[$0] ?? []).isEmpty || !(store.standaloneByDate[$0] ?? []).isEmpty
+            }
 
             if workoutDays.isEmpty && store.phase == .loading {
                 // First-load skeleton rows
@@ -458,6 +633,9 @@ struct CalendarView: View {
                     // A day can hold several workouts — one card each.
                     ForEach(store.workoutsByDate[date] ?? [], id: \.id) { w in
                         weekDayCard(date: date, workout: w)
+                    }
+                    ForEach(store.standaloneByDate[date] ?? [], id: \.id) { a in
+                        extraWeekRow(date: date, actual: a)
                     }
                 }
             }
@@ -522,6 +700,41 @@ struct CalendarView: View {
                         lineWidth: isToday ? 1.5 : 1
                     )
             )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func extraWeekRow(date: String, actual a: WorkoutActual) -> some View {
+        let isRide = a.pace == nil
+        let dowIndex = store.weekDates.firstIndex(of: date) ?? 0
+        return Button { selectedExtra = a } label: {
+            HStack(spacing: 12) {
+                VStack(spacing: 2) {
+                    Text(Week.DOW[dowIndex].uppercased())
+                        .font(.caption2.weight(.bold)).foregroundStyle(RB.textFaint)
+                    Text(String(Int(date.suffix(2)) ?? 0))
+                        .font(.body.weight(.bold)).foregroundStyle(RB.textMute)
+                }
+                .frame(width: 40)
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8).fill(RB.surface2).frame(width: 36, height: 36)
+                    Image(systemName: isRide ? "bicycle" : "figure.run")
+                        .font(.footnote).foregroundStyle(RB.accent)
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(isRide ? "Extra ride" : "Extra run")
+                        .font(.subheadline.weight(.semibold)).foregroundStyle(.white)
+                    Text("\(Units.fmtDist(a.dist, unit)) \(unit.rawValue) · \(a.time)")
+                        .font(.caption).foregroundStyle(RB.textMute)
+                }
+                Spacer()
+                weekStatusIndicator(isDone: true)
+            }
+            .padding(12)
+            .background(RB.accent.opacity(0.10))
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(RB.line, lineWidth: 1))
+            .opacity(0.9)
         }
         .buttonStyle(.plain)
     }

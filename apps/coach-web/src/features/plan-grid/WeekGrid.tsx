@@ -1,6 +1,7 @@
 import { useDraggable, useDroppable } from '@dnd-kit/core'
-import type { Workout } from '../../lib/types'
+import type { Workout, Actual } from '../../lib/types'
 import { DayCard } from './DayCard'
+import { ExtraActivityCard } from './ExtraActivityCard'
 import { WorkoutSliver } from './WorkoutSliver'
 import { DOW, weekDates, fmtShortDate, todayISO } from '../../lib/week'
 
@@ -22,10 +23,10 @@ function DraggableWorkout({ workout, selected, canEdit, onClick, onCopy }: {
   )
 }
 
-function DayCell({ date, dow, workouts, selectedId, canEdit, onSelectWorkout, onCopy, canPaste, onPaste }: {
+function DayCell({ date, dow, workouts, selectedId, canEdit, onSelectWorkout, onCopy, canPaste, onPaste, extras }: {
   date: string; dow: string; workouts: Workout[]; selectedId: string | null; canEdit: boolean
   onSelectWorkout: (date: string, id: string | null) => void
-  onCopy: (w: Workout) => void; canPaste: boolean; onPaste: (d: string) => void
+  onCopy: (w: Workout) => void; canPaste: boolean; onPaste: (d: string) => void; extras: Actual[]
 }) {
   // Read-only coaches can't drop cards.
   const drop = useDroppable({ id: date, disabled: !canEdit })
@@ -91,15 +92,20 @@ function DayCell({ date, dow, workouts, selectedId, canEdit, onSelectWorkout, on
             )}
           </>
         )}
+        {extras.length > 0 && (
+          <div className="mt-1.5 flex flex-col gap-1.5">
+            {extras.map((a) => <ExtraActivityCard key={a.id} actual={a} />)}
+          </div>
+        )}
       </div>
     </div>
   )
 }
 
-export function WeekGrid({ monday, week, selectedId, onSelectWorkout, onCopy, canPaste, onPaste, canEdit = true }: {
+export function WeekGrid({ monday, week, selectedId, onSelectWorkout, onCopy, canPaste, onPaste, canEdit = true, extras }: {
   monday: string; week: Workout[][]; selectedId: string | null
   onSelectWorkout: (date: string, id: string | null) => void; onCopy: (w: Workout) => void
-  canPaste: boolean; onPaste: (date: string) => void; canEdit?: boolean
+  canPaste: boolean; onPaste: (date: string) => void; canEdit?: boolean; extras?: Record<string, Actual[]>
 }) {
   const dates = weekDates(monday)
   return (
@@ -108,7 +114,7 @@ export function WeekGrid({ monday, week, selectedId, onSelectWorkout, onCopy, ca
     <div className="grid grid-cols-1 items-start gap-2 md:grid-cols-7 md:gap-3">
       {dates.map((date, i) => (
         <DayCell key={date} date={date} dow={DOW[i]} workouts={week[i] ?? []} selectedId={selectedId} canEdit={canEdit}
-          onSelectWorkout={onSelectWorkout} onCopy={onCopy} canPaste={canPaste} onPaste={onPaste} />
+          onSelectWorkout={onSelectWorkout} onCopy={onCopy} canPaste={canPaste} onPaste={onPaste} extras={extras?.[date] ?? []} />
       ))}
     </div>
   )

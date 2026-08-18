@@ -11,26 +11,49 @@ final class PlanStore {
     private(set) var phase: Phase = .idle
     private(set) var workoutsByDate: [String: [Workout]] = [:]  // date -> that day's workouts (created_at order)
     private(set) var actualsByWorkout: [String: WorkoutActual] = [:]
+    /// Off-plan "extra" runs/rides (workout_id null) for the displayed week,
+    /// keyed by LOCAL day of recorded_at.
+    private(set) var standaloneByDate: [String: [WorkoutActual]] = [:]
     private(set) var plan: Plan?
     private(set) var monthWorkouts: [String: [Workout]] = [:]
     var weekMonday: String = Week.mondayOf(Week.todayISO())
 
     var weekDates: [String] { Week.weekDates(mondayIso: weekMonday) }
 
-    /// Sum of planned distances for all non-rest workouts in the displayed week.
-    var weekPlannedMiles: Double {
+    /// Run and ride volumes are tracked SEPARATELY so the gauge never mixes
+    /// them: cross workouts (and ride actuals — pace == nil) are the ride
+    /// side; every other non-rest type is the run side.
+    var weekPlannedRunMiles: Double { plannedMiles(ride: false) }
+    var weekPlannedRideMiles: Double { plannedMiles(ride: true) }
+    var weekDoneRunMiles: Double { doneMiles(ride: false) }
+    var weekDoneRideMiles: Double { doneMiles(ride: true) }
+    /// Any ride volume this week? Drives the gauge's Run/Ride swap chip.
+    var weekHasRideVolume: Bool { weekPlannedRideMiles > 0 || weekDoneRideMiles > 0 }
+
+    private func plannedMiles(ride: Bool) -> Double {
         workoutsByDate.values.flatMap { $0 }
-            .filter { $0.type != "rest" }
+            .filter { $0.type != "rest" && (($0.type == "cross") == ride) }
             .compactMap(\.dist)
             .reduce(0, +)
     }
 
-    /// Sum of planned distances for workouts marked done in the displayed week.
-    var weekDoneMiles: Double {
-        workoutsByDate.values.flatMap { $0 }
+    /// ACTUAL miles completed: each done workout counts its logged actual's
+    /// distance, bucketed by the log's kind (pace == nil -> ride); a workout
+    /// marked complete WITHOUT a log falls back to its planned dist, bucketed
+    /// by its type. Off-plan extras bucket by the same kind rule.
+    private func doneMiles(ride: Bool) -> Double {
+        let attached = workoutsByDate.values.flatMap { $0 }
             .filter { $0.status == "done" }
-            .compactMap(\.dist)
+            .map { w -> Double in
+                if let a = actualsByWorkout[w.id] { return ((a.pace == nil) == ride) ? a.dist : 0 }
+                return ((w.type == "cross") == ride) ? (w.dist ?? 0) : 0
+            }
             .reduce(0, +)
+        let extras = standaloneByDate.values.flatMap { $0 }
+            .filter { ($0.pace == nil) == ride }
+            .map(\.dist)
+            .reduce(0, +)
+        return attached + extras
     }
 
     func goToWeek(offset: Int) async {
@@ -68,6 +91,19 @@ final class PlanStore {
                     actuals.compactMap { a in a.workoutId.map { ($0, a) } },
                     uniquingKeysWith: { first, _ in first })
             }
+            // Standalone extras: fetch a padded UTC range, bucket by local day.
+            let padFrom = Week.addDays(from, -1) + "T00:00:00+00:00"
+            let padTo = Week.addDays(to, 2) + "T00:00:00+00:00"
+            let extras: [WorkoutActual] = try await Supa.shared.from("workout_actuals")
+                .select().is("workout_id", value: nil)
+                .gte("recorded_at", value: padFrom).lt("recorded_at", value: padTo)
+                .order("recorded_at").execute().value
+            guard weekMonday == from else { return } // stale response — a newer week won
+            let wanted = Set(Week.weekDates(mondayIso: from))
+            standaloneByDate = Dictionary(grouping: extras.filter { a in
+                guard let ts = a.recordedAt, let day = Week.localDay(fromTimestamp: ts) else { return false }
+                return wanted.contains(day)
+            }, by: { Week.localDay(fromTimestamp: $0.recordedAt ?? "") ?? "" })
             phase = .idle
         } catch {
             phase = .error("Couldn't load your plan. Pull to retry.")
@@ -115,12 +151,11 @@ final class PlanStore {
         }
     }
 
-    /// Save a manual actual and mark the workout done. Pessimistic (caller shows
-    /// busy state). Checks the DATABASE for an existing actual (the local cache
-    /// can be empty — e.g. logging from the chat trace — or stale): an existing
-    /// row is UPDATED with the new values, never duplicated and never silently
-    /// kept over what the athlete just entered.
-    func logRun(workout: Workout, dist: Double, time: String, pace: String, hr: Int?, feel: Int?, note: String?) async throws {
+    /// Save a manual actual and mark the workout done. `pace` is optional so
+    /// the extra-activity edit flow (rides have no pace) reuses updateRun.
+    /// Sync writes go through SupabaseLogSink, not this method.
+    func logRun(workout: Workout, dist: Double, time: String, pace: String?,
+                hr: Int?, feel: Int?, note: String?) async throws {
         struct ExistingRow: Decodable { let id: String }
         let existing: [ExistingRow] = try await Supa.shared.from("workout_actuals")
             .select("id").eq("workout_id", value: workout.id).limit(1).execute().value
@@ -132,7 +167,7 @@ final class PlanStore {
                 let workout_id: String
                 let athlete_id: String
                 let dist: Double
-                let pace: String
+                let pace: String?
                 let time: String
                 let hr: Int?
                 let feel: Int?
@@ -153,13 +188,11 @@ final class PlanStore {
         await refresh()
     }
 
-    /// Update an existing logged actual in place (edit flow — the workout stays
-    /// done). Explicit nulls so clearing hr/feel/note actually clears them.
-    func updateRun(actualId: String, dist: Double, time: String, pace: String,
+    func updateRun(actualId: String, dist: Double, time: String, pace: String?,
                    hr: Int?, feel: Int?, note: String?) async throws {
         let patch: [String: AnyJSON] = [
             "dist": .double(dist),
-            "pace": .string(pace),
+            "pace": pace.map { .string($0) } ?? .null,
             "time": .string(time),
             "hr": hr.map { .integer($0) } ?? .null,
             "feel": feel.map { .integer($0) } ?? .null,
@@ -167,6 +200,13 @@ final class PlanStore {
         ]
         try await Supa.shared.from("workout_actuals")
             .update(patch).eq("id", value: actualId).execute()
+        await refresh()
+    }
+
+    /// Delete an actual row (used by the extra-card delete flow; the caller
+    /// records the source_id in the excluded set so sync never re-imports it).
+    func deleteActual(id: String) async throws {
+        try await Supa.shared.from("workout_actuals").delete().eq("id", value: id).execute()
         await refresh()
     }
 }

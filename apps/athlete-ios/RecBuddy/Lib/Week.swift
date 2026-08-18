@@ -132,4 +132,17 @@ enum Week {
     static func blockWeeks(start: String, goal: String) -> Int {
         max(1, blockWeek(monday: mondayOf(goal), start: start))
     }
+
+    /// Supabase timestamptz -> local 'YYYY-MM-DD'. Strips fractional seconds
+    /// first (Postgres emits 6 digits; ISO8601DateFormatter only parses 3).
+    static func localDay(fromTimestamp ts: String, calendar: Calendar = .current) -> String? {
+        let stripped = ts.replacingOccurrences(of: #"\.\d+"#, with: "", options: .regularExpression)
+        let iso = ISO8601DateFormatter()
+        guard let date = iso.date(from: stripped) else { return nil }
+        let f = DateFormatter()
+        f.calendar = calendar
+        f.timeZone = calendar.timeZone
+        f.dateFormat = "yyyy-MM-dd"
+        return f.string(from: date)
+    }
 }
