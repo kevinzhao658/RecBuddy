@@ -82,3 +82,9 @@ export function fmtDayDate(iso: string): string {
   if (isNaN(d.getTime())) return iso
   return `${DOW[(d.getUTCDay() + 6) % 7]}, ${fmtShortDate(iso)}`
 }
+
+/** timestamptz -> the viewer's LOCAL 'YYYY-MM-DD' (buckets extra runs onto days). */
+export function localDayOf(ts: string): string {
+  const d = new Date(ts)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { addDays, mondayOf, weekDates, firstOfMonth, addMonths, monthGridDates, fmtMonthYear } from './week'
+import { addDays, mondayOf, weekDates, firstOfMonth, addMonths, monthGridDates, fmtMonthYear, localDayOf } from './week'
 
 describe('week helpers', () => {
   it('addDays', () => expect(addDays('2026-06-15', 7)).toBe('2026-06-22'))
@@ -55,4 +55,10 @@ test('blockLabel follows the viewed week and clamps at the edges', () => {
 test('fmtDayDate prefixes the weekday', () => {
   expect(fmtDayDate('2026-08-23')).toBe('Sun, Aug 23')
   expect(fmtDayDate('2026-07-13')).toBe('Mon, Jul 13')
+})
+
+test('localDayOf buckets a timestamptz to the local calendar day', () => {
+  // Construct from a local wall-clock time so the test passes in any TZ.
+  const local = new Date(2026, 7, 17, 22, 30) // Aug 17, 10:30pm local
+  expect(localDayOf(local.toISOString())).toBe('2026-08-17')
 })

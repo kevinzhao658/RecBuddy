@@ -26,7 +26,7 @@ export interface Workout {
 export interface Actual {
   id: string; workout_id: string | null; athlete_id: string; dist: number | null
   pace: string | null; time: string | null; hr: number | null; feel: number | null
-  note: string | null; source: string; recorded_at: string
+  note: string | null; source: string; source_id: string | null; recorded_at: string
 }
 export interface LibraryWorkout {
   id: string; coach_id: string; type: WorkoutType; title: string; dist: number | null
