@@ -28,12 +28,24 @@ final class PlanStore {
             .reduce(0, +)
     }
 
-    /// Sum of planned distances for workouts marked done in the displayed week.
+    /// ACTUAL miles completed this week: each done workout counts its logged
+    /// run's distance (falling back to the plan when it was marked complete
+    /// without a log), plus off-plan extra RUNS. Ride actuals carry no pace
+    /// and don't count toward run mileage — a done cross day still contributes
+    /// its planned dist, matching the planned side of the gauge.
     var weekDoneMiles: Double {
-        workoutsByDate.values.flatMap { $0 }
+        let attached = workoutsByDate.values.flatMap { $0 }
             .filter { $0.status == "done" }
-            .compactMap(\.dist)
+            .map { w -> Double in
+                if let a = actualsByWorkout[w.id], a.pace != nil { return a.dist }
+                return w.dist ?? 0
+            }
             .reduce(0, +)
+        let extraRuns = standaloneByDate.values.flatMap { $0 }
+            .filter { $0.pace != nil }
+            .map(\.dist)
+            .reduce(0, +)
+        return attached + extraRuns
     }
 
     func goToWeek(offset: Int) async {
