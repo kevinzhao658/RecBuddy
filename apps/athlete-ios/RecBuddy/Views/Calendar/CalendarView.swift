@@ -14,6 +14,7 @@ struct CalendarView: View {
     @State private var store = PlanStore()
     @State private var selected: Workout?
     @State private var accountOpen = false
+    @State private var confirmOpen = false
     // Which of today's workouts sits on top of the headliner stack. nil =
     // fall back to the first unfinished (the natural "up next").
     @State private var activeTodayId: String?
@@ -74,6 +75,22 @@ struct CalendarView: View {
                         noCoachBanner
                     }
 
+                    if !health.state.pending.isEmpty {
+                        Button { confirmOpen = true } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "heart.text.square.fill").foregroundStyle(RB.accent)
+                                Text("\(health.state.pending.count) \(health.state.pending.count == 1 ? "activity" : "activities") to confirm")
+                                    .font(.subheadline.weight(.semibold)).foregroundStyle(.white)
+                                Spacer()
+                                Image(systemName: "chevron.right").font(.caption).foregroundStyle(RB.textFaint)
+                            }
+                            .padding(14)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .rbCard(highlighted: true)
+                    }
+
                     if store.weekPlannedMiles > 0 {
                         mileageBlock
                     }
@@ -119,6 +136,9 @@ struct CalendarView: View {
         }
         .sheet(isPresented: $accountOpen) {
             AccountSheet(profile: profile, plan: store.plan)
+        }
+        .sheet(isPresented: $confirmOpen) {
+            ConfirmActivitySheet(store: store, unit: unit)
         }
     }
 
