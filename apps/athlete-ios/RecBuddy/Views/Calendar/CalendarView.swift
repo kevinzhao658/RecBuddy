@@ -10,6 +10,7 @@ private struct DayWorkouts: Identifiable {
 struct CalendarView: View {
     let profile: Profile
     @Environment(SessionStore.self) private var session
+    @Environment(HealthSyncService.self) private var health
     @State private var store = PlanStore()
     @State private var selected: Workout?
     @State private var accountOpen = false
@@ -92,9 +93,16 @@ struct CalendarView: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 56) // clears the tab bar so the month legend is fully visible
             }
-            .refreshable { await store.refresh() }
+            .refreshable {
+                await health.syncNow(athleteId: profile.id)
+                await store.refresh()
+            }
         }
-        .task { await store.refresh() }
+        .task {
+            health.startObservingIfNeeded(athleteId: profile.id)
+            await health.syncNow(athleteId: profile.id)
+            await store.refresh()
+        }
         .task(id: monthAnchor) { await store.loadMonth(anchor: monthAnchor) }
         .onChange(of: doneTodayKey) { _, _ in
             // A workout was just completed — if it was the one on top, advance the
