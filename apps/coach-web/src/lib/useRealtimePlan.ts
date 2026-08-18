@@ -19,6 +19,7 @@ export function useRealtimePlan(athleteId: string | null) {
         () => {
           qc.invalidateQueries({ queryKey: ['actual'] })
           qc.invalidateQueries({ queryKey: ['standalone', athleteId] })
+          qc.invalidateQueries({ queryKey: ['actuals-bulk', athleteId] })
         })
       .subscribe()
     return () => { supabase.removeChannel(ch) }
