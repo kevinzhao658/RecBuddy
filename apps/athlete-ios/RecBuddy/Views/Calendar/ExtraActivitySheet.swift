@@ -30,7 +30,10 @@ struct ExtraActivitySheet: View {
         guard let d = Double(dist), d > 0 else { return nil }
         return (Units.toMiles(d, unit) * 100).rounded() / 100
     }
-    private var seconds: Int? { Pace.timeToSeconds(time) }
+    private var seconds: Int? {
+        guard let s = Pace.timeToSeconds(time), s > 0 else { return nil }
+        return s
+    }
 
     var body: some View {
         NavigationStack {
