@@ -10,12 +10,17 @@ final class HealthSyncService {
     let state = SyncState()
     private let gateway = HealthKitGateway()
     private var coordinator: HealthSyncCoordinator?
+    private var coordinatorAthleteId: String?
     private var observing = false
 
+    /// One coordinator per signed-in athlete — rebuilt if a different athlete
+    /// signs in (the sink is athlete-scoped; a stale one would write the
+    /// previous athlete's rows).
     private func coordinator(for athleteId: String) -> HealthSyncCoordinator {
-        if let coordinator { return coordinator }
+        if let coordinator, coordinatorAthleteId == athleteId { return coordinator }
         let c = HealthSyncCoordinator(provider: gateway, sink: SupabaseLogSink(athleteId: athleteId), state: state)
         coordinator = c
+        coordinatorAthleteId = athleteId
         return c
     }
 
