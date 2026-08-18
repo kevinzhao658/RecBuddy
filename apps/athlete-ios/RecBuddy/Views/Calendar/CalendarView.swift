@@ -25,6 +25,8 @@ struct CalendarView: View {
     // Which volume the weekly mileage gauge shows (chip only appears when the
     // week has any ride volume).
     @State private var showRideMileage = false
+    // Drives the sync badge's arrow rotation while a pass runs.
+    @State private var syncSpin = false
     @AppStorage("unit") private var unitRaw = "mi"
     private var unit: Unit { Unit(rawValue: unitRaw) ?? .mi }
 
@@ -234,9 +236,11 @@ struct CalendarView: View {
         }
     }
 
-    /// Apple Health sync badge beside the profile icon: spins while a pass is
-    /// running, lime once data has synced; tap = sync now. Hidden until Health
-    /// is connected so non-Health users never see it.
+    /// Apple Health sync badge beside the profile icon. Synced = arrows with a
+    /// checkmark in the open center. Tapping it (or pull-to-refresh — both run
+    /// the same pass) hides the check and spins the arrows until the sync
+    /// completes, which reveals the checkmark again. Hidden until Health is
+    /// connected so non-Health users never see it.
     private var healthSyncBadge: some View {
         Button {
             Task {
@@ -248,14 +252,17 @@ struct CalendarView: View {
                 Circle()
                     .fill(RB.surface2)
                     .frame(width: 40, height: 40)
-                if health.isSyncing {
-                    ProgressView()
-                        .tint(RB.accent)
-                        .scaleEffect(0.8)
-                } else {
-                    Image(systemName: "arrow.triangle.2.circlepath")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(health.state.lastSync != nil ? RB.accent : RB.textMute)
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(health.isSyncing || health.state.lastSync != nil ? RB.accent : RB.textMute)
+                    .rotationEffect(.degrees(syncSpin ? 360 : 0))
+                // The check lives in the arrows' open center once synced;
+                // it disappears while a pass runs and pops back on completion.
+                if !health.isSyncing, health.state.lastSync != nil {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 8, weight: .heavy))
+                        .foregroundStyle(RB.accent)
+                        .transition(.scale.combined(with: .opacity))
                 }
             }
             .contentShape(Circle())
@@ -263,6 +270,14 @@ struct CalendarView: View {
         .buttonStyle(.plain)
         .disabled(health.isSyncing)
         .accessibilityLabel(syncBadgeLabel)
+        .animation(.spring(response: 0.28, dampingFraction: 0.7), value: health.isSyncing)
+        .onChange(of: health.isSyncing) { _, syncing in
+            if syncing {
+                withAnimation(.linear(duration: 0.8).repeatForever(autoreverses: false)) { syncSpin = true }
+            } else {
+                withAnimation(.easeOut(duration: 0.2)) { syncSpin = false }
+            }
+        }
     }
 
     /// "Apple Health synced 5 min. ago" — the badge's VoiceOver + long-press label.
