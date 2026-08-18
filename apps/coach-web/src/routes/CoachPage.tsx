@@ -21,12 +21,13 @@ import { Toast } from '../components/ui/Toast'
 import { useRoster } from '../lib/queries/roster'
 import { useLibrary } from '../lib/queries/library'
 import { useAthletePlan, useAthleteMonth, useUpsertWorkout, useDeleteWorkout, useMoveWorkout, usePasteWorkout, useDuplicateWeek } from '../lib/queries/plan'
-import type { Workout } from '../lib/types'
+import { useStandaloneActuals } from '../lib/queries/actuals'
+import type { Workout, Actual } from '../lib/types'
 import { useShareWorkout, useShareAdjust, useUnreadCounts, useUnreadRealtime } from '../lib/queries/chat'
 import { UnreadBadge } from '../components/ui/UnreadBadge'
 import { useClipboard } from '../features/plan-grid/useClipboard'
 import { useRealtimePlan } from '../lib/useRealtimePlan'
-import { mondayOf, addDays, fmtShortDate, firstOfMonth, addMonths, fmtMonthYear, todayISO } from '../lib/week'
+import { mondayOf, addDays, fmtShortDate, firstOfMonth, addMonths, fmtMonthYear, todayISO, localDayOf } from '../lib/week'
 
 /** Short one-line summary of a workout for chat adjust cards (from → to). */
 const wSummary = (w: { title: string; dist: number | null; pace: string | null }) =>
@@ -142,6 +143,16 @@ function AthleteDashboard({ athleteId, monday, setMonday, monthAnchor, setMonthA
   const shareWorkout = useShareWorkout(athleteId)
   const shareAdjust = useShareAdjust(athleteId)
   const unread = useUnreadCounts()
+
+  // Off-plan extras: fetch a padded window covering week or month view.
+  const extrasFrom = view === 'week' ? addDays(monday, -1) : addDays(firstOfMonth(monthAnchor), -8)
+  const extrasTo = view === 'week' ? addDays(monday, 8) : addDays(firstOfMonth(monthAnchor), 45)
+  const extrasQ = useStandaloneActuals(athleteId, extrasFrom, extrasTo)
+  const extrasByDate: Record<string, Actual[]> = {}
+  for (const a of extrasQ.data ?? []) {
+    const d = localDayOf(a.recorded_at)
+    ;(extrasByDate[d] ??= []).push(a)
+  }
 
   const entry = (roster.data ?? []).find((r) => r.athlete.id === athleteId)
   const week = planQ.data ?? EMPTY_WEEK
@@ -261,7 +272,8 @@ function AthleteDashboard({ athleteId, monday, setMonday, monthAnchor, setMonthA
                 onSelectWorkout={(date, id) => { setSelectedDate(date); setSelectedWorkoutId(id) }}
                 onCopy={(w) => { clipboard.copy(w); flash('Workout copied') }}
                 canPaste={!!clipboard.clip}
-                onPaste={(d) => clipboard.clip && paste.mutate({ date: d, source: clipboard.clip }, { onError })} />
+                onPaste={(d) => clipboard.clip && paste.mutate({ date: d, source: clipboard.clip }, { onError })}
+                extras={extrasByDate} />
               <WorkoutKey />
               <p className="mt-4 px-1 text-xs text-text-faint">{canEdit ? 'Drag from the workout library or move cards between days · Click any day to edit' : 'You have view-only access · Click any day to see the workout'}</p>
             </div>
@@ -318,7 +330,8 @@ function AthleteDashboard({ athleteId, monday, setMonday, monthAnchor, setMonthA
 
       {monthModalDate && <MonthDayModal open date={monthModalDate}
         workouts={monthQ.data?.[monthModalDate] ?? []}
-        onPick={openMonthWorkout} onClose={() => setMonthModalDate(null)} />}
+        onPick={openMonthWorkout} onClose={() => setMonthModalDate(null)}
+        extras={extrasByDate[monthModalDate] ?? []} />}
     </DndContext>
   )
 }

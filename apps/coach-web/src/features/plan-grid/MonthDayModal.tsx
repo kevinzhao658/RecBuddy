@@ -1,6 +1,7 @@
-import type { Workout } from '../../lib/types'
+import type { Workout, Actual } from '../../lib/types'
 import { Modal } from '../../components/ui/Modal'
 import { TypeIcon } from '../../components/ui/Icon'
+import { ExtraActivityCard } from './ExtraActivityCard'
 import { useUnit } from '../../lib/useUnit'
 import { fmtDist, fmtPace } from '../../lib/units'
 import { estMinutes } from '../../lib/estMinutes'
@@ -24,8 +25,8 @@ const STATUS: Record<string, { label: string; cls: string }> = {
 /** Read-only overview of a day that holds several workouts. Tapping one hands it
  *  to the week editor (via onPick) so the coach can adjust it — the month grid's
  *  answer to the weekly view's click-to-edit. */
-export function MonthDayModal({ open, date, workouts, onPick, onClose }: {
-  open: boolean; date: string; workouts: Workout[]; onPick: (id: string) => void; onClose: () => void
+export function MonthDayModal({ open, date, workouts, onPick, onClose, extras }: {
+  open: boolean; date: string; workouts: Workout[]; onPick: (id: string) => void; onClose: () => void; extras?: Actual[]
 }) {
   const { unit } = useUnit()
   return (
@@ -61,6 +62,11 @@ export function MonthDayModal({ open, date, workouts, onPick, onClose }: {
             </button>
           )
         })}
+        {(extras ?? []).map((a) => (
+          <div key={a.id} className="rb-card-sm border border-line p-3 opacity-80">
+            <ExtraActivityCard actual={a} />
+          </div>
+        ))}
       </div>
     </Modal>
   )
