@@ -4,33 +4,35 @@
 
 **Goal:** Make the coach's weekly/monthly volume gauges reflect ACTUAL recorded miles (not planned-distance-of-done) and separate run vs ride volume, mirroring the athlete app — with minimal added UI.
 
-**Architecture:** One pure helper (`volumeSplit`) computes run/ride planned+done volumes and time-on-feet from workouts + a bulk actuals map + extras; every gauge surface calls it. One new bulk query (`actuals by workout ids`) feeds the map. A tiny shared `ModeToggle` chip appears ONLY when ride volume exists.
+**Architecture:** One pure helper (`volumeSplit`) computes run/ride planned+done volumes and time-on-feet from workouts + a bulk actuals map + extras; every gauge surface calls it. One new bulk query (`actuals by workout ids`) feeds the map. A shared `ModeSelect` dropdown (rendered only when ride volume exists) sets ONE `volumeMode` in CoachPage that drives the week toolbar, month toolbar, and month-grid KPI column together.
 
 **Tech Stack:** React 18 + TypeScript strict + TanStack Query + Vitest (coach-web only; athlete iOS already shipped this in `feat/health-sync`).
 
-## UI Visualization (agreed direction: simple, no clutter)
+## UI Visualization (agreed direction: dropdown selection, one shared mode)
 
-**Toolbar stats (week & month)** — the chip renders only when the period has any ride volume; run-only athletes see today's exact UI:
-
-```
-no rides this week (unchanged):          rides exist:
-WEEKLY MILEAGE            62%           (Run|Ride)  RUN MILEAGE      62%
-12.4 / 20.0 mi                                      12.4 / 20.0 mi
-[████████░░░░░]                                     [████████░░░░░]
-                                        …tap Ride →  RIDE MILEAGE    53%
-                                                     8.0 / 15.0 mi
-                                                     [██████░░░░░░]
-```
-
-**Month-grid KPI column** (cells are tiny — no toggle; a one-line ride row appears only for weeks that have ride volume):
+**Sport selection is a small DROPDOWN** (`Run ▾` / `Ride ▾`), rendered only when the period has any ride volume — run-only athletes see today's exact UI. One `volumeMode` state lives in CoachPage and drives the week toolbar, the month toolbar, AND the month-grid KPI column together.
 
 ```
-┌───────────────┐        ┌───────────────┐
-│ 12.4/20 mi    │        │ 12.4/20 mi    │
-│ [████░░]  62% │        │ [████░░]  62% │
-│ 3h10m/5h  63% │        │ ⚲ 8/15 mi     │   ⚲ = inline SVG bike icon
-└───────────────┘        │ 3h10m/5h  63% │
-  (no rides)             └───────────────┘
+no rides (unchanged):                    rides exist:
+WEEKLY MILEAGE            62%           [Run ▾]  RUN MILEAGE      62%
+12.4 / 20.0 mi                                   12.4 / 20.0 mi
+[████████░░░░░]                                  [████████░░░░░]
+                                        …select Ride →
+                                        [Ride ▾]  RIDE MILEAGE    53%
+                                                  8.0 / 15.0 mi
+                                                  [██████░░░░░░]
+```
+
+**Month-grid KPI column follows the selected sport** — selecting Ride in the month toolbar swaps every weekly cell's mileage row (and the column header names the sport so the numbers are never ambiguous):
+
+```
+mode = Run                    mode = Ride
+WEEKLY VOLUME                 WEEKLY RIDE VOLUME
+┌───────────────┐             ┌───────────────┐
+│ 12.4/20 mi    │             │ 8.0/15 mi     │
+│ [████░░]  62% │             │ [███░░░]  53% │
+│ 3h10m/5h  63% │             │ 3h10m/5h  63% │   ← time on feet unchanged
+└───────────────┘             └───────────────┘
 ```
 
 **Time on feet** stays a single combined bar (training time is one budget), but its done side becomes actuals-based (logged elapsed time when present).
@@ -39,7 +41,7 @@ WEEKLY MILEAGE            62%           (Run|Ride)  RUN MILEAGE      62%
 
 - Branch: cut `feat/coach-volume` from `dev` **AFTER PR #34 (feat/health-sync) merges** — this work depends on `Actual.source_id`, `useStandaloneActuals`, and `localDayOf` from that PR. Merge commits; never delete branches; commits end with `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`.
 - Kind rule (identical to iOS): an actual with `pace == null` is a RIDE, else a RUN; a done workout with NO actual buckets by its type (`'cross'` → ride, any other non-rest type → run). Extras (workout_id null) bucket by the same pace rule.
-- Never render the Run/Ride chip when the period has no ride volume.
+- Never render the sport dropdown when the period has no ride volume; `volumeMode` is ONE piece of state in CoachPage's `AthleteDashboard` (resets per athlete via the existing `key={selectedId}` remount) shared by WeekStats, MonthStats, and MonthGrid.
 - TS strict; Tailwind tokens only; inline SVG icons (no emoji); a11y names on interactive controls.
 - Verify per task: `npm run test:unit && npm run build && npm run lint` from `apps/coach-web/` — all green, 0 lint errors (existing warnings OK). `src/lib/queries/**` tests are LIVE integration tests — never add unit tests there.
 - Working commands run from `/Users/kevinzhao/Documents/CodingProject/RecBuddy/apps/coach-web` unless stated.
@@ -57,6 +59,7 @@ WEEKLY MILEAGE            62%           (Run|Ride)  RUN MILEAGE      62%
 - Produces (every later task relies on these exact names):
 
 ```ts
+export type VolumeMode = 'run' | 'ride'
 export interface VolumeSide { planned: number; done: number }
 export interface PeriodVolume {
   run: VolumeSide; ride: VolumeSide; hasRide: boolean
@@ -138,6 +141,9 @@ Expected: FAIL — cannot resolve `./volume`.
 ```ts
 import type { Workout, Actual } from './types'
 import { estMinutes } from './estMinutes'
+
+/** Which sport a volume gauge is showing. */
+export type VolumeMode = 'run' | 'ride'
 
 export interface VolumeSide { planned: number; done: number }
 export interface PeriodVolume {
@@ -253,50 +259,60 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 
 ---
 
-### Task 3: `ModeToggle` chip (TDD)
+### Task 3: `ModeSelect` dropdown (TDD)
 
 **Files:**
-- Create: `apps/coach-web/src/components/ui/ModeToggle.tsx`
-- Test: `apps/coach-web/src/components/ui/ModeToggle.test.tsx`
+- Create: `apps/coach-web/src/components/ui/ModeSelect.tsx`
+- Test: `apps/coach-web/src/components/ui/ModeSelect.test.tsx`
 
 **Interfaces:**
-- Produces: `ModeToggle({ mode, onChange }: { mode: 'run' | 'ride'; onChange: (m: 'run' | 'ride') => void })`.
+- Consumes: `VolumeMode` from `lib/volume` (Task 1).
+- Produces: `ModeSelect({ mode, onChange }: { mode: VolumeMode; onChange: (m: VolumeMode) => void })` — a controlled native `<select>` (accessible name "Volume sport") styled to the tokens, with an inline-SVG chevron.
 
 - [ ] **Step 1: Write the failing test:**
 
 ```tsx
 import { render, screen, fireEvent } from '@testing-library/react'
-import { ModeToggle } from './ModeToggle'
+import { ModeSelect } from './ModeSelect'
 
-test('shows both chips, marks the active one, fires onChange', () => {
+test('renders a sport dropdown and fires onChange with the picked mode', () => {
   const onChange = vi.fn()
-  render(<ModeToggle mode="run" onChange={onChange} />)
-  expect(screen.getByRole('button', { name: /run volume/i })).toHaveAttribute('aria-pressed', 'true')
-  expect(screen.getByRole('button', { name: /ride volume/i })).toHaveAttribute('aria-pressed', 'false')
-  fireEvent.click(screen.getByRole('button', { name: /ride volume/i }))
+  render(<ModeSelect mode="run" onChange={onChange} />)
+  const select = screen.getByRole('combobox', { name: /volume sport/i })
+  expect(select).toHaveValue('run')
+  fireEvent.change(select, { target: { value: 'ride' } })
   expect(onChange).toHaveBeenCalledWith('ride')
 })
 ```
 
-- [ ] **Step 2: Run to verify failure** — `npx vitest run src/components/ui/ModeToggle.test.tsx`. Expected: FAIL (module not found).
+- [ ] **Step 2: Run to verify failure** — `npx vitest run src/components/ui/ModeSelect.test.tsx`. Expected: FAIL (module not found).
 
-- [ ] **Step 3: Implement `ModeToggle.tsx`:**
+- [ ] **Step 3: Implement `ModeSelect.tsx`:**
 
 ```tsx
-/** Tiny Run/Ride swap for volume gauges. Callers render it ONLY when ride
- *  volume exists, so run-only athletes never see extra chrome. */
-export function ModeToggle({ mode, onChange }: {
-  mode: 'run' | 'ride'; onChange: (m: 'run' | 'ride') => void
+import type { VolumeMode } from '../../lib/volume'
+
+/** Sport dropdown for volume gauges (Run / Ride today; future sports append as
+ *  options). Callers render it ONLY when ride volume exists, so run-only
+ *  athletes never see extra chrome. Controlled: one volumeMode lives in
+ *  CoachPage and drives every gauge surface together. */
+export function ModeSelect({ mode, onChange }: {
+  mode: VolumeMode; onChange: (m: VolumeMode) => void
 }) {
-  const chip = (m: 'run' | 'ride', label: string) => (
-    <button key={m} type="button" aria-label={`${label} volume`} aria-pressed={mode === m}
-      onClick={() => onChange(m)}
-      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold transition ${
-        mode === m ? 'bg-accent/15 text-accent' : 'text-text-faint hover:text-text-mute'}`}>
-      {label}
-    </button>
+  return (
+    <span className="relative inline-flex shrink-0 items-center">
+      <select value={mode} aria-label="Volume sport"
+        onChange={(e) => onChange(e.target.value as VolumeMode)}
+        className="appearance-none rounded-[9px] border border-line bg-surface2 py-1 pl-2.5 pr-6 text-[11px] font-semibold text-text transition hover:border-text-mute focus:outline-none focus:ring-1 focus:ring-accent">
+        <option value="run">Run</option>
+        <option value="ride">Ride</option>
+      </select>
+      <svg viewBox="0 0 24 24" className="pointer-events-none absolute right-1.5 h-3 w-3 text-text-faint"
+        fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="m6 9 6 6 6-6" />
+      </svg>
+    </span>
   )
-  return <span className="inline-flex shrink-0 rounded-full bg-surface2 p-0.5">{chip('run', 'Run')}{chip('ride', 'Ride')}</span>
 }
 ```
 
@@ -305,8 +321,8 @@ export function ModeToggle({ mode, onChange }: {
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/coach-web/src/components/ui/ModeToggle.tsx apps/coach-web/src/components/ui/ModeToggle.test.tsx
-git commit -m "feat(coach): ModeToggle chip for run/ride gauge swap
+git add apps/coach-web/src/components/ui/ModeSelect.tsx apps/coach-web/src/components/ui/ModeSelect.test.tsx
+git commit -m "feat(coach): ModeSelect sport dropdown for volume gauges
 
 Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 ```
@@ -320,12 +336,13 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 - Test: `apps/coach-web/src/features/plan-grid/WeekStats.test.tsx` (full rewrite below)
 
 **Interfaces:**
-- Consumes: `volumeSplit` (Task 1), `ModeToggle` (Task 3), existing `ProgressStat`.
-- Produces: `WeekStats({ week, actuals?, extras? }: { week: Workout[][]; actuals?: Record<string, Actual>; extras?: Actual[] })` — new props OPTIONAL so existing call sites keep compiling until Task 6 wires them.
+- Consumes: `volumeSplit`/`VolumeMode` (Task 1), `ModeSelect` (Task 3), existing `ProgressStat`.
+- Produces: `WeekStats({ week, actuals?, extras?, mode?, onModeChange? }: { week: Workout[][]; actuals?: Record<string, Actual>; extras?: Actual[]; mode?: VolumeMode; onModeChange?: (m: VolumeMode) => void })` — new props OPTIONAL so existing call sites keep compiling until Task 6 wires them; the dropdown renders only when `hasRide && onModeChange`.
 
 - [ ] **Step 1: Rewrite the test file** — `WeekStats.test.tsx`:
 
 ```tsx
+import { useState } from 'react'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { WeekStats } from './WeekStats'
 
@@ -334,10 +351,10 @@ const run = (id: string, dist: number, status = 'planned', type = 'easy') =>
 const act = (workout_id: string, dist: number, pace: string | null, time: string) =>
   ({ id: 'a1', workout_id, dist, pace, time }) as any
 
-test('run-only week: no chip, done side uses the LOGGED distance', () => {
+test('run-only week: no dropdown, done side uses the LOGGED distance', () => {
   render(<WeekStats week={[[run('w1', 8, 'done')], [], [], [], [], [], []]}
-    actuals={{ w1: act('w1', 6.2, '9:10/mi', '56:50') }} />)
-  expect(screen.queryByRole('button', { name: /ride volume/i })).toBeNull()
+    actuals={{ w1: act('w1', 6.2, '9:10/mi', '56:50') }} mode="run" onModeChange={() => {}} />)
+  expect(screen.queryByRole('combobox', { name: /volume sport/i })).toBeNull()
   expect(screen.getByText('Weekly mileage')).toBeInTheDocument()
   expect(screen.getByText('6.2')).toBeInTheDocument()
   expect(screen.getByText(/\/ 8\.0 mi/)).toBeInTheDocument()
@@ -349,10 +366,15 @@ test('without a log, done falls back to planned (old behavior preserved)', () =>
   expect(screen.getByText(/\/ 12\.0 mi/)).toBeInTheDocument()
 })
 
-test('ride volume reveals the chip; swapping shows ride numbers', () => {
-  const week = [[run('w1', 8), run('c1', 15, 'done', 'cross')], [], [], [], [], [], []]
-  render(<WeekStats week={week} actuals={{ c1: act('c1', 12.4, null, '48:00') }} />)
-  fireEvent.click(screen.getByRole('button', { name: /ride volume/i }))
+test('ride volume reveals the dropdown; selecting Ride shows ride numbers', () => {
+  function Wrap() {
+    const [mode, setMode] = useState<'run' | 'ride'>('run')
+    const week = [[run('w1', 8), run('c1', 15, 'done', 'cross')], [], [], [], [], [], []]
+    return <WeekStats week={week} actuals={{ c1: act('c1', 12.4, null, '48:00') }}
+      mode={mode} onModeChange={setMode} />
+  }
+  render(<Wrap />)
+  fireEvent.change(screen.getByRole('combobox', { name: /volume sport/i }), { target: { value: 'ride' } })
   expect(screen.getByText('Ride mileage')).toBeInTheDocument()
   expect(screen.getByText('12.4')).toBeInTheDocument()
   expect(screen.getByText(/\/ 15\.0 mi/)).toBeInTheDocument()
@@ -371,29 +393,29 @@ test('time on feet uses logged elapsed when present', () => {
 - [ ] **Step 3: Rewrite `WeekStats.tsx`:**
 
 ```tsx
-import { useState } from 'react'
 import type { Workout, Actual } from '../../lib/types'
-import { volumeSplit } from '../../lib/volume'
+import { volumeSplit, type VolumeMode } from '../../lib/volume'
 import { fmtDur } from '../../lib/fmtDur'
 import { useUnit } from '../../lib/useUnit'
 import { fromMiles } from '../../lib/units'
 import { ProgressStat } from '../../components/ui/ProgressStat'
-import { ModeToggle } from '../../components/ui/ModeToggle'
+import { ModeSelect } from '../../components/ui/ModeSelect'
 
 /** Weekly completion against plan, actuals-first. Mileage separates run vs
- *  ride (chip appears only when the week has ride volume); time on feet stays
- *  one combined bar. */
-export function WeekStats({ week, actuals = {}, extras = [] }: {
+ *  ride via the shared sport dropdown (rendered only when the week has ride
+ *  volume); time on feet stays one combined bar. Mode is CONTROLLED — one
+ *  volumeMode in CoachPage drives every gauge surface together. */
+export function WeekStats({ week, actuals = {}, extras = [], mode = 'run', onModeChange }: {
   week: Workout[][]; actuals?: Record<string, Actual>; extras?: Actual[]
+  mode?: VolumeMode; onModeChange?: (m: VolumeMode) => void
 }) {
   const { unit } = useUnit()
-  const [mode, setMode] = useState<'run' | 'ride'>('run')
   const vol = volumeSplit(week.flat(), actuals, extras)
   const side = mode === 'ride' && vol.hasRide ? vol.ride : vol.run
   const label = vol.hasRide ? (mode === 'ride' ? 'Ride mileage' : 'Run mileage') : 'Weekly mileage'
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-      {vol.hasRide && <ModeToggle mode={mode} onChange={setMode} />}
+      {vol.hasRide && onModeChange && <ModeSelect mode={mode} onChange={onModeChange} />}
       <ProgressStat label={label} done={side.done} planned={side.planned}
         doneText={fromMiles(side.done, unit).toFixed(1)}
         plannedText={`${fromMiles(side.planned, unit).toFixed(1)} ${unit}`}
@@ -412,7 +434,7 @@ export function WeekStats({ week, actuals = {}, extras = [] }: {
 
 ```bash
 git add apps/coach-web/src/features/plan-grid/WeekStats.tsx apps/coach-web/src/features/plan-grid/WeekStats.test.tsx
-git commit -m "feat(coach): WeekStats — actuals-based run/ride mileage with swap chip
+git commit -m "feat(coach): WeekStats — actuals-based run/ride mileage with sport dropdown
 
 Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 ```
@@ -426,18 +448,19 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 - Test: `apps/coach-web/src/features/plan-grid/MonthStats.test.tsx` (create)
 
 **Interfaces:**
-- Produces: `MonthStats({ byDate, anchor, actuals?, extras? })` — `extras` is the month's standalone actuals, PRE-FILTERED to the anchor month by the caller (Task 6).
+- Produces: `MonthStats({ byDate, anchor, actuals?, extras?, mode?, onModeChange? })` — `extras` is the month's standalone actuals, PRE-FILTERED to the anchor month by the caller (Task 6); `mode`/`onModeChange` are the same controlled pair as WeekStats.
 
 - [ ] **Step 1: Write the failing test** — `MonthStats.test.tsx`:
 
 ```tsx
+import { useState } from 'react'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { MonthStats } from './MonthStats'
 
 const w = (id: string, date: string, dist: number, status = 'planned', type = 'easy') =>
   ({ id, date, type, dist, pace: '9:00/mi', est_minutes: null, dur: null, status, sets: [] }) as any
 
-test('monthly mileage counts logged actuals and swaps to ride volume', () => {
+test('monthly mileage counts logged actuals and the dropdown swaps to ride volume', () => {
   const byDate = {
     '2026-08-03': [w('w1', '2026-08-03', 8, 'done')],
     '2026-08-04': [w('c1', '2026-08-04', 20, 'done', 'cross')],
@@ -446,9 +469,14 @@ test('monthly mileage counts logged actuals and swaps to ride volume', () => {
     w1: { id: 'a1', workout_id: 'w1', dist: 6.2, pace: '9:10/mi', time: '56:50' } as any,
     c1: { id: 'a2', workout_id: 'c1', dist: 18.5, pace: null, time: '1:02:00' } as any,
   }
-  render(<MonthStats byDate={byDate} anchor="2026-08-01" actuals={actuals} />)
+  function Wrap() {
+    const [mode, setMode] = useState<'run' | 'ride'>('run')
+    return <MonthStats byDate={byDate} anchor="2026-08-01" actuals={actuals}
+      mode={mode} onModeChange={setMode} />
+  }
+  render(<Wrap />)
   expect(screen.getByText('6.2')).toBeInTheDocument()          // run side, actuals-based
-  fireEvent.click(screen.getByRole('button', { name: /ride volume/i }))
+  fireEvent.change(screen.getByRole('combobox', { name: /volume sport/i }), { target: { value: 'ride' } })
   expect(screen.getByText('Ride mileage')).toBeInTheDocument()
   expect(screen.getByText('18.5')).toBeInTheDocument()
 })
@@ -459,25 +487,25 @@ test('monthly mileage counts logged actuals and swaps to ride volume', () => {
 - [ ] **Step 3: Rewrite `MonthStats.tsx`:**
 
 ```tsx
-import { useState } from 'react'
 import type { Workout, Actual } from '../../lib/types'
 import { monthOf } from '../../lib/week'
-import { volumeSplit } from '../../lib/volume'
+import { volumeSplit, type VolumeMode } from '../../lib/volume'
 import { fmtDur } from '../../lib/fmtDur'
 import { useUnit } from '../../lib/useUnit'
 import { fromMiles } from '../../lib/units'
 import { ProgressStat } from '../../components/ui/ProgressStat'
-import { ModeToggle } from '../../components/ui/ModeToggle'
+import { ModeSelect } from '../../components/ui/ModeSelect'
 
 /** Month completion against plan (in-month days only), actuals-first, run/ride
  *  split — the weekly KPIs summed over the month. `extras` arrives pre-filtered
- *  to the anchor month by the caller. */
-export function MonthStats({ byDate, anchor, actuals = {}, extras = [] }: {
+ *  to the anchor month by the caller. Mode is CONTROLLED and shared with the
+ *  month grid, so selecting Ride here swaps the KPI column too. */
+export function MonthStats({ byDate, anchor, actuals = {}, extras = [], mode = 'run', onModeChange }: {
   byDate: Record<string, Workout[]>; anchor: string
   actuals?: Record<string, Actual>; extras?: Actual[]
+  mode?: VolumeMode; onModeChange?: (m: VolumeMode) => void
 }) {
   const { unit } = useUnit()
-  const [mode, setMode] = useState<'run' | 'ride'>('run')
   const m = monthOf(anchor)
   const ws = Object.values(byDate).flat().filter((w) => monthOf(w.date) === m)
   const vol = volumeSplit(ws, actuals, extras)
@@ -485,7 +513,7 @@ export function MonthStats({ byDate, anchor, actuals = {}, extras = [] }: {
   const label = vol.hasRide ? (mode === 'ride' ? 'Ride mileage' : 'Run mileage') : 'Monthly mileage'
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-      {vol.hasRide && <ModeToggle mode={mode} onChange={setMode} />}
+      {vol.hasRide && onModeChange && <ModeSelect mode={mode} onChange={onModeChange} />}
       <ProgressStat label={label} done={side.done} planned={side.planned}
         doneText={fromMiles(side.done, unit).toFixed(1)}
         plannedText={`${fromMiles(side.planned, unit).toFixed(1)} ${unit}`}
@@ -514,38 +542,30 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 ### Task 6: Month-grid KPI column + CoachPage wiring
 
 **Files:**
-- Modify: `apps/coach-web/src/features/plan-grid/ExtraActivityCard.tsx` (export `BikeIcon`)
-- Modify: `apps/coach-web/src/features/plan-grid/MonthGrid.tsx` (WeekSummary + props)
-- Modify: `apps/coach-web/src/routes/CoachPage.tsx` (wire hooks + props)
+- Modify: `apps/coach-web/src/features/plan-grid/MonthGrid.tsx` (WeekSummary + props + header)
+- Modify: `apps/coach-web/src/routes/CoachPage.tsx` (volumeMode state + wire hooks + props)
 
 **Interfaces:**
-- Consumes: `useActualsByWorkoutIds` (Task 2), `volumeSplit` (Task 1), `weekDates`/`monthOf` from `lib/week`.
-- Produces: `MonthGrid` gains optional `actuals?: Record<string, Actual>` and `extrasByDate?: Record<string, Actual[]>`.
+- Consumes: `useActualsByWorkoutIds` (Task 2), `volumeSplit`/`VolumeMode` (Task 1), `weekDates`/`monthOf` from `lib/week`.
+- Produces: `MonthGrid` gains optional `actuals?: Record<string, Actual>`, `extrasByDate?: Record<string, Actual[]>`, and `mode?: VolumeMode` — **the KPI column shows the SELECTED sport's volume**, so picking Ride in the month toolbar swaps every weekly cell.
 
-- [ ] **Step 1: Export the bike icon.** In `ExtraActivityCard.tsx`, change `function BikeIcon(` to `export function BikeIcon(` (no other change).
-
-- [ ] **Step 2: MonthGrid.** Add to the type imports: `Actual`. Add `import { volumeSplit } from '../../lib/volume'` and `import { BikeIcon } from './ExtraActivityCard'`. Change `WeekSummary` to:
+- [ ] **Step 1: MonthGrid.** Add to the type imports: `Actual`; add `import { volumeSplit, type VolumeMode } from '../../lib/volume'`. Change `WeekSummary` to (mode-driven mileage row; time row unchanged):
 
 ```tsx
-function WeekSummary({ days, extras, actuals, isCurrent }: {
-  days: Workout[][]; extras: Actual[]; actuals: Record<string, Actual>; isCurrent: boolean
+function WeekSummary({ days, extras, actuals, mode, isCurrent }: {
+  days: Workout[][]; extras: Actual[]; actuals: Record<string, Actual>
+  mode: VolumeMode; isCurrent: boolean
 }) {
   const { unit } = useUnit()
   const vol = volumeSplit(days.flat(), actuals, extras)
-  const milePct = vol.run.planned > 0 ? Math.round((vol.run.done / vol.run.planned) * 100) : 0
+  const side = mode === 'ride' ? vol.ride : vol.run
+  const milePct = side.planned > 0 ? Math.round((side.done / side.planned) * 100) : 0
   const timePct = vol.plannedMin > 0 ? Math.round((vol.doneMin / vol.plannedMin) * 100) : 0
   return (
     <div className="p-1.5">
       <div className={`rb-card-sm flex h-full flex-col justify-center gap-2 p-2.5 ${isCurrent ? 'ring-1 ring-text/30' : ''}`}>
         <KpiBar tint="bg-accent" pct={milePct}
-          value={<><span className="font-bold text-text">{fmtDist(vol.run.done, unit)}</span><span className="text-text-faint">/{fmtDist(vol.run.planned, unit)} {unit}</span></>} />
-        {vol.hasRide && (
-          <div className="flex items-center gap-1 truncate font-num text-[10px] leading-tight tabular-nums">
-            <BikeIcon className="h-3 w-3 shrink-0 text-text-mute" />
-            <span className="font-bold text-text">{fmtDist(vol.ride.done, unit)}</span>
-            <span className="text-text-faint">/{fmtDist(vol.ride.planned, unit)} {unit}</span>
-          </div>
-        )}
+          value={<><span className="font-bold text-text">{fmtDist(side.done, unit)}</span><span className="text-text-faint">/{fmtDist(side.planned, unit)} {unit}</span></>} />
         <KpiBar tint="bg-text-mute" pct={timePct}
           value={<><span className="font-bold text-text">{fmtDur(vol.doneMin)}</span><span className="text-text-faint">/{fmtDur(vol.plannedMin)}</span></>} />
       </div>
@@ -557,23 +577,33 @@ function WeekSummary({ days, extras, actuals, isCurrent }: {
 `MonthGrid`'s signature gains the optional props and threads them:
 
 ```tsx
-export function MonthGrid({ anchor, byDate, selectedDate, canEdit = true, actuals = {}, extrasByDate = {}, onPick }: {
+export function MonthGrid({ anchor, byDate, selectedDate, canEdit = true, actuals = {}, extrasByDate = {}, mode = 'run', onPick }: {
   anchor: string; byDate: Record<string, Workout[]>; selectedDate: string | null; canEdit?: boolean
-  actuals?: Record<string, Actual>; extrasByDate?: Record<string, Actual[]>
+  actuals?: Record<string, Actual>; extrasByDate?: Record<string, Actual[]>; mode?: VolumeMode
   onPick: (date: string) => void
 }) {
 ```
+
+The KPI column HEADER names the sport so a swapped column is never ambiguous — change the header cell text to:
+
+```tsx
+        <div className="px-2 py-2 text-center text-[11px] font-semibold uppercase tracking-[0.06em] text-accent">{mode === 'ride' ? 'Weekly ride volume' : 'Weekly volume'}</div>
+```
+
 and the `WeekSummary` call becomes:
 
 ```tsx
             <WeekSummary days={week.map((d) => byDate[d] ?? [])}
               extras={week.flatMap((d) => extrasByDate[d] ?? [])}
-              actuals={actuals} isCurrent={week.includes(todayIso)} />
+              actuals={actuals} mode={mode} isCurrent={week.includes(todayIso)} />
 ```
 
-- [ ] **Step 3: CoachPage (`AthleteDashboard`).** Add imports: `useActualsByWorkoutIds` (from `../lib/queries/actuals`), and add `weekDates` + `monthOf` to the `../lib/week` import. Below the `extrasByDate` block, add:
+- [ ] **Step 2: CoachPage (`AthleteDashboard`).** Add imports: `useActualsByWorkoutIds` (from `../lib/queries/actuals`), `type VolumeMode` (from `../lib/volume`), and add `weekDates` + `monthOf` to the `../lib/week` import. Below the `extrasByDate` block, add:
 
 ```tsx
+  // ONE sport selection drives every volume gauge (week toolbar, month
+  // toolbar, month-grid KPI column). Resets per athlete via key={selectedId}.
+  const [volumeMode, setVolumeMode] = useState<VolumeMode>('run')
   // Bulk actuals power the actuals-based volume gauges (week + month).
   const weekIds = week.flat().map((w) => w.id)
   const monthIds = Object.values(monthQ.data ?? {}).flat().map((w) => w.id)
@@ -586,17 +616,17 @@ and the `WeekSummary` call becomes:
 ```
 
 Update the three call sites:
-- `<WeekStats week={week} actuals={weekActualsQ.data ?? {}} extras={weekExtras} />`
-- `<MonthStats byDate={monthQ.data ?? {}} anchor={monthAnchor} actuals={monthActualsQ.data ?? {}} extras={monthExtras} />`
-- `<MonthGrid ... actuals={monthActualsQ.data ?? {}} extrasByDate={extrasByDate} ... />` (keep all existing props)
+- `<WeekStats week={week} actuals={weekActualsQ.data ?? {}} extras={weekExtras} mode={volumeMode} onModeChange={setVolumeMode} />`
+- `<MonthStats byDate={monthQ.data ?? {}} anchor={monthAnchor} actuals={monthActualsQ.data ?? {}} extras={monthExtras} mode={volumeMode} onModeChange={setVolumeMode} />`
+- `<MonthGrid ... actuals={monthActualsQ.data ?? {}} extrasByDate={extrasByDate} mode={volumeMode} ... />` (keep all existing props)
 
 - [ ] **Step 4: Verify** — `npm run test:unit && npm run build && npm run lint`. Expected: all green, 0 lint errors (MonthGrid's existing tests pass unchanged: with no `actuals` prop the fallback path reproduces today's numbers).
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
-git add apps/coach-web/src/features/plan-grid/ExtraActivityCard.tsx apps/coach-web/src/features/plan-grid/MonthGrid.tsx apps/coach-web/src/routes/CoachPage.tsx
-git commit -m "feat(coach): month KPI ride row + actuals wiring for all volume gauges
+git add apps/coach-web/src/features/plan-grid/MonthGrid.tsx apps/coach-web/src/routes/CoachPage.tsx
+git commit -m "feat(coach): mode-driven month KPI column + actuals wiring for all gauges
 
 Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 ```
@@ -613,7 +643,7 @@ cd /Users/kevinzhao/Documents/CodingProject/RecBuddy
 git push -u origin feat/coach-volume
 gh pr create --base dev --head feat/coach-volume \
   --title "Coach volume gauges: actuals-based run/ride split" \
-  --body "Coach-web counterpart of the athlete gauge corrections: weekly/monthly mileage now counts LOGGED actual distance (planned as fallback for log-less completes), run and ride volumes never pool (Run|Ride chip appears only when ride volume exists), month-grid KPI cells gain a one-line ride row, and time on feet uses logged elapsed time. One bulk actuals query + one pure, fully-tested volumeSplit helper shared by every gauge.
+  --body "Coach-web counterpart of the athlete gauge corrections: weekly/monthly mileage now counts LOGGED actual distance (planned as fallback for log-less completes), run and ride volumes never pool (a Run/Ride dropdown appears only when ride volume exists; one selection drives week toolbar, month toolbar, and the month KPI column), the month-grid KPI column follows the selected sport (header names it), and time on feet uses logged elapsed time. One bulk actuals query + one pure, fully-tested volumeSplit helper shared by every gauge.
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)"
 ```
@@ -622,6 +652,6 @@ gh pr create --base dev --head feat/coach-volume \
 
 ## Deferred / out of scope
 
-- Ride-specific tint or avg-speed display (chip labels the mode; keep one accent).
+- Ride-specific tint or avg-speed display (the dropdown + headers name the mode; keep one accent).
 - Splitting time-on-feet by mode (training time stays one budget).
 - Live-integration test for the bulk query (manual `lib/queries` suite convention).
