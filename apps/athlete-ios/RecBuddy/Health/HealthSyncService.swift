@@ -11,6 +11,9 @@ final class HealthSyncService {
     private let gateway = HealthKitGateway()
     private var coordinator: HealthSyncCoordinator?
     private var coordinatorAthleteId: String?
+    /// The athlete the app is currently signed in as — observer wakes resolve
+    /// against this at fire time, so an account switch never leaks the old id.
+    private var activeAthleteId: String?
     private var observing = false
 
     /// One coordinator per signed-in athlete — rebuilt if a different athlete
@@ -38,6 +41,7 @@ final class HealthSyncService {
 
     /// One pass; from a background wake, notify if anything needs confirming.
     func syncNow(athleteId: String, background: Bool = false) async {
+        activeAthleteId = athleteId
         let newPending = await coordinator(for: athleteId).sync()
         if background && newPending > 0 {
             let content = UNMutableNotificationContent()
@@ -49,13 +53,21 @@ final class HealthSyncService {
         }
     }
 
-    /// Register the HK observer once per launch (no-op until connected).
+    /// Register the HK observer once per launch (no-op until connected). The
+    /// closure deliberately captures NO athlete id — it reads the current one
+    /// when it fires.
     func startObservingIfNeeded(athleteId: String) {
+        activeAthleteId = athleteId
         guard state.connected, state.autoSyncEnabled, !observing else { return }
         observing = true
         gateway.startObserving { [weak self] in
-            await self?.syncNow(athleteId: athleteId, background: true)
+            await self?.observerFired()
         }
+    }
+
+    private func observerFired() async {
+        guard let id = activeAthleteId else { return }
+        await syncNow(athleteId: id, background: true)
     }
 
     func resolve(_ pendingId: String, _ r: HealthSyncCoordinator.Resolution) async throws {
