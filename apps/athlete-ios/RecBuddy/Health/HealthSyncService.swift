@@ -8,6 +8,8 @@ import UserNotifications
 @Observable @MainActor
 final class HealthSyncService {
     let state = SyncState()
+    /// True while a sync pass is running — drives the header sync badge.
+    private(set) var isSyncing = false
     private let gateway = HealthKitGateway()
     private var coordinator: HealthSyncCoordinator?
     private var coordinatorAthleteId: String?
@@ -42,6 +44,8 @@ final class HealthSyncService {
     /// One pass; from a background wake, notify if anything needs confirming.
     func syncNow(athleteId: String, background: Bool = false) async {
         activeAthleteId = athleteId
+        isSyncing = true
+        defer { isSyncing = false }
         let newPending = await coordinator(for: athleteId).sync()
         if background && newPending > 0 {
             let content = UNMutableNotificationContent()

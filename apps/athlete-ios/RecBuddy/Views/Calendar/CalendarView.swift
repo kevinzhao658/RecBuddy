@@ -200,6 +200,9 @@ struct CalendarView: View {
                     .foregroundStyle(.white)
             }
             Spacer()
+            if health.state.connected {
+                healthSyncBadge
+            }
             Button { accountOpen = true } label: {
                 ZStack {
                     Circle()
@@ -226,6 +229,45 @@ struct CalendarView: View {
             .buttonStyle(.plain)
             .accessibilityLabel("Account")
         }
+    }
+
+    /// Apple Health sync badge beside the profile icon: spins while a pass is
+    /// running, lime once data has synced; tap = sync now. Hidden until Health
+    /// is connected so non-Health users never see it.
+    private var healthSyncBadge: some View {
+        Button {
+            Task {
+                await health.syncNow(athleteId: profile.id)
+                await store.refresh()
+            }
+        } label: {
+            ZStack {
+                Circle()
+                    .fill(RB.surface2)
+                    .frame(width: 40, height: 40)
+                if health.isSyncing {
+                    ProgressView()
+                        .tint(RB.accent)
+                        .scaleEffect(0.8)
+                } else {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(health.state.lastSync != nil ? RB.accent : RB.textMute)
+                }
+            }
+            .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .disabled(health.isSyncing)
+        .accessibilityLabel(syncBadgeLabel)
+    }
+
+    /// "Apple Health synced 5 min. ago" — the badge's VoiceOver + long-press label.
+    private var syncBadgeLabel: String {
+        guard let last = health.state.lastSync else { return "Sync Apple Health" }
+        let rel = RelativeDateTimeFormatter()
+        rel.unitsStyle = .abbreviated
+        return "Apple Health synced \(rel.localizedString(for: last, relativeTo: Date()))"
     }
 
     // MARK: - Weekly Mileage Block

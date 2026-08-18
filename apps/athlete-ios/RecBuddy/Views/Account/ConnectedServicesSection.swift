@@ -20,12 +20,14 @@ struct ConnectedServicesSection: View {
                     .clipShape(RoundedRectangle(cornerRadius: 9))
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Apple Health").font(.subheadline.weight(.semibold)).foregroundStyle(.white)
-                    Text(health.state.connected ? "Connected" : "Log runs & rides automatically")
+                    Text(health.state.connected ? connectedCaption : "Log runs & rides automatically")
                         .font(.caption).foregroundStyle(RB.textMute)
                 }
                 Spacer()
                 if health.state.connected {
-                    Image(systemName: "checkmark.circle.fill").foregroundStyle(RB.accent)
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(RB.accent)
+                        .accessibilityLabel("Connected")
                 } else {
                     Button(connecting ? "Connecting…" : "Connect") {
                         connecting = true
@@ -45,5 +47,13 @@ struct ConnectedServicesSection: View {
         }
         .padding(14)
         .rbCard()
+    }
+
+    /// "Connected · Last synced 5 min. ago" once a pass has run.
+    private var connectedCaption: String {
+        guard let last = health.state.lastSync else { return "Connected" }
+        let rel = RelativeDateTimeFormatter()
+        rel.unitsStyle = .abbreviated
+        return "Connected · Last synced \(rel.localizedString(for: last, relativeTo: Date()))"
     }
 }
