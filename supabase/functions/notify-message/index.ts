@@ -56,22 +56,40 @@ Deno.serve(async (req) => {
   if (req.headers.get('x-webhook-secret') !== Deno.env.get('WEBHOOK_SECRET')) {
     return new Response('forbidden', { status: 403 })
   }
-  const { record } = await req.json()
+  let record: Record<string, unknown> & { thread_id?: string; from_user_id?: string; id?: string }
+  try {
+    ;({ record } = await req.json())
+  } catch {
+    console.error('notify-message: unparseable webhook body')
+    return new Response('bad request', { status: 400 })
+  }
   if (!record?.thread_id) return new Response('no record', { status: 400 })
 
   const supa = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
-  const { data: thread } = await supa.from('message_threads')
-    .select('athlete_id, coach_id').eq('id', record.thread_id).single()
-  // Athlete-only pushes: skip anything the athlete sent.
+
+  // Query FAILURE -> 5xx so the webhook retries; genuine not-found -> 200 skip.
+  const { data: thread, error: threadErr } = await supa.from('message_threads')
+    .select('athlete_id, coach_id').eq('id', record.thread_id).maybeSingle()
+  if (threadErr) { console.error('thread query', threadErr); return new Response('retry', { status: 500 }) }
   if (!thread || record.from_user_id === thread.athlete_id) return new Response('skip')
 
-  const { data: coach } = await supa.from('profiles').select('name').eq('id', record.from_user_id).single()
-  const alert = preview(record.kind, record.body, record.payload, coach?.name ?? 'Your coach')
+  const { data: coach } = await supa.from('profiles').select('name').eq('id', record.from_user_id).maybeSingle()
+  const alert = preview(record.kind as string, record.body as string | null,
+                        record.payload as Record<string, unknown> | null, coach?.name ?? 'Your coach')
 
-  const { data: tokens } = await supa.from('device_tokens').select('token, env').eq('user_id', thread.athlete_id)
+  const { data: tokens, error: tokenErr } = await supa.from('device_tokens')
+    .select('token, env').eq('user_id', thread.athlete_id)
+  if (tokenErr) { console.error('token query', tokenErr); return new Response('retry', { status: 500 }) }
+
+  // Per-token failures never abort the loop or fail the request — a webhook
+  // retry would duplicate pushes to the tokens that already succeeded.
   for (const t of tokens ?? []) {
-    if (await push(t.token, t.env, alert, record.thread_id, record.id) === 'gone') {
-      await supa.from('device_tokens').delete().eq('user_id', thread.athlete_id).eq('token', t.token)
+    try {
+      if (await push(t.token, t.env, alert, record.thread_id as string, record.id as string) === 'gone') {
+        await supa.from('device_tokens').delete().eq('user_id', thread.athlete_id).eq('token', t.token)
+      }
+    } catch (e) {
+      console.error('push failed for token', t.token.slice(0, 8), e)
     }
   }
   return new Response('ok')
