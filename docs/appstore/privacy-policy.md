@@ -13,7 +13,7 @@ If you do not agree with this policy, please do not use RecBuddy.
 ## Who we are
 
 RecBuddy is operated by an individual developer. For any privacy question or
-request, contact us at **[support@recbuddy.app]**.
+request, contact us at **support@recbuddy.app**.
 
 ## Information we collect
 
@@ -140,4 +140,4 @@ policy.
 
 ## Contact us
 
-Questions or requests? Email **[support@recbuddy.app]**.
+Questions or requests? Email **support@recbuddy.app**.
