@@ -7,6 +7,9 @@ import Supabase
 enum PushRegistrar {
     static let categoryId = "COACH_MESSAGE"
     static let replyActionId = "REPLY"
+    /// The token this device last uploaded — the delete filter, so disabling
+    /// notifications here never touches the athlete's other devices.
+    private static let deviceTokenKey = "apnsDeviceToken"
 
     // ── pure helpers (unit-tested) ──
     static func hexToken(_ data: Data) -> String {
@@ -57,14 +60,19 @@ enum PushRegistrar {
         guard let userId = try? await Supa.shared.auth.session.user.id else { return }
         struct Row: Encodable { let user_id: String; let token: String; let env: String }
         let row = Row(user_id: userId.uuidString.lowercased(), token: hexToken(token), env: currentEnv)
+        UserDefaults.standard.set(hexToken(token), forKey: deviceTokenKey)
         _ = try? await Supa.shared.from("device_tokens")
             .upsert(row, onConflict: "user_id,token").execute()
     }
 
     static func deleteToken() async {
-        guard let userId = try? await Supa.shared.auth.session.user.id else { return }
+        guard let userId = try? await Supa.shared.auth.session.user.id,
+              let token = UserDefaults.standard.string(forKey: deviceTokenKey) else { return }
         _ = try? await Supa.shared.from("device_tokens")
-            .delete().eq("user_id", value: userId.uuidString.lowercased()).execute()
+            .delete()
+            .eq("user_id", value: userId.uuidString.lowercased())
+            .eq("token", value: token)
+            .execute()
     }
 
     /// Inline reply from the notification — runs in a background task so iOS
