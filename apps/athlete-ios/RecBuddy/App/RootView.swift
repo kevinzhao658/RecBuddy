@@ -101,6 +101,7 @@ struct CoachJoinAsAthleteView: View {
 struct MainTabs: View {
     let profile: Profile
     @State private var tab = 0
+    @State private var router = AppRouter.shared
     var body: some View {
         // Both tabs stay ALIVE (opacity toggle, not if/else): switching is
         // instant — no refetch, and the chat's realtime subscription persists.
@@ -115,6 +116,14 @@ struct MainTabs: View {
                 .accessibilityHidden(tab != 1)
         }
         .safeAreaInset(edge: .bottom) { RBTabBar(tab: $tab) }
+        .onAppear { router.chatVisible = (tab == 1) }
+        .onChange(of: tab) { _, t in router.chatVisible = (t == 1) }
+        .onChange(of: router.openChat) { _, open in
+            if open {
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) { tab = 1 }
+                router.openChat = false
+            }
+        }
         .background(
             ZStack { // metal treatment: near-black base + ambient lime radial
                 RB.bg
