@@ -55,3 +55,14 @@ test('paste is offered on occupied days too when the clipboard is full', () => {
   fireEvent.click(pastes[0])
   expect(onPaste).toHaveBeenCalledWith('2026-09-07')
 })
+
+test('an extra activity on an empty day renders as a full card, not the big add cell', () => {
+  const extra = { id: 'x1', workout_id: null, athlete_id: 'a', dist: 5.2, pace: '9:00/mi',
+    time: '46:48', hr: null, feel: null, note: null, source: 'apple_health',
+    source_id: 'hk1', recorded_at: '2026-09-08T14:00:00Z' } as any
+  renderGrid({ week: [[], [], [], [], [], [], []], extras: { '2026-09-08': [extra] } })
+  expect(screen.getByText('Extra run')).toBeInTheDocument()
+  expect(screen.getByText(/5\.2 mi · 46:48/)).toBeInTheDocument()
+  // The day still offers Add (the slim sliver), like any occupied day.
+  expect(screen.getAllByRole('button', { name: /add workout/i }).length).toBe(7)
+})

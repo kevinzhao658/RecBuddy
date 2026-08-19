@@ -18,21 +18,27 @@ function RunIcon({ className = '' }: { className?: string }) {
   )
 }
 
-/** Off-plan activity from a synced provider — shown on the day like a logged
- *  card but tagged as extra. pace==null means it was a ride. */
+/** Off-plan activity from a synced provider, rendered with the SAME visual
+ *  language as a completed DayCard (done tint + ring, title/icon header,
+ *  numeric line, ✓) so extras read as first-class cards on the day — just not
+ *  draggable or editable. pace==null means it was a ride. */
 export function ExtraActivityCard({ actual }: { actual: Actual }) {
   const { unit } = useUnit()
   const isRide = actual.pace == null
   return (
-    <div className="rb-card rb-card-sm flex items-center gap-2 border border-line bg-[rgba(173,255,47,0.06)] p-2">
-      {isRide ? <BikeIcon className="h-4 w-4 shrink-0 text-accent" /> : <RunIcon className="h-4 w-4 shrink-0 text-accent" />}
-      <div className="min-w-0 flex-1">
-        <div className="line-clamp-1 text-[13px] font-semibold leading-tight">{isRide ? 'Extra ride' : 'Extra run'}</div>
-        {actual.dist != null && (
-          <div className="font-num text-xs text-text-mute">{fmtDist(actual.dist, unit)} {unit} · {actual.time}</div>
-        )}
+    <div className="rb-card rb-card-sm flex h-full flex-col bg-[rgba(173,255,47,0.10)] p-2 ring-1 ring-accent/45">
+      <div className="mb-1 flex items-start justify-between gap-2">
+        <div className="line-clamp-1 text-[14px] font-semibold leading-tight">{isRide ? 'Extra ride' : 'Extra run'}</div>
+        {isRide
+          ? <BikeIcon className="mt-0.5 h-4 w-4 shrink-0 text-text-mute" />
+          : <RunIcon className="mt-0.5 h-4 w-4 shrink-0 text-text-mute" />}
       </div>
-      <span className="text-sm leading-none text-accent" aria-label="Completed">✓</span>
+      {actual.dist != null && (
+        <div className="font-num text-xs text-text-mute">{fmtDist(actual.dist, unit)} {unit} · {actual.time}</div>
+      )}
+      <div className="mt-auto flex items-center justify-between pt-1.5">
+        <span className="text-sm leading-none text-accent" aria-label="Completed">✓</span>
+      </div>
     </div>
   )
 }

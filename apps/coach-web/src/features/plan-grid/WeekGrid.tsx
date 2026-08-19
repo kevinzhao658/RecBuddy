@@ -42,7 +42,7 @@ function DayCell({ date, dow, workouts, selectedId, canEdit, onSelectWorkout, on
       </div>
       <div ref={drop.setNodeRef}
         className={`flex min-h-[128px] flex-1 flex-col rounded-[14px] transition ${isToday ? 'ring-2 ring-text' : ''} ${drop.isOver ? '-translate-y-0.5 ring-2 ring-accent shadow-[0_0_22px_rgba(173,255,47,0.35)]' : ''}`}>
-        {workouts.length === 0 ? (
+        {workouts.length === 0 && extras.length === 0 ? (
           canEdit ? (
             // Empty day — the add card fills the cell.
             <div className="rb-card rb-card-sm flex flex-1 flex-col items-center justify-center gap-1.5 rounded-[14px] border-dashed text-text-faint">
@@ -62,7 +62,7 @@ function DayCell({ date, dow, workouts, selectedId, canEdit, onSelectWorkout, on
             {/* Stacked day: the selected workout (or the first) is the full,
                 fixed-height headline card; the rest poke out from behind it as
                 tabs, so a busy day grows a little instead of shrinking the card. */}
-            {(() => {
+            {workouts.length > 0 && (() => {
               const active = workouts.find((w) => w.id === selectedId) ?? workouts[0]
               const rest = workouts.filter((w) => w.id !== active.id)
               return (
@@ -79,6 +79,13 @@ function DayCell({ date, dow, workouts, selectedId, canEdit, onSelectWorkout, on
                 </div>
               )
             })()}
+            {/* Off-plan extras render as first-class cards in the same flow —
+                candidate-card height, above the add sliver, never beneath it. */}
+            {extras.map((a, i) => (
+              <div key={a.id} className={`h-24 shrink-0 ${workouts.length > 0 || i > 0 ? 'mt-1.5' : ''}`}>
+                <ExtraActivityCard actual={a} />
+              </div>
+            ))}
             {/* Slim sliver so a single workout keeps the card; add another below. Edit coaches only. */}
             {canEdit && (
               <div className="mt-1.5 flex shrink-0 items-center gap-1">
@@ -91,11 +98,6 @@ function DayCell({ date, dow, workouts, selectedId, canEdit, onSelectWorkout, on
               </div>
             )}
           </>
-        )}
-        {extras.length > 0 && (
-          <div className="mt-1.5 flex flex-col gap-1.5">
-            {extras.map((a) => <ExtraActivityCard key={a.id} actual={a} />)}
-          </div>
         )}
       </div>
     </div>
