@@ -1,28 +1,32 @@
-import type { Workout } from '../../lib/types'
-import { estMinutes } from '../../lib/estMinutes'
+import type { Workout, Actual } from '../../lib/types'
+import { volumeSplit, type VolumeMode } from '../../lib/volume'
 import { fmtDur } from '../../lib/fmtDur'
 import { useUnit } from '../../lib/useUnit'
 import { fromMiles } from '../../lib/units'
 import { ProgressStat } from '../../components/ui/ProgressStat'
+import { ModeSelect } from '../../components/ui/ModeSelect'
 
-/** The week's completion against plan: mileage (accent) and time on feet (grey).
- *  "Done" mirrors the month mechanic — the scheduled amount of finished workouts. */
-export function WeekStats({ week }: { week: Workout[][] }) {
+/** Weekly completion against plan, actuals-first. Mileage separates run vs
+ *  ride via the shared sport dropdown (rendered only when the week has ride
+ *  volume); time on feet stays one combined bar. Mode is CONTROLLED — one
+ *  volumeMode in CoachPage drives every gauge surface together. */
+export function WeekStats({ week, actuals = {}, extras = [], mode = 'run', onModeChange }: {
+  week: Workout[][]; actuals?: Record<string, Actual>; extras?: Actual[]
+  mode?: VolumeMode; onModeChange?: (m: VolumeMode) => void
+}) {
   const { unit } = useUnit()
-  const present = week.flat()
-  const isDone = (w: Workout) => w.status === 'done'
-  const plannedMi = present.reduce((s, w) => s + (w.dist ?? 0), 0)
-  const doneMi = present.filter(isDone).reduce((s, w) => s + (w.dist ?? 0), 0)
-  const plannedMin = present.reduce((s, w) => s + estMinutes(w), 0)
-  const doneMin = present.filter(isDone).reduce((s, w) => s + estMinutes(w), 0)
+  const vol = volumeSplit(week.flat(), actuals, extras)
+  const side = mode === 'ride' && vol.hasRide ? vol.ride : vol.run
+  const label = vol.hasRide ? (mode === 'ride' ? 'Ride mileage' : 'Run mileage') : 'Weekly mileage'
   return (
-    <div className="flex flex-wrap gap-x-6 gap-y-2">
-      <ProgressStat label="Weekly mileage" done={doneMi} planned={plannedMi}
-        doneText={fromMiles(doneMi, unit).toFixed(1)}
-        plannedText={`${fromMiles(plannedMi, unit).toFixed(1)} ${unit}`}
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+      {vol.hasRide && onModeChange && <ModeSelect mode={mode} onChange={onModeChange} />}
+      <ProgressStat label={label} done={side.done} planned={side.planned}
+        doneText={fromMiles(side.done, unit).toFixed(1)}
+        plannedText={`${fromMiles(side.planned, unit).toFixed(1)} ${unit}`}
         tint="bg-accent" />
-      <ProgressStat label="Time on feet" done={doneMin} planned={plannedMin}
-        doneText={fmtDur(doneMin)} plannedText={fmtDur(plannedMin)}
+      <ProgressStat label="Time on feet" done={vol.doneMin} planned={vol.plannedMin}
+        doneText={fmtDur(vol.doneMin)} plannedText={fmtDur(vol.plannedMin)}
         tint="bg-text-mute" />
     </div>
   )

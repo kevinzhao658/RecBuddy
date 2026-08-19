@@ -16,7 +16,11 @@ export function useRealtimePlan(athleteId: string | null) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'plans', filter: `athlete_id=eq.${athleteId}` },
         () => qc.invalidateQueries({ queryKey: ['roster'] }))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'workout_actuals', filter: `athlete_id=eq.${athleteId}` },
-        () => qc.invalidateQueries({ queryKey: ['actual'] }))
+        () => {
+          qc.invalidateQueries({ queryKey: ['actual'] })
+          qc.invalidateQueries({ queryKey: ['standalone', athleteId] })
+          qc.invalidateQueries({ queryKey: ['actuals-bulk', athleteId] })
+        })
       .subscribe()
     return () => { supabase.removeChannel(ch) }
   }, [athleteId, qc])

@@ -1,6 +1,7 @@
 import { useDraggable, useDroppable } from '@dnd-kit/core'
-import type { Workout } from '../../lib/types'
+import type { Workout, Actual } from '../../lib/types'
 import { DayCard } from './DayCard'
+import { ExtraActivityCard } from './ExtraActivityCard'
 import { WorkoutSliver } from './WorkoutSliver'
 import { DOW, weekDates, fmtShortDate, todayISO } from '../../lib/week'
 
@@ -22,10 +23,11 @@ function DraggableWorkout({ workout, selected, canEdit, onClick, onCopy }: {
   )
 }
 
-function DayCell({ date, dow, workouts, selectedId, canEdit, onSelectWorkout, onCopy, canPaste, onPaste }: {
+function DayCell({ date, dow, workouts, selectedId, canEdit, onSelectWorkout, onCopy, canPaste, onPaste, extras, onSelectExtra }: {
   date: string; dow: string; workouts: Workout[]; selectedId: string | null; canEdit: boolean
   onSelectWorkout: (date: string, id: string | null) => void
-  onCopy: (w: Workout) => void; canPaste: boolean; onPaste: (d: string) => void
+  onCopy: (w: Workout) => void; canPaste: boolean; onPaste: (d: string) => void; extras: Actual[]
+  onSelectExtra?: (a: Actual) => void
 }) {
   // Read-only coaches can't drop cards.
   const drop = useDroppable({ id: date, disabled: !canEdit })
@@ -41,7 +43,7 @@ function DayCell({ date, dow, workouts, selectedId, canEdit, onSelectWorkout, on
       </div>
       <div ref={drop.setNodeRef}
         className={`flex min-h-[128px] flex-1 flex-col rounded-[14px] transition ${isToday ? 'ring-2 ring-text' : ''} ${drop.isOver ? '-translate-y-0.5 ring-2 ring-accent shadow-[0_0_22px_rgba(173,255,47,0.35)]' : ''}`}>
-        {workouts.length === 0 ? (
+        {workouts.length === 0 && extras.length === 0 ? (
           canEdit ? (
             // Empty day — the add card fills the cell.
             <div className="rb-card rb-card-sm flex flex-1 flex-col items-center justify-center gap-1.5 rounded-[14px] border-dashed text-text-faint">
@@ -61,7 +63,7 @@ function DayCell({ date, dow, workouts, selectedId, canEdit, onSelectWorkout, on
             {/* Stacked day: the selected workout (or the first) is the full,
                 fixed-height headline card; the rest poke out from behind it as
                 tabs, so a busy day grows a little instead of shrinking the card. */}
-            {(() => {
+            {workouts.length > 0 && (() => {
               const active = workouts.find((w) => w.id === selectedId) ?? workouts[0]
               const rest = workouts.filter((w) => w.id !== active.id)
               return (
@@ -78,6 +80,13 @@ function DayCell({ date, dow, workouts, selectedId, canEdit, onSelectWorkout, on
                 </div>
               )
             })()}
+            {/* Off-plan extras render as first-class cards in the same flow —
+                candidate-card height, above the add sliver, never beneath it. */}
+            {extras.map((a, i) => (
+              <div key={a.id} className={`h-24 shrink-0 ${workouts.length > 0 || i > 0 ? 'mt-1.5' : ''}`}>
+                <ExtraActivityCard actual={a} onClick={onSelectExtra ? () => onSelectExtra(a) : undefined} />
+              </div>
+            ))}
             {/* Slim sliver so a single workout keeps the card; add another below. Edit coaches only. */}
             {canEdit && (
               <div className="mt-1.5 flex shrink-0 items-center gap-1">
@@ -96,10 +105,11 @@ function DayCell({ date, dow, workouts, selectedId, canEdit, onSelectWorkout, on
   )
 }
 
-export function WeekGrid({ monday, week, selectedId, onSelectWorkout, onCopy, canPaste, onPaste, canEdit = true }: {
+export function WeekGrid({ monday, week, selectedId, onSelectWorkout, onCopy, canPaste, onPaste, canEdit = true, extras, onSelectExtra }: {
   monday: string; week: Workout[][]; selectedId: string | null
   onSelectWorkout: (date: string, id: string | null) => void; onCopy: (w: Workout) => void
-  canPaste: boolean; onPaste: (date: string) => void; canEdit?: boolean
+  canPaste: boolean; onPaste: (date: string) => void; canEdit?: boolean; extras?: Record<string, Actual[]>
+  onSelectExtra?: (a: Actual) => void
 }) {
   const dates = weekDates(monday)
   return (
@@ -108,7 +118,7 @@ export function WeekGrid({ monday, week, selectedId, onSelectWorkout, onCopy, ca
     <div className="grid grid-cols-1 items-start gap-2 md:grid-cols-7 md:gap-3">
       {dates.map((date, i) => (
         <DayCell key={date} date={date} dow={DOW[i]} workouts={week[i] ?? []} selectedId={selectedId} canEdit={canEdit}
-          onSelectWorkout={onSelectWorkout} onCopy={onCopy} canPaste={canPaste} onPaste={onPaste} />
+          onSelectWorkout={onSelectWorkout} onCopy={onCopy} canPaste={canPaste} onPaste={onPaste} extras={extras?.[date] ?? []} onSelectExtra={onSelectExtra} />
       ))}
     </div>
   )

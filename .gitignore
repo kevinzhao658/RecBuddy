@@ -22,3 +22,9 @@ supabase/.env.functions
 
 # Cloud seed credentials (service-role key)
 .env.cloud
+
+# Prod seed credentials (prod service-role key — App Store review demo)
+.env.prod
+
+# Xcode/SPM build output (athlete-ios) — never commit
+apps/athlete-ios/.build/
