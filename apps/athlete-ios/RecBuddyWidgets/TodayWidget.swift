@@ -26,7 +26,12 @@ struct TodayEntry: TimelineEntry {
 
 struct TodayProvider: TimelineProvider {
     private func day(of date: Date) -> String {
+        // Gregorian + POSIX, matching Week.todayISO() — a bare DateFormatter
+        // honors the device calendar/locale (Japanese era years, Arabic
+        // digits) and would never match the app-written snapshot day.
         let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.calendar = Calendar(identifier: .gregorian)
         f.dateFormat = "yyyy-MM-dd"
         return f.string(from: date)
     }
