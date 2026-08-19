@@ -19,6 +19,7 @@ targets:
     dependencies:
       - package: Supabase
         product: Supabase
+      - target: RecBuddyWidgets
     info:
       path: RecBuddy/Info.plist
       properties:
@@ -41,6 +42,7 @@ targets:
       properties:
         com.apple.developer.healthkit: true
         com.apple.developer.healthkit.background-delivery: true
+        com.apple.security.application-groups: [group.app.recbuddy.athlete]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.recbuddy.athlete
@@ -61,6 +63,29 @@ targets:
       base:
         GENERATE_INFOPLIST_FILE: YES
         SWIFT_VERSION: "5.10"
+  RecBuddyWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - RecBuddyWidgets
+      - RecBuddy/Lib/TodaySnapshot.swift
+    info:
+      path: RecBuddyWidgets/Info.plist
+      properties:
+        CFBundleDisplayName: RecBuddy Widgets
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: RecBuddyWidgets/RecBuddyWidgets.entitlements
+      properties:
+        com.apple.security.application-groups: [group.app.recbuddy.athlete]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.recbuddy.athlete.widgets
+        SWIFT_VERSION: "5.10"
+        TARGETED_DEVICE_FAMILY: "1"
+        DEVELOPMENT_TEAM: R2D2PYP37U
+        SKIP_INSTALL: YES
 schemes:
   RecBuddy Dev:
     build:
