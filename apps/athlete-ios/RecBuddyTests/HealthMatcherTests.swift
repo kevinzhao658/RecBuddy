@@ -66,4 +66,49 @@ import Foundation
         #expect(classify(a, day: [a, b], ws: [workout("w1", type: "easy")], excluded: ["r2"])
                 == .autoLog(workoutId: "w1"))
     }
+
+    // ── dedupeOverlapping: duplicate recordings of one physical activity ──
+    func rec(_ id: String, start: TimeInterval, dur: Int, kind: ActivityKind = .running,
+             miles: Double = 5, hr: Int? = nil, laps: Int? = nil) -> ActivitySample {
+        ActivitySample(sourceId: id, source: .appleHealth,
+                       startDate: Date(timeIntervalSince1970: 1_787_000_000 + start),
+                       distanceMeters: miles * 1609.344, durationSeconds: dur,
+                       avgHR: hr, kind: kind, lapEventCount: laps)
+    }
+
+    @Test func overlappingRunsCollapseToTheLapRichRecording() {
+        // Coros copy carries laps; Watch copy carries HR — laps win.
+        let watch = rec("watch", start: 0, dur: 2700, hr: 152)
+        let coros = rec("coros", start: 30, dur: 2650, laps: 8)
+        let kept = HealthMatcher.dedupeOverlapping([watch, coros])
+        #expect(kept.map(\.sourceId) == ["coros"])
+    }
+    @Test func hrBreaksTheTieWhenNeitherHasLaps() {
+        let a = rec("a", start: 0, dur: 2700)
+        let b = rec("b", start: 0, dur: 2700, hr: 150)
+        #expect(HealthMatcher.dedupeOverlapping([a, b]).map(\.sourceId) == ["b"])
+    }
+    @Test func backToBackRunsBothSurvive() {
+        let a = rec("a", start: 0, dur: 1800)
+        let b = rec("b", start: 1800, dur: 1800) // starts exactly as a ends
+        #expect(HealthMatcher.dedupeOverlapping([a, b]).count == 2)
+    }
+    @Test func overlappingRunAndRideBothSurvive() {
+        let run = rec("r", start: 0, dur: 2700)
+        let ride = rec("c", start: 0, dur: 2700, kind: .cycling)
+        #expect(HealthMatcher.dedupeOverlapping([run, ride]).count == 2)
+    }
+    @Test func chainedOverlapsCollapseToOne() {
+        let a = rec("a", start: 0, dur: 1800)
+        let b = rec("b", start: 1500, dur: 1800)      // overlaps a
+        let c = rec("c", start: 3000, dur: 600, laps: 4) // overlaps b, not a
+        let kept = HealthMatcher.dedupeOverlapping([a, b, c])
+        #expect(kept.map(\.sourceId) == ["c"])
+    }
+    @Test func winnerIsDeterministicRegardlessOfInputOrder() {
+        let a = rec("a", start: 0, dur: 2700, hr: 150)
+        let b = rec("b", start: 60, dur: 2600, laps: 6)
+        #expect(HealthMatcher.dedupeOverlapping([a, b]).map(\.sourceId)
+                == HealthMatcher.dedupeOverlapping([b, a]).map(\.sourceId))
+    }
 }
