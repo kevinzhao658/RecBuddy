@@ -40,9 +40,10 @@ final class FakeSink: ActivityLogSink {
 
 @Suite @MainActor struct HealthSyncCoordinatorTests {
     let t0 = Date(timeIntervalSince1970: 1_787_000_000)
-    func sample(_ id: String, kind: ActivityKind = .running, miles: Double = 5) -> ActivitySample {
-        ActivitySample(sourceId: id, source: .appleHealth, startDate: t0,
-                       distanceMeters: miles * 1609.344, durationSeconds: 2700, avgHR: nil, kind: kind)
+    func sample(_ id: String, kind: ActivityKind = .running, miles: Double = 5,
+                start: TimeInterval = 0, hr: Int? = nil) -> ActivitySample {
+        ActivitySample(sourceId: id, source: .appleHealth, startDate: t0.addingTimeInterval(start),
+                       distanceMeters: miles * 1609.344, durationSeconds: 2700, avgHR: hr, kind: kind)
     }
     func workout(_ id: String, type: String) -> Workout {
         Workout(id: id, planId: "p", athleteId: "a", date: HealthMatcher.localDay(of: t0),
@@ -117,7 +118,7 @@ final class FakeSink: ActivityLogSink {
         #expect(state.pending.isEmpty)
     }
     @Test func twoRunsQueueTwoPendings() async {
-        let p = FakeProvider(); p.samples = [sample("r1"), sample("r2")]
+        let p = FakeProvider(); p.samples = [sample("r1"), sample("r2", start: 4000)]
         let s = FakeSink(); s.workouts = [workout("w1", type: "easy")]
         let (c, state) = make(p, s)
         let newPending = await c.sync()
@@ -143,12 +144,25 @@ final class FakeSink: ActivityLogSink {
         #expect(state.pending.isEmpty)
     }
     @Test func resolveDismissExcludes() async throws {
-        let p = FakeProvider(); p.samples = [sample("r1"), sample("r2")]
+        let p = FakeProvider(); p.samples = [sample("r1"), sample("r2", start: 4000)]
         let s = FakeSink(); s.workouts = [workout("w1", type: "easy")]
         let (c, state) = make(p, s)
         _ = await c.sync()
         try await c.resolve("r1", .dismiss)
         #expect(state.excludedSourceIds.contains("r1"))
         #expect(state.pending.map(\.id) == ["r2"])
+    }
+
+    @Test func duplicateRecordingsOfOneRunAutoLogOnce() async {
+        // Coros + Watch both wrote the same run; only the richer copy imports.
+        let p = FakeProvider()
+        p.samples = [sample("watch"), sample("coros", start: 30, hr: 151)]
+        let s = FakeSink(); s.workouts = [workout("w1", type: "easy")]
+        let (c, state) = make(p, s)
+        let newPending = await c.sync()
+        #expect(s.attached.map(\.0) == ["coros"])
+        #expect(s.attached.map(\.1) == ["w1"])
+        #expect(newPending == 0)
+        #expect(state.pending.isEmpty)
     }
 }

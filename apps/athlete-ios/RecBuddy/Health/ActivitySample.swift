@@ -15,9 +15,27 @@ struct ActivitySample: Codable, Equatable, Identifiable {
     let durationSeconds: Int
     let avgHR: Int?
     let kind: ActivityKind
+    /// Lap markers on the recording (nil when the provider doesn't expose
+    /// them). A lap-rich copy is the one worth keeping when duplicates
+    /// collapse — laps are what future segment analysis reads.
+    let lapEventCount: Int?
+
+    init(sourceId: String, source: ActivitySource, startDate: Date, distanceMeters: Double,
+         durationSeconds: Int, avgHR: Int?, kind: ActivityKind, lapEventCount: Int? = nil) {
+        self.sourceId = sourceId
+        self.source = source
+        self.startDate = startDate
+        self.distanceMeters = distanceMeters
+        self.durationSeconds = durationSeconds
+        self.avgHR = avgHR
+        self.kind = kind
+        self.lapEventCount = lapEventCount
+    }
     var id: String { sourceId }
     /// Canonical storage distance (miles, 2 dp).
     var miles: Double { (distanceMeters / 1609.344 * 100).rounded() / 100 }
+    /// When the recording ended — drives overlap-based duplicate collapsing.
+    var endDate: Date { startDate.addingTimeInterval(Double(durationSeconds)) }
 }
 
 /// One activity source. HealthKitGateway is the first implementation; tests

@@ -38,7 +38,10 @@ final class HealthSyncCoordinator {
         let passStart = now()
         let since = (state.lastSync ?? passStart.addingTimeInterval(
             -Double(Self.firstSyncLookbackDays) * 86_400)).addingTimeInterval(-Self.overlapSeconds)
-        guard let samples = try? await provider.fetchActivities(since: since) else { return 0 }
+        guard let fetched = try? await provider.fetchActivities(since: since) else { return 0 }
+        // Coros + Apple Watch can both write the same run to Health — collapse
+        // overlapping same-kind recordings to the richest copy before classifying.
+        let samples = HealthMatcher.dedupeOverlapping(fetched)
 
         var newPending = 0
         var allDaysSucceeded = true

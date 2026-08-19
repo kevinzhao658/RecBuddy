@@ -41,10 +41,12 @@ final class HealthKitGateway: ActivityProvider {
                 .doubleValue(for: .meter()) ?? 0
             let hr = w.statistics(for: HKQuantityType(.heartRate))?.averageQuantity()?
                 .doubleValue(for: HKUnit.count().unitDivided(by: .minute()))
+            let laps = w.workoutEvents?.filter { $0.type == .lap }.count
             return ActivitySample(sourceId: w.uuid.uuidString, source: .appleHealth,
                                   startDate: w.startDate, distanceMeters: meters,
                                   durationSeconds: Int(w.duration.rounded()),
-                                  avgHR: hr.map { Int($0.rounded()) }, kind: kind)
+                                  avgHR: hr.map { Int($0.rounded()) }, kind: kind,
+                                  lapEventCount: laps)
         }
     }
 
