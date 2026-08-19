@@ -37,6 +37,7 @@ struct AccountSheet: View {
                         coachesSection
                         preferencesSection
                         connectedServicesSection
+                        notificationsSection
                         supportSection
                         accountSection
                     }
@@ -193,6 +194,12 @@ struct AccountSheet: View {
     private var connectedServicesSection: some View {
         sectionGroup(title: "CONNECTED SERVICES") {
             ConnectedServicesSection(athleteId: profile.id)
+        }
+    }
+
+    private var notificationsSection: some View {
+        sectionGroup(title: "NOTIFICATIONS") {
+            NotificationsSection()
         }
     }
 
