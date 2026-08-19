@@ -48,3 +48,15 @@ test('adds a workout-structure phase and includes it on save', () => {
   fireEvent.click(screen.getByRole('button', { name: /^done$/i }))
   expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ sets: [['Warm-up', '1 mi easy']] }))
 })
+
+test('total time can be deleted to blank while editing (no snap-back to auto)', () => {
+  // base has dist 4 @ 9:30/mi -> auto estimate 38 renders in the field.
+  render(<WorkoutEditor date="2026-09-08" workout={base} onSave={() => {}} onClear={() => {}} />)
+  const time = screen.getByLabelText(/total time/i) as HTMLInputElement
+  expect(time.value).toBe('38')
+  fireEvent.focus(time)
+  fireEvent.change(time, { target: { value: '' } })
+  expect(time.value).toBe('') // stays blank while focused — not refilled with 38
+  fireEvent.blur(time)
+  expect(time.value).toBe('38') // blur returns the live auto estimate
+})
