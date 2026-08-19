@@ -1,12 +1,12 @@
 import { Fragment, type ReactNode } from 'react'
 import { useDroppable } from '@dnd-kit/core'
-import type { Workout, WorkoutStatus } from '../../lib/types'
+import type { Workout, WorkoutStatus, Actual } from '../../lib/types'
 import { DOW, monthGridDates, monthOf, todayISO } from '../../lib/week'
 import { TypeIcon } from '../../components/ui/Icon'
 import { useUnit } from '../../lib/useUnit'
 import { fmtDist } from '../../lib/units'
-import { estMinutes } from '../../lib/estMinutes'
 import { fmtDur } from '../../lib/fmtDur'
+import { volumeSplit, type VolumeMode } from '../../lib/volume'
 
 const chunk = <T,>(arr: T[], n: number) => Array.from({ length: Math.ceil(arr.length / n) }, (_, i) => arr.slice(i * n, i * n + n))
 
@@ -74,32 +74,31 @@ function KpiBar({ value, pct, tint }: { value: ReactNode; pct: number; tint: str
   )
 }
 
-function WeekSummary({ days, isCurrent }: { days: Workout[][]; isCurrent: boolean }) {
+function WeekSummary({ days, extras, actuals, mode, isCurrent }: {
+  days: Workout[][]; extras: Actual[]; actuals: Record<string, Actual>
+  mode: VolumeMode; isCurrent: boolean
+}) {
   const { unit } = useUnit()
-  const present = days.flat()
-  const isDone = (w: Workout) => w.status === 'done'
-  const scheduled = present.reduce((s, w) => s + (w.dist ?? 0), 0)
-  const completed = present.filter(isDone).reduce((s, w) => s + (w.dist ?? 0), 0)
-  const milePct = scheduled > 0 ? Math.round((completed / scheduled) * 100) : 0
-  const plannedMin = present.reduce((s, w) => s + estMinutes(w), 0)
-  const doneMin = present.filter(isDone).reduce((s, w) => s + estMinutes(w), 0)
-  const timePct = plannedMin > 0 ? Math.round((doneMin / plannedMin) * 100) : 0
-  // Floats as its own rounded card (padded cell) so the KPI column reads as
-  // separate from the calendar grid rather than merged into it.
+  const vol = volumeSplit(days.flat(), actuals, extras)
+  const side = mode === 'ride' ? vol.ride : vol.run
+  const milePct = side.planned > 0 ? Math.round((side.done / side.planned) * 100) : 0
+  const timePct = vol.plannedMin > 0 ? Math.round((vol.doneMin / vol.plannedMin) * 100) : 0
   return (
     <div className="p-1.5">
       <div className={`rb-card-sm flex h-full flex-col justify-center gap-2 p-2.5 ${isCurrent ? 'ring-1 ring-text/30' : ''}`}>
         <KpiBar tint="bg-accent" pct={milePct}
-          value={<><span className="font-bold text-text">{fmtDist(completed, unit)}</span><span className="text-text-faint">/{fmtDist(scheduled, unit)} {unit}</span></>} />
+          value={<><span className="font-bold text-text">{fmtDist(side.done, unit)}</span><span className="text-text-faint">/{fmtDist(side.planned, unit)} {unit}</span></>} />
         <KpiBar tint="bg-text-mute" pct={timePct}
-          value={<><span className="font-bold text-text">{fmtDur(doneMin)}</span><span className="text-text-faint">/{fmtDur(plannedMin)}</span></>} />
+          value={<><span className="font-bold text-text">{fmtDur(vol.doneMin)}</span><span className="text-text-faint">/{fmtDur(vol.plannedMin)}</span></>} />
       </div>
     </div>
   )
 }
 
-export function MonthGrid({ anchor, byDate, selectedDate, canEdit = true, onPick }: {
-  anchor: string; byDate: Record<string, Workout[]>; selectedDate: string | null; canEdit?: boolean; onPick: (date: string) => void
+export function MonthGrid({ anchor, byDate, selectedDate, canEdit = true, actuals = {}, extrasByDate = {}, mode = 'run', onPick }: {
+  anchor: string; byDate: Record<string, Workout[]>; selectedDate: string | null; canEdit?: boolean
+  actuals?: Record<string, Actual>; extrasByDate?: Record<string, Actual[]>; mode?: VolumeMode
+  onPick: (date: string) => void
 }) {
   const weeks = chunk(monthGridDates(anchor), 7)
   const m = monthOf(anchor)
@@ -108,7 +107,7 @@ export function MonthGrid({ anchor, byDate, selectedDate, canEdit = true, onPick
     <div className="overflow-x-auto"><div className="rb-card min-w-[560px] overflow-hidden p-0">
       <div className="grid grid-cols-8 border-b border-line">
         {DOW.map((d) => <div key={d} className="border-r border-line px-2 py-2 text-center text-[11px] font-semibold uppercase tracking-[0.06em] text-text-mute">{d}</div>)}
-        <div className="px-2 py-2 text-center text-[11px] font-semibold uppercase tracking-[0.06em] text-accent">Weekly volume</div>
+        <div className="px-2 py-2 text-center text-[11px] font-semibold uppercase tracking-[0.06em] text-accent">{mode === 'ride' ? 'Weekly ride volume' : 'Weekly volume'}</div>
       </div>
       <div className="grid grid-cols-8">
         {weeks.map((week) => (
@@ -117,7 +116,9 @@ export function MonthGrid({ anchor, byDate, selectedDate, canEdit = true, onPick
               <DayCell key={date} date={date} ws={byDate[date] ?? []} inMonth={monthOf(date) === m}
                 isToday={date === todayIso} isSel={date === selectedDate} canEdit={canEdit} onPick={onPick} />
             ))}
-            <WeekSummary days={week.map((d) => byDate[d] ?? [])} isCurrent={week.includes(todayIso)} />
+            <WeekSummary days={week.map((d) => byDate[d] ?? [])}
+              extras={week.flatMap((d) => extrasByDate[d] ?? [])}
+              actuals={actuals} mode={mode} isCurrent={week.includes(todayIso)} />
           </Fragment>
         ))}
       </div>

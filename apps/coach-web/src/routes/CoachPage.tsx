@@ -22,13 +22,14 @@ import { Toast } from '../components/ui/Toast'
 import { useRoster } from '../lib/queries/roster'
 import { useLibrary } from '../lib/queries/library'
 import { useAthletePlan, useAthleteMonth, useUpsertWorkout, useDeleteWorkout, useMoveWorkout, usePasteWorkout, useDuplicateWeek } from '../lib/queries/plan'
-import { useStandaloneActuals } from '../lib/queries/actuals'
+import { useStandaloneActuals, useActualsByWorkoutIds } from '../lib/queries/actuals'
 import type { Workout, Actual } from '../lib/types'
 import { useShareWorkout, useShareAdjust, useUnreadCounts, useUnreadRealtime } from '../lib/queries/chat'
 import { UnreadBadge } from '../components/ui/UnreadBadge'
 import { useClipboard } from '../features/plan-grid/useClipboard'
 import { useRealtimePlan } from '../lib/useRealtimePlan'
-import { mondayOf, addDays, fmtShortDate, firstOfMonth, addMonths, fmtMonthYear, todayISO, localDayOf } from '../lib/week'
+import { mondayOf, addDays, fmtShortDate, firstOfMonth, addMonths, fmtMonthYear, todayISO, localDayOf, weekDates, monthOf } from '../lib/week'
+import type { VolumeMode } from '../lib/volume'
 
 /** Short one-line summary of a workout for chat adjust cards (from → to). */
 const wSummary = (w: { title: string; dist: number | null; pace: string | null }) =>
@@ -155,8 +156,21 @@ function AthleteDashboard({ athleteId, monday, setMonday, monthAnchor, setMonthA
     ;(extrasByDate[d] ??= []).push(a)
   }
 
+  // ONE sport selection drives every volume gauge (week toolbar, month
+  // toolbar, month-grid KPI column). Resets per athlete via key={selectedId}.
+  const [volumeMode, setVolumeMode] = useState<VolumeMode>('run')
+
   const entry = (roster.data ?? []).find((r) => r.athlete.id === athleteId)
   const week = planQ.data ?? EMPTY_WEEK
+  // Bulk actuals power the actuals-based volume gauges (week + month).
+  const weekIds = week.flat().map((w) => w.id)
+  const monthIds = Object.values(monthQ.data ?? {}).flat().map((w) => w.id)
+  const weekActualsQ = useActualsByWorkoutIds(athleteId, weekIds)
+  const monthActualsQ = useActualsByWorkoutIds(athleteId, monthIds)
+  const weekExtras = weekDates(monday).flatMap((d) => extrasByDate[d] ?? [])
+  const monthExtras = Object.entries(extrasByDate)
+    .filter(([d]) => monthOf(d) === monthOf(monthAnchor))
+    .flatMap(([, list]) => list)
   // The signed-in coach's access to THIS athlete gates every editing affordance.
   // RLS is the real backstop; this just hides/disables what they can't use.
   const perm = entry?.permission ?? 'read'
@@ -267,7 +281,7 @@ function AthleteDashboard({ athleteId, monday, setMonday, monthAnchor, setMonthA
             view={view} onWeek={() => setView('week')} onMonth={goMonth} onPrev={prev} onNext={next}
             label={view === 'week' ? `${fmtShortDate(monday)} – ${fmtShortDate(addDays(monday, 6))}` : fmtMonthYear(monthAnchor)}
             isCurrent={view === 'week' ? monday === mondayOf(todayISO()) : monthAnchor === firstOfMonth(todayISO())}
-            stats={view === 'week' ? <WeekStats week={week} /> : <MonthStats byDate={monthQ.data ?? {}} anchor={monthAnchor} />}
+            stats={view === 'week' ? <WeekStats week={week} actuals={weekActualsQ.data ?? {}} extras={weekExtras} mode={volumeMode} onModeChange={setVolumeMode} /> : <MonthStats byDate={monthQ.data ?? {}} anchor={monthAnchor} actuals={monthActualsQ.data ?? {}} extras={monthExtras} mode={volumeMode} onModeChange={setVolumeMode} />}
             onLibrary={() => setLibraryOpen(true)} />
 
           {view === 'week' ? (
@@ -286,7 +300,7 @@ function AthleteDashboard({ athleteId, monday, setMonday, monthAnchor, setMonthA
             // Clicking blank space closes the editor (day cells stop propagation),
             // which brings the workout library back into the rail to drag from.
             <div className="flex-1 px-6 pb-6 pt-5" onClick={() => { if (selectedDate || openExtra) clearSelection(); if (clipboard.clip) clipboard.clear() }}>
-              <MonthGrid anchor={monthAnchor} byDate={monthQ.data ?? {}} selectedDate={selectedDate} canEdit={canEdit} onPick={pickMonthDay} />
+              <MonthGrid anchor={monthAnchor} byDate={monthQ.data ?? {}} selectedDate={selectedDate} canEdit={canEdit} actuals={monthActualsQ.data ?? {}} extrasByDate={extrasByDate} mode={volumeMode} onPick={pickMonthDay} />
               <p className="mt-4 px-1 text-xs text-text-faint">{canEdit ? 'Click a day to edit it here · drag a workout from the library onto a day to add it' : 'Click a day to see its workouts'}</p>
             </div>
           )}
