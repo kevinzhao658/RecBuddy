@@ -25,8 +25,9 @@ const STATUS: Record<string, { label: string; cls: string }> = {
 /** Read-only overview of a day that holds several workouts. Tapping one hands it
  *  to the week editor (via onPick) so the coach can adjust it — the month grid's
  *  answer to the weekly view's click-to-edit. */
-export function MonthDayModal({ open, date, workouts, onPick, onClose, extras }: {
+export function MonthDayModal({ open, date, workouts, onPick, onClose, extras, onPickExtra }: {
   open: boolean; date: string; workouts: Workout[]; onPick: (id: string) => void; onClose: () => void; extras?: Actual[]
+  onPickExtra?: (a: Actual) => void
 }) {
   const { unit } = useUnit()
   return (
@@ -63,8 +64,8 @@ export function MonthDayModal({ open, date, workouts, onPick, onClose, extras }:
           )
         })}
         {(extras ?? []).map((a) => (
-          <div key={a.id} className="rb-card-sm border border-line p-3 opacity-80">
-            <ExtraActivityCard actual={a} />
+          <div key={a.id} className="h-24 shrink-0">
+            <ExtraActivityCard actual={a} onClick={onPickExtra ? () => onPickExtra(a) : undefined} />
           </div>
         ))}
       </div>

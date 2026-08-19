@@ -20,13 +20,14 @@ function RunIcon({ className = '' }: { className?: string }) {
 
 /** Off-plan activity from a synced provider, rendered with the SAME visual
  *  language as a completed DayCard (done tint + ring, title/icon header,
- *  numeric line, ✓) so extras read as first-class cards on the day — just not
- *  draggable or editable. pace==null means it was a ride. */
-export function ExtraActivityCard({ actual }: { actual: Actual }) {
+ *  numeric line, ✓) so extras read as first-class cards on the day — not
+ *  draggable or editable, but clickable to view details when `onClick` is
+ *  wired. pace==null means it was a ride. */
+export function ExtraActivityCard({ actual, onClick }: { actual: Actual; onClick?: () => void }) {
   const { unit } = useUnit()
   const isRide = actual.pace == null
-  return (
-    <div className="rb-card rb-card-sm flex h-full flex-col bg-[rgba(173,255,47,0.10)] p-2 ring-1 ring-accent/45">
+  const body = (
+    <>
       <div className="mb-1 flex items-start justify-between gap-2">
         <div className="line-clamp-1 text-[14px] font-semibold leading-tight">{isRide ? 'Extra ride' : 'Extra run'}</div>
         {isRide
@@ -39,6 +40,15 @@ export function ExtraActivityCard({ actual }: { actual: Actual }) {
       <div className="mt-auto flex items-center justify-between pt-1.5">
         <span className="text-sm leading-none text-accent" aria-label="Completed">✓</span>
       </div>
-    </div>
+    </>
+  )
+  const cls = 'rb-card rb-card-sm flex h-full w-full flex-col bg-[rgba(173,255,47,0.10)] p-2 text-left ring-1 ring-accent/45'
+  if (!onClick) return <div className={cls}>{body}</div>
+  return (
+    <button type="button" aria-label={`View ${isRide ? 'extra ride' : 'extra run'} details`}
+      onClick={(e) => { e.stopPropagation(); onClick() }}
+      className={`${cls} cursor-pointer transition hover:brightness-110`}>
+      {body}
+    </button>
   )
 }
