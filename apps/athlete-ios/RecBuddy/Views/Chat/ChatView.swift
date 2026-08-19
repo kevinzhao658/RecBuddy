@@ -7,6 +7,9 @@ struct ChatView: View {
     @Environment(SessionStore.self) private var session
     @State private var store = ChatStore()
     @State private var draft = ""
+    // Keyboard is visible only while composing: scrolling the thread dismisses
+    // it interactively, and tapping anywhere in the thread drops focus.
+    @FocusState private var composerFocused: Bool
     @State private var busy = false
     @State private var sendError: String?
     @State private var imageItems: [PhotosPickerItem] = []
@@ -239,6 +242,11 @@ struct ChatView: View {
                         .padding(.bottom, 12)
                     }
                     .refreshable { await store.open(athleteId: profile.id) }
+                    // Drag follows the finger to tuck the keyboard away; a plain
+                    // tap on the thread dismisses it too. Buttons inside message
+                    // rows still win over the tap gesture.
+                    .scrollDismissesKeyboard(.interactively)
+                    .onTapGesture { composerFocused = false }
                     .onChange(of: store.messages.count) {
                         if let last = store.messages.last?.id {
                             withAnimation { proxy.scrollTo(last, anchor: .bottom) }
@@ -396,6 +404,7 @@ struct ChatView: View {
 
                 TextField(staged.isEmpty ? "Message your coach…" : "Add a caption…",
                           text: $draft, axis: .vertical)
+                    .focused($composerFocused)
                     .lineLimit(1...4)
                     .foregroundStyle(.white)
                     .tint(RB.accent)
