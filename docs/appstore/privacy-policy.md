@@ -34,10 +34,27 @@ your data.
 - Training plans and goals (goal race, distance, target time and pace, dates)
 - Scheduled workouts and workout details
 - Workouts you log, including distance, pace, time, and optionally **heart rate**
-  and a perceived-effort ("feel") rating, plus any notes you add
+  and a perceived-effort ("feel") rating, plus any notes you add. You can enter
+  this manually, or let RecBuddy import it from Apple Health (see below).
 
-  RecBuddy does not connect to Apple Health/HealthKit. Any heart-rate or effort
-  data is information you enter manually.
+**Apple Health (HealthKit)**
+- With your explicit permission, RecBuddy reads the following from Apple Health to
+  automatically log your completed workouts against your training plan:
+  - Workouts (your recorded runs and rides)
+  - Running and cycling distance
+  - Heart rate
+- Access is **read-only** — RecBuddy never writes to or modifies your Apple Health
+  data.
+- You grant this access through Apple's standard Health permission prompt, and you
+  can review or revoke it at any time in the Apple Health app or iOS Settings.
+- When RecBuddy matches a Health workout to a planned workout, the resulting
+  logged run (distance, pace, time, heart rate) is stored in our backend and shown
+  to your connected coach as a completed workout — this is the purpose of the
+  feature.
+- We use Apple Health data **only** to provide this in-app functionality. We never
+  use it for advertising or marketing, never sell it, and never share it with
+  third parties for their own purposes. It is not shared with any third party
+  other than our backend service provider (Supabase) acting on our behalf.
 
 **Communications**
 - Messages and workout cards exchanged between an athlete and their coach
