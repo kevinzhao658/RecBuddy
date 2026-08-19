@@ -47,6 +47,7 @@ WHY RECBUDDY
 • A plan built by your coach, for your goal — not an algorithm's guess
 • See every workout on a clean weekly calendar
 • Log your runs: distance, pace, time, heart rate, and how it felt
+• Sync with Apple Health — completed runs and rides log themselves automatically
 • Message your coach in-app and get workouts adjusted when you need it
 • Keep your plan even between coaches — your training is yours to keep
 
@@ -112,7 +113,8 @@ not advertising.
 |---|---|---|
 | Contact Info → Email address | Yes | Account login |
 | Contact Info → Name | Yes | Profile |
-| Health & Fitness → Fitness | Yes | Workouts, pace, distance, heart rate, effort (manually entered) |
+| Health & Fitness → Fitness | Yes | Workouts, pace, distance, heart rate, effort — entered manually and/or read from Apple Health (HealthKit) |
+| Health & Fitness → Health | Yes | Heart rate & workout distance read from Apple Health (read-only) to auto-log completed workouts |
 | User Content → Other (messages) | Yes | Athlete–coach chat |
 | User Content → Photos (avatar) | Only if you keep avatar upload | Optional profile image |
 | Identifiers | User ID | Account identifier |
@@ -121,6 +123,15 @@ not advertising.
 
 For every "Yes": purpose = **App Functionality**, linked to user = **Yes**,
 used for tracking = **No**.
+
+**Apple Health (HealthKit) — declare accurately:** RecBuddy reads workouts,
+running/cycling distance, and heart rate from Apple Health (read-only, `toShare:
+[]`) to auto-log completed workouts. Apple prohibits using HealthKit data for
+advertising or selling it — RecBuddy does neither; it's used only to log runs
+against the plan and is uploaded to our backend so the athlete's coach sees the
+completed workout. The privacy policy (`privacy-policy.md`) discloses this — the
+same URL is required on the app's App Store page **and** is checked against the
+HealthKit entitlement during review.
 
 ---
 
@@ -135,6 +146,12 @@ experience is visible without needing a second (coach) account.
 
 Login: [demo athlete email]
 Password: [demo password]
+
+Apple Health: RecBuddy asks for read-only HealthKit access (workouts, distance,
+heart rate) to automatically log completed runs/rides against the plan. The demo
+account already contains logged workouts, so the feature's result is visible
+without needing Health data on the review device. Granting Health access is
+optional — the app is fully usable with manual logging if the prompt is declined.
 
 Account deletion: Settings → Account → Delete account (requires password
 re-entry).
