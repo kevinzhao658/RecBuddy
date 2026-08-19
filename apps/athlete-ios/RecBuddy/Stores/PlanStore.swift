@@ -149,6 +149,7 @@ final class PlanStore {
                 day[idx].status = old
                 workoutsByDate[workout.date] = day
             }
+            publishTodaySnapshot()   // roll the widget back too
             throw error
         }
     }
