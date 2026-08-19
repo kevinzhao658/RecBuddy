@@ -134,6 +134,7 @@ final class SessionStore {
 
     func signOut() async {
         try? await Supa.shared.auth.signOut()
+        TodaySnapshot.clear()   // never show the previous athlete's plan on a widget
         state = .signedOut
     }
 }

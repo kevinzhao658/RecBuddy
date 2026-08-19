@@ -105,6 +105,7 @@ final class PlanStore {
                 return wanted.contains(day)
             }, by: { Week.localDay(fromTimestamp: $0.recordedAt ?? "") ?? "" })
             phase = .idle
+            publishTodaySnapshot()
         } catch {
             phase = .error("Couldn't load your plan. Pull to retry.")
         }
@@ -137,6 +138,7 @@ final class PlanStore {
             day[idx].status = status
             workoutsByDate[workout.date] = day
         }
+        publishTodaySnapshot()
         do {
             try await Supa.shared.rpc("mark_workout_status",
                 params: ["p_workout_id": workout.id, "p_status": status]).execute()
@@ -208,5 +210,14 @@ final class PlanStore {
     func deleteActual(id: String) async throws {
         try await Supa.shared.from("workout_actuals").delete().eq("id", value: id).execute()
         await refresh()
+    }
+
+    /// Publish today's prescribed workouts to the widget. Only when the LOADED
+    /// week contains today — browsing another week must never clobber the
+    /// widget with an empty/wrong day.
+    private func publishTodaySnapshot() {
+        let today = Week.todayISO()
+        guard weekDates.contains(today) else { return }
+        TodaySnapshot(day: today, workouts: workoutsByDate[today] ?? []).write()
     }
 }
