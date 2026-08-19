@@ -116,7 +116,10 @@ struct MainTabs: View {
                 .accessibilityHidden(tab != 1)
         }
         .safeAreaInset(edge: .bottom) { RBTabBar(tab: $tab) }
-        .onAppear { router.chatVisible = (tab == 1) }
+        .onAppear {
+            router.chatVisible = (tab == 1)
+            Task { await PushRegistrar.reregisterIfEnabled() }
+        }
         .onChange(of: tab) { _, t in router.chatVisible = (t == 1) }
         .onChange(of: router.openChat) { _, open in
             if open {

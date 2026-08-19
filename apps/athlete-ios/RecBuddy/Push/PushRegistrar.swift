@@ -56,6 +56,18 @@ enum PushRegistrar {
         return granted
     }
 
+    /// Re-register at app open / sign-in when the toggle is on — APNs tokens
+    /// rotate (reinstall/restore), and an athlete switch needs the token
+    /// upserted under the new user. Gated on pushEnabled so a token the user
+    /// deliberately deleted is never resurrected.
+    @MainActor
+    static func reregisterIfEnabled() async {
+        guard UserDefaults.standard.bool(forKey: "pushEnabled") else { return }
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        guard settings.authorizationStatus == .authorized else { return }
+        UIApplication.shared.registerForRemoteNotifications()
+    }
+
     static func upload(token: Data) async {
         guard let userId = try? await Supa.shared.auth.session.user.id else { return }
         struct Row: Encodable { let user_id: String; let token: String; let env: String }
@@ -80,7 +92,10 @@ enum PushRegistrar {
     static func sendReply(_ text: String, threadId: String) async -> Bool {
         let bg = await UIApplication.shared.beginBackgroundTask()
         defer { Task { await UIApplication.shared.endBackgroundTask(bg) } }
-        guard let userId = try? await Supa.shared.auth.session.user.id else { return false }
+        guard let userId = try? await Supa.shared.auth.session.user.id else {
+            await postReplyFailedNotification()
+            return false
+        }
         struct NewMsg: Encodable { let thread_id: String; let from_user_id: String; let kind: String; let body: String }
         do {
             try await Supa.shared.from("messages")
@@ -88,12 +103,17 @@ enum PushRegistrar {
                                kind: "text", body: text)).execute()
             return true
         } catch {
-            let content = UNMutableNotificationContent()
-            content.title = "Couldn't send your reply"
-            content.body = "Open RecBuddy to try again."
-            try? await UNUserNotificationCenter.current().add(
-                UNNotificationRequest(identifier: "reply-failed", content: content, trigger: nil))
+            await postReplyFailedNotification()
             return false
         }
+    }
+
+    /// Post a local notification for a failed reply send.
+    private static func postReplyFailedNotification() async {
+        let content = UNMutableNotificationContent()
+        content.title = "Couldn't send your reply"
+        content.body = "Open RecBuddy to try again."
+        try? await UNUserNotificationCenter.current().add(
+            UNNotificationRequest(identifier: "reply-failed", content: content, trigger: nil))
     }
 }
