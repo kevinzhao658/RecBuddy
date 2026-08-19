@@ -45,6 +45,10 @@ export function WorkoutFields({ draft: d, onChange, disabled = false }: {
   // The two most-recently edited fields are authoritative; the remaining one
   // recomputes from them on every keystroke (dist × pace = time).
   const [touched, setTouched] = useState<Metric[]>([])
+  // While the total-time field has FOCUS its raw text is authoritative — so
+  // deleting the last digit leaves it blank instead of instantly snapping back
+  // to the auto estimate. Blur drops the draft; a blank field shows auto again.
+  const [timeDraft, setTimeDraft] = useState<string | null>(null)
   const editMetric = (field: Metric, patch: Partial<WorkoutFieldsDraft>) => {
     const order = [field, ...touched.filter((f) => f !== field)].slice(0, 2)
     setTouched(order)
@@ -102,8 +106,14 @@ export function WorkoutFields({ draft: d, onChange, disabled = false }: {
               <span className={labelEyebrow}>Total time (min)</span>
               {/* The auto estimate renders as a real value (not a faded
                   placeholder) — the field always shows the live number. */}
-              <input aria-label="Total time" type="number" value={d.est_minutes ?? (autoEst || '')}
-                onChange={(e) => editMetric('time', { est_minutes: e.target.value ? Number(e.target.value) : null })} className={`${field} font-num`} />
+              <input aria-label="Total time" type="number"
+                value={timeDraft ?? d.est_minutes ?? (autoEst || '')}
+                onFocus={(e) => setTimeDraft(e.target.value)}
+                onBlur={() => setTimeDraft(null)}
+                onChange={(e) => {
+                  setTimeDraft(e.target.value)
+                  editMetric('time', { est_minutes: e.target.value ? Number(e.target.value) : null })
+                }} className={`${field} font-num`} />
             </div>
           </>
         )}

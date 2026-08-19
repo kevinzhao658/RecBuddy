@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { ExtraActivityCard } from './ExtraActivityCard'
 
 const base = { id: 'x1', workout_id: null, athlete_id: 'a', dist: 5.2, pace: '9:00/mi',
@@ -14,4 +14,11 @@ test('renders an extra RUN with distance and time', () => {
 test('null pace renders as an extra RIDE', () => {
   render(<ExtraActivityCard actual={{ ...base, pace: null }} />)
   expect(screen.getByText(/extra ride/i)).toBeInTheDocument()
+})
+
+test('with onClick the card is a button that fires (view details)', () => {
+  const onClick = vi.fn()
+  render(<ExtraActivityCard actual={base} onClick={onClick} />)
+  fireEvent.click(screen.getByRole('button', { name: /view extra run details/i }))
+  expect(onClick).toHaveBeenCalled()
 })
