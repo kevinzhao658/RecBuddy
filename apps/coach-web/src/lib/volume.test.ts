@@ -1,11 +1,11 @@
-import { volumeSplit, elapsedToMin } from './volume'
+import { volumeSplit, elapsedToMin, actualActivity } from './volume'
 
 const w = (id: string, type: string, dist: number | null, status = 'planned') =>
   ({ id, type, dist, status, pace: '9:00/mi', est_minutes: null, dur: null, sets: [] }) as any
-const act = (workout_id: string, dist: number, pace: string | null, time: string) =>
-  ({ id: 'a' + workout_id, workout_id, dist, pace, time }) as any
-const extra = (dist: number, pace: string | null, time: string) =>
-  ({ id: 'x' + dist, workout_id: null, dist, pace, time }) as any
+const act = (workout_id: string, dist: number, pace: string | null, time: string, activity: string | null = null) =>
+  ({ id: 'a' + workout_id, workout_id, dist, pace, time, activity }) as any
+const extra = (dist: number, pace: string | null, time: string, activity: string | null = null) =>
+  ({ id: 'x' + dist, workout_id: null, dist, pace, time, activity }) as any
 
 test('elapsedToMin parses M:SS and H:MM:SS, rejects garbage', () => {
   expect(elapsedToMin('46:48')).toBe(47)
@@ -14,31 +14,47 @@ test('elapsedToMin parses M:SS and H:MM:SS, rejects garbage', () => {
   expect(elapsedToMin(null)).toBeNull()
 })
 
+test('actualActivity: explicit column wins, legacy falls back to pace rule', () => {
+  expect(actualActivity(extra(5, '9:00/mi', '45:00', 'swim'))).toBe('swim')
+  expect(actualActivity(extra(5, null, '45:00', 'run'))).toBe('run')
+  expect(actualActivity(extra(5, '9:00/mi', '45:00'))).toBe('run')
+  expect(actualActivity(extra(5, null, '45:00'))).toBe('ride')
+})
+
 test('done run counts its LOGGED distance, not the plan', () => {
   const v = volumeSplit([w('w1', 'easy', 8, 'done')], { w1: act('w1', 6.2, '9:10/mi', '56:50') }, [])
   expect(v.run.done).toBeCloseTo(6.2)
   expect(v.run.planned).toBe(8)
-  expect(v.hasRide).toBe(false)
+  expect(v.hasCross).toBe(false)
 })
 
 test('done workout without a log falls back to planned dist, bucketed by type', () => {
   const v = volumeSplit([w('w1', 'easy', 5, 'done'), w('w2', 'cross', 10, 'done')], {}, [])
   expect(v.run.done).toBe(5)
-  expect(v.ride.done).toBe(10)
+  expect(v.cross.done).toBe(10)
 })
 
-test('ride actual (null pace) on a cross day lands on the ride side', () => {
-  const v = volumeSplit([w('w1', 'cross', null, 'done')], { w1: act('w1', 15.3, null, '52:00') }, [])
-  expect(v.ride.done).toBeCloseTo(15.3)
+test('anything logged against a cross workout lands on the cross side — even with a run pace', () => {
+  const v = volumeSplit(
+    [w('w1', 'cross', null, 'done'), w('w2', 'cross', null, 'done')],
+    { w1: act('w1', 15.3, null, '52:00', 'ride'), w2: act('w2', 3, '10:00/mi', '30:00', 'run') }, [])
+  expect(v.cross.done).toBeCloseTo(18.3)
   expect(v.run.done).toBe(0)
-  expect(v.hasRide).toBe(true)
+  expect(v.hasCross).toBe(true)
 })
 
-test('extras bucket by the pace rule; rest is excluded from planned', () => {
-  const v = volumeSplit([w('w1', 'rest', null)], {}, [extra(5, '9:00/mi', '45:00'), extra(12, null, '40:00')])
+test('extras bucket by declared activity: run -> run, ride/swim -> cross', () => {
+  const v = volumeSplit([w('w1', 'rest', null)], {},
+    [extra(5, '9:00/mi', '45:00', 'run'), extra(12, null, '40:00', 'ride'), extra(1, null, '35:00', 'swim')])
   expect(v.run.done).toBe(5)
-  expect(v.ride.done).toBe(12)
+  expect(v.cross.done).toBe(13)
   expect(v.run.planned).toBe(0)
+})
+
+test('legacy extras (null activity) fall back to the pace rule', () => {
+  const v = volumeSplit([], {}, [extra(5, '9:00/mi', '45:00'), extra(12, null, '40:00')])
+  expect(v.run.done).toBe(5)
+  expect(v.cross.done).toBe(12)
 })
 
 test('time on feet: logged elapsed when present, estMinutes fallback, extras add', () => {

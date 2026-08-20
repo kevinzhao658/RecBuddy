@@ -50,8 +50,10 @@ final class HealthSyncService {
         if background && newPending > 0 {
             let content = UNMutableNotificationContent()
             content.title = "RecBuddy"
+            // One kind pending -> name it ("Confirm your swim"); mixed -> generic.
             let kinds = Set(state.pending.map(\.sample.kind))
-            content.body = kinds == [.cycling] ? "Confirm your ride" : "Confirm your run"
+            content.body = kinds.count == 1 && kinds.first != .other
+                ? "Confirm your \(kinds.first!.noun)" : "Confirm your activity"
             try? await UNUserNotificationCenter.current().add(
                 UNNotificationRequest(identifier: "health-confirm", content: content, trigger: nil))
         }

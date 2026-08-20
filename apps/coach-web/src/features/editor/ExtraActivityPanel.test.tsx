@@ -25,3 +25,8 @@ test('a ride hides the pace tile and omits HR when not recorded', () => {
   expect(screen.queryByText('Avg pace')).toBeNull()
   expect(screen.queryByText('Avg HR')).toBeNull()
 })
+
+test('a declared swim titles as Extra swim', () => {
+  render(<ExtraActivityPanel actual={{ ...run, pace: null, activity: 'swim' }} onClose={() => {}} />)
+  expect(screen.getByText(/extra swim/i)).toBeInTheDocument()
+})

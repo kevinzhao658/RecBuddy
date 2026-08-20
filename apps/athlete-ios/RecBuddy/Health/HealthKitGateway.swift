@@ -14,6 +14,7 @@ final class HealthKitGateway: ActivityProvider {
             HKQuantityType(.heartRate),
             HKQuantityType(.distanceWalkingRunning),
             HKQuantityType(.distanceCycling),
+            HKQuantityType(.distanceSwimming),
         ]
         try await store.requestAuthorization(toShare: [], read: read)
     }
@@ -33,10 +34,14 @@ final class HealthKitGateway: ActivityProvider {
             let kind: ActivityKind = switch w.workoutActivityType {
                 case .running: .running
                 case .cycling: .cycling
+                case .swimming: .swimming
                 default: .other
             }
-            let distType: HKQuantityType = kind == .cycling
-                ? HKQuantityType(.distanceCycling) : HKQuantityType(.distanceWalkingRunning)
+            let distType: HKQuantityType = switch kind {
+                case .cycling: HKQuantityType(.distanceCycling)
+                case .swimming: HKQuantityType(.distanceSwimming)
+                default: HKQuantityType(.distanceWalkingRunning)
+            }
             let meters = w.statistics(for: distType)?.sumQuantity()?
                 .doubleValue(for: .meter()) ?? 0
             let hr = w.statistics(for: HKQuantityType(.heartRate))?.averageQuantity()?

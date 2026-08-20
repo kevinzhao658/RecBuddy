@@ -1,4 +1,5 @@
 import type { Actual } from '../../lib/types'
+import { extraTitle } from '../../lib/extraTitle'
 import { fmtShortDate, localDayOf } from '../../lib/week'
 import { useUnit } from '../../lib/useUnit'
 import { fmtDist, fmtPace } from '../../lib/units'
@@ -6,18 +7,17 @@ import { fmtDist, fmtPace } from '../../lib/units'
 const label = 'mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-text-faint'
 
 /** Right-rail panel for an off-plan EXTRA activity (workout_id null): read-only
- *  details of the synced run/ride — distance, avg pace (runs), time, avg HR.
- *  Mirrors WorkoutResults' layout so the two read as siblings. */
+ *  details of the synced run/ride/swim — distance, avg pace (runs), time, avg
+ *  HR. Mirrors WorkoutResults' layout so the two read as siblings. */
 export function ExtraActivityPanel({ actual, onClose }: { actual: Actual; onClose: () => void }) {
   const { unit } = useUnit()
-  const isRide = actual.pace == null
   return (
     <aside className="rb-surface flex h-full w-80 shrink-0 flex-col border-l border-line">
       <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">Extra activity</p>
           <p className="font-display text-lg font-bold tracking-tight text-text">
-            {fmtShortDate(localDayOf(actual.recorded_at))} · {isRide ? 'Extra ride' : 'Extra run'}
+            {fmtShortDate(localDayOf(actual.recorded_at))} · {extraTitle(actual)}
           </p>
         </div>
 

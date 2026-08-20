@@ -91,12 +91,36 @@ struct WorkoutActual: Codable, Identifiable, Equatable {
     let source: String
     let sourceId: String?        // provider's stable id (HealthKit UUID); nil for manual
     let recordedAt: String?      // timestamptz — the activity's start time for synced rows
+    let activity: String?        // declared sport ('run'/'ride'/'swim'); nil on legacy rows
     enum CodingKeys: String, CodingKey {
-        case id, dist, pace, time, hr, feel, note, source
+        case id, dist, pace, time, hr, feel, note, source, activity
         case workoutId = "workout_id"
         case athleteId = "athlete_id"
         case sourceId = "source_id"
         case recordedAt = "recorded_at"
+    }
+
+    /// The row's declared sport, with the legacy fallback for rows written
+    /// before the activity column existed (pace == nil meant a ride).
+    var declaredActivity: String {
+        if let activity, ["run", "ride", "swim"].contains(activity) { return activity }
+        return pace == nil ? "ride" : "run"
+    }
+    /// Display title for off-plan extras ("Extra run/ride/swim").
+    var extraTitle: String {
+        switch declaredActivity {
+        case "ride": return "Extra ride"
+        case "swim": return "Extra swim"
+        default:     return "Extra run"
+        }
+    }
+    /// SF Symbol for the declared sport.
+    var activitySymbol: String {
+        switch declaredActivity {
+        case "ride": return "bicycle"
+        case "swim": return "figure.pool.swim"
+        default:     return "figure.run"
+        }
     }
 }
 

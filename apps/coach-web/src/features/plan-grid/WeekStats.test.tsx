@@ -22,16 +22,16 @@ test('without a log, done falls back to planned (old behavior preserved)', () =>
   expect(screen.getByText(/\/ 12\.0 mi/)).toBeInTheDocument()
 })
 
-test('ride volume reveals the dropdown; selecting Ride shows ride numbers', () => {
+test('cross volume reveals the dropdown; selecting Cross shows cross numbers', () => {
   function Wrap() {
-    const [mode, setMode] = useState<'run' | 'ride'>('run')
+    const [mode, setMode] = useState<'run' | 'cross'>('run')
     const week = [[run('w1', 8), run('c1', 15, 'done', 'cross')], [], [], [], [], [], []]
     return <WeekStats week={week} actuals={{ c1: act('c1', 12.4, null, '48:00') }}
       mode={mode} onModeChange={setMode} />
   }
   render(<Wrap />)
-  fireEvent.change(screen.getByRole('combobox', { name: /volume sport/i }), { target: { value: 'ride' } })
-  expect(screen.getByText('Ride mileage')).toBeInTheDocument()
+  fireEvent.change(screen.getByRole('combobox', { name: /volume sport/i }), { target: { value: 'cross' } })
+  expect(screen.getByText('Cross mileage')).toBeInTheDocument()
   expect(screen.getByText('12.4')).toBeInTheDocument()
   expect(screen.getByText(/\/ 15\.0 mi/)).toBeInTheDocument()
 })

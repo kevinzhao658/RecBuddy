@@ -7,7 +7,7 @@ import { ProgressStat } from '../../components/ui/ProgressStat'
 import { ModeSelect } from '../../components/ui/ModeSelect'
 
 /** Weekly completion against plan, actuals-first. Mileage separates run vs
- *  ride via the shared sport dropdown (rendered only when the week has ride
+ *  cross via the shared sport dropdown (rendered only when the week has cross
  *  volume); time on feet stays one combined bar. Mode is CONTROLLED — one
  *  volumeMode in CoachPage drives every gauge surface together. */
 export function WeekStats({ week, actuals = {}, extras = [], mode = 'run', onModeChange }: {
@@ -16,11 +16,11 @@ export function WeekStats({ week, actuals = {}, extras = [], mode = 'run', onMod
 }) {
   const { unit } = useUnit()
   const vol = volumeSplit(week.flat(), actuals, extras)
-  const side = mode === 'ride' && vol.hasRide ? vol.ride : vol.run
-  const label = vol.hasRide ? (mode === 'ride' ? 'Ride mileage' : 'Run mileage') : 'Weekly mileage'
+  const side = mode === 'cross' && vol.hasCross ? vol.cross : vol.run
+  const label = vol.hasCross ? (mode === 'cross' ? 'Cross mileage' : 'Run mileage') : 'Weekly mileage'
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-      {vol.hasRide && onModeChange && <ModeSelect mode={mode} onChange={onModeChange} />}
+      {vol.hasCross && onModeChange && <ModeSelect mode={mode} onChange={onModeChange} />}
       <ProgressStat label={label} done={side.done} planned={side.planned}
         doneText={fromMiles(side.done, unit).toFixed(1)}
         plannedText={`${fromMiles(side.planned, unit).toFixed(1)} ${unit}`}

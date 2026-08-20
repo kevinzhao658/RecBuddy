@@ -5,7 +5,7 @@ import { MonthStats } from './MonthStats'
 const w = (id: string, date: string, dist: number, status = 'planned', type = 'easy') =>
   ({ id, date, type, dist, pace: '9:00/mi', est_minutes: null, dur: null, status, sets: [] }) as any
 
-test('monthly mileage counts logged actuals and the dropdown swaps to ride volume', () => {
+test('monthly mileage counts logged actuals and the dropdown swaps to cross volume', () => {
   const byDate = {
     '2026-08-03': [w('w1', '2026-08-03', 8, 'done')],
     '2026-08-04': [w('c1', '2026-08-04', 20, 'done', 'cross')],
@@ -15,13 +15,13 @@ test('monthly mileage counts logged actuals and the dropdown swaps to ride volum
     c1: { id: 'a2', workout_id: 'c1', dist: 18.5, pace: null, time: '1:02:00' } as any,
   }
   function Wrap() {
-    const [mode, setMode] = useState<'run' | 'ride'>('run')
+    const [mode, setMode] = useState<'run' | 'cross'>('run')
     return <MonthStats byDate={byDate} anchor="2026-08-01" actuals={actuals}
       mode={mode} onModeChange={setMode} />
   }
   render(<Wrap />)
   expect(screen.getByText('6.2')).toBeInTheDocument()          // run side, actuals-based
-  fireEvent.change(screen.getByRole('combobox', { name: /volume sport/i }), { target: { value: 'ride' } })
-  expect(screen.getByText('Ride mileage')).toBeInTheDocument()
+  fireEvent.change(screen.getByRole('combobox', { name: /volume sport/i }), { target: { value: 'cross' } })
+  expect(screen.getByText('Cross mileage')).toBeInTheDocument()
   expect(screen.getByText('18.5')).toBeInTheDocument()
 })
