@@ -31,6 +31,30 @@ final class PlanStore {
     /// Any cross volume this week? Drives the gauge's Run/Cross swap chip.
     var weekHasCrossVolume: Bool { weekPlannedCrossMiles > 0 || weekDoneCrossMiles > 0 }
 
+    /// Done CROSS miles split by declared sport — drives the color-coded
+    /// segments in the cross mileage bar. Unlogged done cross workouts count
+    /// as ride (the log sheet's default); run extras live on the run side.
+    var weekCrossDoneBySport: (run: Double, ride: Double, swim: Double) {
+        var run = 0.0, ride = 0.0, swim = 0.0
+        for w in workoutsByDate.values.flatMap({ $0 }) {
+            guard w.status == "done", w.type == "cross" else { continue }
+            guard let a = actualsByWorkout[w.id] else { ride += w.dist ?? 0; continue }
+            switch a.declaredActivity {
+            case "swim": swim += a.dist
+            case "run":  run += a.dist
+            default:     ride += a.dist
+            }
+        }
+        for a in standaloneByDate.values.flatMap({ $0 }) {
+            switch a.declaredActivity {
+            case "swim": swim += a.dist
+            case "ride": ride += a.dist
+            default:     break
+            }
+        }
+        return (run, ride, swim)
+    }
+
     private func plannedMiles(cross: Bool) -> Double {
         workoutsByDate.values.flatMap { $0 }
             .filter { $0.type != "rest" && (($0.type == "cross") == cross) }

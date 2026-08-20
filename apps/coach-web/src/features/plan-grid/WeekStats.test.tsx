@@ -36,6 +36,19 @@ test('cross volume reveals the dropdown; selecting Cross shows cross numbers', (
   expect(screen.getByText(/\/ 15\.0 mi/)).toBeInTheDocument()
 })
 
+test('cross mode color-codes the bar with a per-sport legend', () => {
+  const week = [[run('c1', 15, 'done', 'cross'), run('c2', 2, 'done', 'cross')], [], [], [], [], [], []]
+  const actuals = {
+    c1: act('c1', 12.4, null, '48:00'),                       // legacy null activity -> ride
+    c2: { id: 'a2', workout_id: 'c2', dist: 1.1, pace: null, time: '35:00', activity: 'swim' } as any,
+  }
+  render(<WeekStats week={week} actuals={actuals} mode="cross" onModeChange={() => {}} />)
+  expect(screen.getByText('Bike')).toBeInTheDocument()
+  expect(screen.getByText('Swim')).toBeInTheDocument()
+  // Zero run miles -> no legend entry; the only 'Run' text is the dropdown option.
+  expect(screen.getAllByText('Run')).toHaveLength(1)
+})
+
 test('time on feet uses logged elapsed when present', () => {
   render(<WeekStats week={[[run('w1', 6, 'done')], [run('w2', 6)], [], [], [], [], []]}
     actuals={{ w1: act('w1', 6, '9:00/mi', '50:00') }} />)

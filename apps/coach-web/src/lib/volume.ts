@@ -5,8 +5,13 @@ import { estMinutes } from './estMinutes'
 export type VolumeMode = 'run' | 'cross'
 
 export interface VolumeSide { planned: number; done: number }
+/** Per-sport split of the cross side's DONE miles — drives the color-coded
+ *  segments in the cross volume bar. 'run' is a run the athlete declared on a
+ *  cross day; unlogged done cross workouts default to ride (the log default). */
+export interface CrossDoneBySport { run: number; ride: number; swim: number }
 export interface PeriodVolume {
   run: VolumeSide; cross: VolumeSide; hasCross: boolean
+  crossDone: CrossDoneBySport
   plannedMin: number; doneMin: number
 }
 
@@ -37,6 +42,7 @@ export function actualActivity(a: Actual): 'run' | 'ride' | 'swim' {
 export function volumeSplit(workouts: Workout[], actuals: Record<string, Actual>, extras: Actual[]): PeriodVolume {
   const run: VolumeSide = { planned: 0, done: 0 }
   const cross: VolumeSide = { planned: 0, done: 0 }
+  const crossDone: CrossDoneBySport = { run: 0, ride: 0, swim: 0 }
   let plannedMin = 0, doneMin = 0
   for (const w of workouts) {
     if (w.type !== 'rest') (w.type === 'cross' ? cross : run).planned += w.dist ?? 0
@@ -44,16 +50,21 @@ export function volumeSplit(workouts: Workout[], actuals: Record<string, Actual>
     if (w.status !== 'done') continue
     const a = actuals[w.id]
     if (a) {
-      ;(w.type === 'cross' ? cross : run).done += a.dist ?? 0
+      const dist = a.dist ?? 0
+      ;(w.type === 'cross' ? cross : run).done += dist
+      if (w.type === 'cross') crossDone[actualActivity(a)] += dist
       doneMin += elapsedToMin(a.time) ?? estMinutes(w)
     } else {
       ;(w.type === 'cross' ? cross : run).done += w.dist ?? 0
+      if (w.type === 'cross') crossDone.ride += w.dist ?? 0
       doneMin += estMinutes(w)
     }
   }
   for (const a of extras) {
-    ;(actualActivity(a) === 'run' ? run : cross).done += a.dist ?? 0
+    const sport = actualActivity(a)
+    ;(sport === 'run' ? run : cross).done += a.dist ?? 0
+    if (sport !== 'run') crossDone[sport] += a.dist ?? 0
     doneMin += elapsedToMin(a.time) ?? 0
   }
-  return { run, cross, hasCross: cross.planned > 0 || cross.done > 0, plannedMin, doneMin }
+  return { run, cross, hasCross: cross.planned > 0 || cross.done > 0, crossDone, plannedMin, doneMin }
 }

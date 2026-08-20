@@ -316,12 +316,34 @@ struct CalendarView: View {
                 ZStack(alignment: .leading) {
                     Capsule().fill(RB.surface2)
                     let frac = planned > 0 ? min(done / planned, 1.0) : 0.0
-                    Capsule()
-                        .fill(RB.accent)
-                        .frame(width: proxy.size.width * CGFloat(frac))
+                    if cross && done > 0 {
+                        // Color-coded per sport: bike keeps the accent; swim
+                        // and run get distinct tints. Widths keep each sport's
+                        // share of the done fill.
+                        let s = store.weekCrossDoneBySport
+                        let fill = proxy.size.width * CGFloat(frac)
+                        HStack(spacing: 0) {
+                            Rectangle().fill(RB.accent).frame(width: fill * CGFloat(s.ride / done))
+                            Rectangle().fill(Color.cyan).frame(width: fill * CGFloat(s.swim / done))
+                            Rectangle().fill(Color.orange).frame(width: fill * CGFloat(s.run / done))
+                        }
+                        .clipShape(Capsule())
+                    } else {
+                        Capsule()
+                            .fill(RB.accent)
+                            .frame(width: proxy.size.width * CGFloat(frac))
+                    }
                 }
             }
             .frame(height: 6)
+            if cross {
+                let s = store.weekCrossDoneBySport
+                HStack(spacing: 10) {
+                    if s.ride > 0 { sportLegend(RB.accent, "Bike") }
+                    if s.swim > 0 { sportLegend(Color.cyan, "Swim") }
+                    if s.run > 0 { sportLegend(Color.orange, "Run") }
+                }
+            }
             if planned > 0 {
                 Text("\(fmtMiles(max(planned - done, 0))) mi to go this week")
                     .font(.caption)
@@ -332,6 +354,14 @@ struct CalendarView: View {
                     .font(.caption)
                     .foregroundStyle(RB.textFaint)
             }
+        }
+    }
+
+    /// Legend dot + sport name under the color-coded cross bar.
+    private func sportLegend(_ color: Color, _ label: String) -> some View {
+        HStack(spacing: 4) {
+            Circle().fill(color).frame(width: 6, height: 6)
+            Text(label).font(.caption2).foregroundStyle(RB.textFaint)
         }
     }
 

@@ -51,6 +51,17 @@ test('extras bucket by declared activity: run -> run, ride/swim -> cross', () =>
   expect(v.run.planned).toBe(0)
 })
 
+test('crossDone splits the cross side by declared sport; unlogged done cross defaults to ride', () => {
+  const v = volumeSplit(
+    [w('w1', 'cross', null, 'done'), w('w2', 'cross', 4, 'done')],
+    { w1: act('w1', 1.2, null, '35:00', 'swim') },  // declared swim on a cross day
+    [extra(10, null, '40:00', 'ride')])              // w2 done without a log -> ride bucket
+  expect(v.cross.done).toBeCloseTo(15.2)
+  expect(v.crossDone.swim).toBeCloseTo(1.2)
+  expect(v.crossDone.ride).toBeCloseTo(14)
+  expect(v.crossDone.run).toBe(0)
+})
+
 test('legacy extras (null activity) fall back to the pace rule', () => {
   const v = volumeSplit([], {}, [extra(5, '9:00/mi', '45:00'), extra(12, null, '40:00')])
   expect(v.run.done).toBe(5)
