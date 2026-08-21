@@ -24,6 +24,9 @@ struct LogRunSheet: View {
     /// Declared sport for CROSS workouts ('run'/'ride'/'swim') — the athlete
     /// picks what they actually did; non-cross workouts are always 'run'.
     @State private var activity: String
+    /// Direct TOTAL TIME entry for bike/swim (no pace — pace is a running
+    /// concept, so non-run cross logs take distance + time instead).
+    @State private var timeText: String
 
     init(workout: Workout, store: PlanStore, unit: Unit, existing: WorkoutActual? = nil) {
         self.workout = workout
@@ -33,6 +36,7 @@ struct LogRunSheet: View {
         // Cross defaults to Bike (the common case); editing keeps the declared sport.
         _activity = State(initialValue: existing?.declaredActivity
             ?? (workout.type == "cross" ? "ride" : "run"))
+        _timeText = State(initialValue: existing?.time ?? "")
         if let existing {
             // Edit: prefill from the logged actual; sharing an update is opt-in.
             _dist = State(initialValue: Units.fmtDist(existing.dist, unit))
@@ -83,6 +87,18 @@ struct LogRunSheet: View {
         guard let miles, let pace = canonicalPace, let secPerMi = Pace.toSeconds(pace) else { return nil }
         return Int((miles * Double(secPerMi)).rounded())
     }
+    /// Runs enter pace (time derives); bike/swim enter total time directly.
+    private var paced: Bool { workout.type != "cross" || activity == "run" }
+    /// Typed TOTAL TIME -> seconds; nil until valid (bike/swim entry).
+    private var typedTimeSeconds: Int? {
+        guard let s = Pace.timeToSeconds(timeText), s > 0 else { return nil }
+        return s
+    }
+    private var canSave: Bool {
+        if bothEmpty && existing == nil { return true } // plain mark-complete
+        if paced { return derivedTimeSeconds != nil }
+        return miles != nil && typedTimeSeconds != nil
+    }
 
     var body: some View {
         NavigationStack {
@@ -120,23 +136,32 @@ struct LogRunSheet: View {
                                 }
                         }
 
-                        // Average pace — templated M:SS, digits fill from the right
-                        fieldGroup(label: "AVG PACE (/\(unit.rawValue.uppercased()))") {
-                            TextField(unit == .km ? "5:50" : "9:30",
-                                      text: Binding(get: { paceShown },
-                                                    set: { paceDigits = String($0.filter(\.isNumber).suffix(4)) }))
-                                .keyboardType(.numberPad)
-                                .foregroundStyle(.white)
-                                .rbField()
-                        }
+                        if paced {
+                            // Average pace — templated M:SS, digits fill from the right
+                            fieldGroup(label: "AVG PACE (/\(unit.rawValue.uppercased()))") {
+                                TextField(unit == .km ? "5:50" : "9:30",
+                                          text: Binding(get: { paceShown },
+                                                        set: { paceDigits = String($0.filter(\.isNumber).suffix(4)) }))
+                                    .keyboardType(.numberPad)
+                                    .foregroundStyle(.white)
+                                    .rbField()
+                            }
 
-                        // Derived total time (read-only)
-                        if let t = derivedTimeSeconds {
-                            VStack(alignment: .leading, spacing: 6) {
-                                RBLabel("TOTAL TIME")
-                                Text(Pace.timeString(fromSeconds: t))
-                                    .font(.body.weight(.semibold))
-                                    .foregroundStyle(RB.accent)
+                            // Derived total time (read-only)
+                            if let t = derivedTimeSeconds {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    RBLabel("TOTAL TIME")
+                                    Text(Pace.timeString(fromSeconds: t))
+                                        .font(.body.weight(.semibold))
+                                        .foregroundStyle(RB.accent)
+                                }
+                            }
+                        } else {
+                            // Bike/swim: no run pace — total time is entered directly.
+                            fieldGroup(label: "TOTAL TIME") {
+                                TextField("45:00", text: $timeText)
+                                    .foregroundStyle(.white)
+                                    .rbField()
                             }
                         }
 
@@ -189,7 +214,7 @@ struct LogRunSheet: View {
                         // plain mark-complete when both are empty (no-target workouts).
                         Button(busy ? "Saving…" : existing != nil ? "Save changes" : "Save run") { Task { await save() } }
                             .buttonStyle(VoltButtonStyle())
-                            .disabled(busy || !(derivedTimeSeconds != nil || (bothEmpty && existing == nil)))
+                            .disabled(busy || !canSave)
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 20)
@@ -197,6 +222,13 @@ struct LogRunSheet: View {
                 }
             }
             .navigationTitle(existing != nil ? "Edit logged run" : "Complete workout")
+            .onChange(of: activity) { _, new in
+                // Switching a paced entry to bike/swim: carry the derived time
+                // over so the athlete doesn't retype what the form already knew.
+                if new != "run", timeText.isEmpty, let t = derivedTimeSeconds {
+                    timeText = Pace.timeString(fromSeconds: t)
+                }
+            }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -217,7 +249,8 @@ struct LogRunSheet: View {
 
     /// Both entry fields empty -> Save just marks complete (no actual row).
     private var bothEmpty: Bool {
-        dist.trimmingCharacters(in: .whitespaces).isEmpty && paceDigits.isEmpty
+        dist.trimmingCharacters(in: .whitespaces).isEmpty
+            && (paced ? paceDigits.isEmpty : timeText.trimmingCharacters(in: .whitespaces).isEmpty)
     }
 
     // Drawn line-art faces (FaceIcon) — icon-style, tintable; SF Symbols has no
@@ -273,9 +306,20 @@ struct LogRunSheet: View {
             catch { self.error = "Couldn't update — try again." }
             return
         }
-        guard let miles, let pace = canonicalPace, let secs = derivedTimeSeconds else {
-            error = "Enter distance and pace."
-            return
+        guard let miles else { error = "Enter a distance."; return }
+        let pace: String?, secs: Int
+        if paced {
+            guard let p = canonicalPace, let s = derivedTimeSeconds else {
+                error = "Enter distance and pace."
+                return
+            }
+            pace = p; secs = s
+        } else {
+            guard let s = typedTimeSeconds else {
+                error = "Enter distance and total time."
+                return
+            }
+            pace = nil; secs = s   // pace is a running concept — bike/swim store none
         }
         let time = Pace.timeString(fromSeconds: secs)
         let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -296,7 +340,7 @@ struct LogRunSheet: View {
                 try? await ChatShare.shareRunCard(
                     athleteId: workout.athleteId, workoutId: workout.id, date: workout.date,
                     type: workout.type, title: workout.title,
-                    dist: "\(Units.fmtDist(miles, .mi)) mi", pace: pace, time: time,
+                    dist: "\(Units.fmtDist(miles, .mi)) mi", pace: pace ?? "—", time: time,
                     hr: Int(hr), note: trimmedNote.isEmpty ? nil : trimmedNote)
             }
             dismiss()
