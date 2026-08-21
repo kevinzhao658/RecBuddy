@@ -42,7 +42,7 @@ function DayCell({ date, ws, inMonth, isToday, isSel, canEdit, onPick }: {
       <div className="flex items-start justify-between">
         <span className={`font-num text-xs ${isToday ? 'font-bold text-accent' : 'text-text-mute'}`}>{day}</span>
         <span className="flex items-center gap-0.5">
-          {iconWs.slice(0, 3).map((x) => <TypeIcon key={x.id} type={x.type} className="h-3.5 w-3.5" />)}
+          {iconWs.slice(0, 3).map((x) => <TypeIcon key={x.id} type={x.type} className="h-3.5 w-3.5 text-accent" />)}
           {iconWs.length > 3 && <span className="text-[10px] text-text-faint">+{iconWs.length - 3}</span>}
         </span>
       </div>

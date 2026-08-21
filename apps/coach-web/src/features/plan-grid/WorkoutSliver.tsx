@@ -16,7 +16,7 @@ export function WorkoutSliver({ workout, onClick }: { workout: Workout; onClick:
     <button type="button" aria-label={`Show ${workout.title}`}
       onClick={(e) => { e.stopPropagation(); onClick() }}
       className="flex h-8 w-full items-end gap-1.5 rounded-b-[13px] border border-t-0 border-line bg-surface2 px-2 pb-1.5 text-left shadow-[0_3px_7px_rgba(0,0,0,0.30)] transition duration-150 ease-out hover:translate-y-1 hover:brightness-125">
-      <TypeIcon type={workout.type} className="shrink-0" />
+      <TypeIcon type={workout.type} className="shrink-0 text-accent" />
       <span className="line-clamp-1 flex-1 text-[12px] font-medium leading-none text-text-mute">{workout.title}</span>
       {STATUS_MARK[workout.status] && <span className={`text-xs leading-none ${STATUS_TINT[workout.status]}`}>{STATUS_MARK[workout.status]}</span>}
     </button>

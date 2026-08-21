@@ -50,7 +50,7 @@ export function MonthDayModal({ open, date, workouts, onPick, onClose, extras, o
               className="rb-card-sm border border-line p-3 text-left transition hover:border-text-mute hover:bg-surface2">
               <div className="flex items-start justify-between gap-2">
                 <span className="flex min-w-0 items-center gap-2">
-                  <TypeIcon type={w.type} className="shrink-0" />
+                  <TypeIcon type={w.type} className="shrink-0 text-accent" />
                   <span className="truncate font-semibold text-text">{w.title}</span>
                 </span>
                 <span className={`shrink-0 text-xs font-semibold ${st.cls}`}>{st.label}</span>
