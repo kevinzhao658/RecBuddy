@@ -57,18 +57,3 @@ extension WeekStripLogic {
             && workouts.allSatisfy { $0.type == "rest" || $0.status == "rest" }
     }
 }
-
-// TEMPORARY back-compat for DayStrip/CalendarView until Task 4 deletes them.
-enum DayMark: Equatable { case none; case allDone; case dots([Bool]) }
-extension WeekStripLogic {
-    static func marks(workouts: [Workout], extras: [WorkoutActual]) -> DayMark {
-        let active = workouts.filter { $0.type != "rest" && $0.status != "rest" }
-        let flags = active.map { $0.status == "done" } + extras.map { _ in true }
-        if flags.isEmpty { return .none }
-        if !flags.contains(false) { return .allDone }
-        return .dots(Array(flags.prefix(3)))
-    }
-    static func rolloverLanding(forward: Bool, weekDates: [String]) -> String {
-        (forward ? weekDates.first : weekDates.last) ?? ""
-    }
-}

@@ -624,139 +624,6 @@ struct CalendarView: View {
 
     // MARK: - Week Section
 
-    /// One page per day, full width — the focused day is centered with no
-    /// neighbor peek. Strip and pager stay in sync both ways: tap a pill →
-    /// animate here; swipe → pill follows.
-    @State private var pagerID: String?
-    /// False until the pager has settled after (re)mounting. A freshly mounted
-    /// scroller starts at its LEADING edge (the "prev" sentinel) and writes
-    /// that position back before restoring — without this gate, returning from
-    /// month view fired a phantom backward rollover onto last week.
-    @State private var pagerReady = false
-
-    private var dayPager: some View {
-        ScrollView(.horizontal) {
-            // NON-lazy on purpose: a LazyHStack lays out only the visible page,
-            // so the scroller's height matched the CURRENT day and taller
-            // neighbors arrived clipped. Eager layout sizes the row to the
-            // week's tallest day, and the screen's outer vertical scroll then
-            // reaches every workout on any day. Seven lightweight pages — the
-            // laziness bought nothing.
-            HStack(alignment: .top, spacing: 10) {
-                weekSentinel(label: "‹ Last week").id("prev")
-                    .containerRelativeFrame(.horizontal) { len, _ in len * 0.4 }
-                ForEach(store.weekDates, id: \.self) { date in
-                    dayPage(date: date)
-                        .id(date)
-                        .containerRelativeFrame(.horizontal)
-                }
-                weekSentinel(label: "Next week ›").id("next")
-                    .containerRelativeFrame(.horizontal) { len, _ in len * 0.4 }
-            }
-            .scrollTargetLayout()
-        }
-        .scrollTargetBehavior(.viewAligned)
-        .scrollIndicators(.hidden)
-        .scrollPosition(id: $pagerID)
-        // Fresh scroller per week: chevrons/rollovers replace the page ids, so
-        // remounting (instead of mutating content under a stale offset) routes
-        // EVERY restore — week change, month→week, first load — through the
-        // single onAppear path below.
-        .id(store.weekMonday)
-        .onAppear { snapPager(to: selectedDate) }
-        .onChange(of: selectedDate) { _, new in
-            guard pagerID != new else { return }
-            withAnimation(.easeInOut(duration: 0.25)) { pagerID = new }
-        }
-        .onChange(of: pagerID) { _, new in
-            guard let new else { return }
-            // Position writes before the pager settles are layout noise, not
-            // user intent — snap back instead of rolling weeks or reselecting.
-            guard pagerReady else {
-                if new != selectedDate { pagerID = selectedDate }
-                return
-            }
-            if new == "next" { rollover(forward: true); return }
-            if new == "prev" { rollover(forward: false); return }
-            guard new != selectedDate, store.weekDates.contains(new) else { return }
-            withAnimation(.easeInOut(duration: 0.15)) { selectedDate = new }
-        }
-    }
-
-    /// Debounces edge rollovers — a second fling while a week loads is ignored.
-    @State private var rolling = false
-
-    /// Programmatic restore. Assigning scrollPosition its CURRENT value is a
-    /// no-op to SwiftUI — the scroller never receives a scroll command and
-    /// stays at its leading edge (this is exactly how month→week kept landing
-    /// on "Nothing scheduled"). Clearing first, then setting on the next tick,
-    /// guarantees a real transition; pagerReady stays false until it settles.
-    private func snapPager(to date: String) {
-        pagerReady = false
-        pagerID = nil
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(80))
-            pagerID = date
-            try? await Task.sleep(for: .milliseconds(350))
-            pagerReady = true
-        }
-    }
-
-    private func weekSentinel(label: String) -> some View {
-        VStack {
-            if rolling { ProgressView().tint(RB.accent) }
-            else { Text(label).font(.footnote.weight(.semibold)).foregroundStyle(RB.textMute) }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 28)
-    }
-
-    private func rollover(forward: Bool) {
-        guard !rolling else { return }
-        rolling = true
-        Task {
-            await store.goToWeek(offset: forward ? 1 : -1)
-            // The weekMonday change remounts the pager (its .id), whose
-            // onAppear snaps to selectedDate — so setting the landing here is
-            // all that's needed.
-            selectedDate = WeekStripLogic.rolloverLanding(forward: forward, weekDates: store.weekDates)
-            rolling = false
-        }
-    }
-
-    @ViewBuilder
-    private func dayPage(date: String) -> some View {
-        let workouts = store.workoutsByDate[date] ?? []
-        let extras = store.standaloneByDate[date] ?? []
-        VStack(spacing: 8) {
-            if workouts.isEmpty && extras.isEmpty {
-                dayEmptyState(label: "Nothing scheduled")
-            } else if workouts.allSatisfy({ $0.type == "rest" || $0.status == "rest" }) && extras.isEmpty {
-                dayEmptyState(label: "Rest day")
-            } else {
-                ForEach(workouts.filter { $0.type != "rest" && $0.status != "rest" }, id: \.id) { w in
-                    weekDayCard(date: date, workout: w)
-                }
-                ForEach(extras, id: \.id) { a in
-                    extraWeekRow(date: date, actual: a)
-                }
-            }
-        }
-    }
-
-    private func dayEmptyState(label: String) -> some View {
-        VStack(spacing: 6) {
-            Image(systemName: label == "Rest day" ? "moon.zzz" : "calendar")
-                .foregroundStyle(RB.textFaint)
-            Text(label).font(.footnote).foregroundStyle(RB.textMute)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 28)
-        .background(RB.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(RB.line, lineWidth: 1))
-    }
-
     private var weekSection: some View {
         VStack(spacing: 10) {
             // Nav row
@@ -781,36 +648,47 @@ struct CalendarView: View {
             }
             .buttonStyle(.plain)
 
-            DayStrip(dates: store.weekDates, selected: selectedDate,
-                     marksFor: { date in
-                         WeekStripLogic.marks(workouts: store.workoutsByDate[date] ?? [],
-                                              extras: store.standaloneByDate[date] ?? [])
-                     },
-                     onPick: { date in
-                         withAnimation(.easeInOut(duration: 0.2)) { selectedDate = date }
-                     })
-
             let weekIsEmpty = store.weekDates.allSatisfy {
                 (store.workoutsByDate[$0] ?? []).isEmpty && (store.standaloneByDate[$0] ?? []).isEmpty
             }
 
             if weekIsEmpty && store.phase == .loading {
-                VStack(spacing: 10) {
-                    ForEach(0..<3, id: \.self) { _ in
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(RB.surface)
-                            .frame(height: 64)
-                            .redacted(reason: .placeholder)
-                    }
+                ForEach(0..<2, id: \.self) { _ in
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(RB.surface)
+                        .frame(height: 64)
+                        .redacted(reason: .placeholder)
                 }
-            } else if weekIsEmpty && store.phase == .idle {
-                Text("Your coach hasn't built your plan yet.")
-                    .font(.footnote)
-                    .foregroundStyle(RB.textMute)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, 32)
             } else {
-                dayPager
+                WeekGlanceStrip(
+                    dates: store.weekDates,
+                    selected: selectedDate,
+                    today: Week.todayISO(),
+                    pairsFor: { date in
+                        WeekStripLogic.pairs(workouts: store.workoutsByDate[date] ?? [],
+                                             extras: store.standaloneByDate[date] ?? [],
+                                             unit: unit)
+                    },
+                    restFor: { date in
+                        WeekStripLogic.isRestOnly(workouts: store.workoutsByDate[date] ?? [],
+                                                  extras: store.standaloneByDate[date] ?? [])
+                    },
+                    onPick: { date in
+                        withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) {
+                            selectedDate = date
+                        }
+                    },
+                    onSwipeWeek: { offset in
+                        Task { await store.goToWeek(offset: offset) }
+                    }
+                )
+                if weekIsEmpty && store.phase == .idle {
+                    Text("Your coach hasn't built your plan yet.")
+                        .font(.footnote)
+                        .foregroundStyle(RB.textMute)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.vertical, 16)
+                }
             }
 
             if case .error(let msg) = store.phase {
@@ -818,92 +696,6 @@ struct CalendarView: View {
                     .foregroundStyle(.red)
                     .font(.footnote)
             }
-        }
-    }
-
-    private func weekDayCard(date: String, workout w: Workout) -> some View {
-        let isToday = date == Week.todayISO()
-        let isDone = w.status == "done"
-        // Once logged, the card carries the actual run's distance/pace.
-        let actual = isDone ? store.actualsByWorkout[w.id] : nil
-
-        return Button { selected = w } label: {
-            HStack(spacing: 12) {
-                // Icon tile
-                iconTile(type: w.type, size: 36, cornerRadius: 8)
-
-                // Title + distance/pace
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(w.title)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.white)
-                    if let dist = actual?.dist ?? w.dist {
-                        Text("\(Units.fmtDist(dist, unit)) \(unit.rawValue) · \(Units.fmtPace(actual?.pace ?? w.pace, unit))")
-                            .font(.caption)
-                            .foregroundStyle(RB.textMute)
-                    }
-                }
-
-                Spacer()
-
-                // Status indicator
-                weekStatusIndicator(isDone: isDone)
-            }
-            .padding(12)
-            .background(isDone ? RB.accent.opacity(0.10) : RB.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(
-                        isToday ? Color.white.opacity(0.7) : RB.line,
-                        lineWidth: isToday ? 1.5 : 1
-                    )
-            )
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func extraWeekRow(date: String, actual a: WorkoutActual) -> some View {
-        return Button { selectedExtra = a } label: {
-            HStack(spacing: 12) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 8).fill(RB.surface2).frame(width: 36, height: 36)
-                    Image(systemName: a.activitySymbol)
-                        .font(.footnote).foregroundStyle(RB.accent)
-                }
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(a.extraTitle)
-                        .font(.subheadline.weight(.semibold)).foregroundStyle(.white)
-                    Text("\(a.distDisplay(unit: unit)) · \(a.time)")
-                        .font(.caption).foregroundStyle(RB.textMute)
-                }
-                Spacer()
-                weekStatusIndicator(isDone: true)
-            }
-            .padding(12)
-            .background(RB.accent.opacity(0.10))
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .overlay(RoundedRectangle(cornerRadius: 16).stroke(RB.line, lineWidth: 1))
-            .opacity(0.9)
-        }
-        .buttonStyle(.plain)
-    }
-
-    @ViewBuilder
-    private func weekStatusIndicator(isDone: Bool) -> some View {
-        if isDone {
-            ZStack {
-                Circle()
-                    .fill(RB.accent)
-                    .frame(width: 22, height: 22)
-                Image(systemName: "checkmark")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(RB.onAccent)
-            }
-        } else {
-            Circle()
-                .stroke(RB.line, lineWidth: 1.5)
-                .frame(width: 22, height: 22)
         }
     }
 
