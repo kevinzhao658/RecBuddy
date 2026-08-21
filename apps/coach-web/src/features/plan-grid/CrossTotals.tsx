@@ -18,11 +18,12 @@ export function CrossTotals({ crossDone }: { crossDone: CrossDoneBySport }) {
   return (
     <div className="min-w-[148px]">
       <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-text-mute">Cross mileage</span>
-      <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 font-num text-sm tabular-nums">
+      {/* One line even with all three sports: compact type, tight gaps, no wrap. */}
+      <div className="mt-1 flex items-center gap-x-2 font-num text-xs tabular-nums">
         {sports.length === 0 && <span className="text-text-faint">No cross logged yet</span>}
         {sports.map(({ sport, label, dist }) => (
-          <span key={sport} aria-label={`${label} distance`} className="flex items-center gap-1">
-            <SportIcon sport={sport} className={`h-4 w-4 ${SPORT_TEXT[sport]}`} />
+          <span key={sport} aria-label={`${label} distance`} className="flex items-center gap-1 whitespace-nowrap">
+            <SportIcon sport={sport} className={`h-3.5 w-3.5 shrink-0 ${SPORT_TEXT[sport]}`} />
             <span className="font-semibold text-text">
               {sport === 'swim' ? swimMeters(dist) : `${fmtDist(dist, unit)} ${unit}`}
             </span>

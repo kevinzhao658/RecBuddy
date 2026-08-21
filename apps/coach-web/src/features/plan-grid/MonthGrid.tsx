@@ -120,13 +120,16 @@ function WeekSummary({ days, extras, actuals, mode, isCurrent }: {
     <div className="p-1.5">
       <div className={`rb-card-sm flex h-full flex-col justify-center gap-2 p-2.5 ${isCurrent ? 'ring-1 ring-text/30' : ''}`}>
         {crossMode ? (
-          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 font-num text-[10px] tabular-nums">
+          // All three sports must fit ONE line in the narrow cell: tiny type,
+          // hairline gaps, unit dropped for mi values (the icon carries the
+          // sport; swims keep a compact meters suffix).
+          <div className="flex items-center gap-x-1.5 overflow-hidden font-num text-[9px] leading-tight tabular-nums">
             {sports.length === 0 && <span className="text-text-faint">No cross yet</span>}
             {sports.map(({ sport, dist }) => (
-              <span key={sport} className="flex items-center gap-1">
-                <SportIcon sport={sport} className={`h-3.5 w-3.5 ${SPORT_TEXT[sport]}`} />
+              <span key={sport} className="flex items-center gap-0.5 whitespace-nowrap">
+                <SportIcon sport={sport} className={`h-3 w-3 shrink-0 ${SPORT_TEXT[sport]}`} />
                 <span className="font-bold text-text">
-                  {sport === 'swim' ? swimMeters(dist) : `${fmtDist(dist, unit)} ${unit}`}
+                  {sport === 'swim' ? swimMeters(dist).replace(' ', '') : fmtDist(dist, unit)}
                 </span>
               </span>
             ))}
