@@ -54,11 +54,11 @@ export function volumeSplit(workouts: Workout[], actuals: Record<string, Actual>
   const crossDone: CrossDoneBySport = { run: 0, ride: 0, swim: 0 }
   const crossMin = { planned: 0, done: 0 }
   const crossMinBySport: CrossDoneBySport = { run: 0, ride: 0, swim: 0 }
-  let plannedMin = 0, doneMin = 0
+  let plannedMin = 0, doneMin = 0, hasCrossWorkout = false
   for (const w of workouts) {
     if (w.type !== 'rest' && w.type !== 'cross') run.planned += w.dist ?? 0
     plannedMin += estMinutes(w)
-    if (w.type === 'cross') crossMin.planned += estMinutes(w)
+    if (w.type === 'cross') { crossMin.planned += estMinutes(w); hasCrossWorkout = true }
     if (w.status !== 'done') continue
     const a = actuals[w.id]
     const mins = a ? elapsedToMin(a.time) ?? estMinutes(w) : estMinutes(w)
@@ -85,5 +85,9 @@ export function volumeSplit(workouts: Workout[], actuals: Record<string, Actual>
     }
     doneMin += mins
   }
-  return { run, cross, hasCross: cross.done > 0, crossDone, plannedMin, doneMin, crossMin, crossMinBySport }
+  // The sport dropdown must appear as soon as cross exists in the plan —
+  // PRESCRIBED cross counts (the coach flips to check cross time before
+  // anything is logged), as does any logged cross activity.
+  const hasCross = hasCrossWorkout || cross.done > 0 || crossMin.done > 0
+  return { run, cross, hasCross, crossDone, plannedMin, doneMin, crossMin, crossMinBySport }
 }

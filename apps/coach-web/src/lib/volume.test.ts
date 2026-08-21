@@ -38,7 +38,12 @@ test('cross has no projected mileage: planned stays 0 and never feeds run', () =
   const v = volumeSplit([w('w1', 'easy', 5), w('w2', 'cross', 10)], {}, [])
   expect(v.run.planned).toBe(5)
   expect(v.cross.planned).toBe(0)
-  expect(v.hasCross).toBe(false)   // planned-only cross doesn't reveal the gauge
+  expect(v.hasCross).toBe(true)   // PRESCRIBED cross reveals the dropdown
+})
+
+test('a run-only period hides the dropdown', () => {
+  const v = volumeSplit([w('w1', 'easy', 5, 'done')], { w1: act('w1', 5, '9:00/mi', '45:00') }, [])
+  expect(v.hasCross).toBe(false)
 })
 
 test('crossMin tracks cross-prescribed vs logged minutes (extras add to done)', () => {

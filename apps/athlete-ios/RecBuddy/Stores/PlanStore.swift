@@ -29,8 +29,12 @@ final class PlanStore {
     var weekPlannedRunMiles: Double { plannedRunMiles() }
     var weekDoneRunMiles: Double { doneMiles(cross: false) }
     var weekDoneCrossMiles: Double { doneMiles(cross: true) }
-    /// Any cross volume this week? Drives the gauge's Run/Cross swap chip.
-    var weekHasCrossVolume: Bool { weekDoneCrossMiles > 0 }
+    /// Any cross this week — PRESCRIBED cross counts (the chip must appear
+    /// before anything is logged), as does logged cross volume.
+    var weekHasCrossVolume: Bool {
+        weekDoneCrossMiles > 0
+            || workoutsByDate.values.flatMap({ $0 }).contains { $0.type == "cross" }
+    }
 
     /// Done CROSS miles split by declared sport — drives the color-coded
     /// segments in the cross mileage bar. Unlogged done cross workouts count
