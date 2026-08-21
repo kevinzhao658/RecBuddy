@@ -34,6 +34,40 @@ test('done workout without a log falls back to planned dist, bucketed by type', 
   expect(v.cross.done).toBe(10)
 })
 
+test('cross has no projected mileage: planned stays 0 and never feeds run', () => {
+  const v = volumeSplit([w('w1', 'easy', 5), w('w2', 'cross', 10)], {}, [])
+  expect(v.run.planned).toBe(5)
+  expect(v.cross.planned).toBe(0)
+  expect(v.hasCross).toBe(true)   // PRESCRIBED cross reveals the dropdown
+})
+
+test('a run-only period hides the dropdown', () => {
+  const v = volumeSplit([w('w1', 'easy', 5, 'done')], { w1: act('w1', 5, '9:00/mi', '45:00') }, [])
+  expect(v.hasCross).toBe(false)
+})
+
+test('crossMin tracks cross-prescribed vs logged minutes (extras add to done)', () => {
+  // w1 cross est 60min planned, done+logged 52:00; extra ride 40:00.
+  const cross = { ...w('w1', 'cross', null, 'done'), est_minutes: 60 }
+  const v = volumeSplit([cross, w('w2', 'easy', 5)],
+    { w1: act('w1', 15.3, null, '52:00', 'ride') }, [extra(12, null, '40:00', 'ride')])
+  expect(v.crossMin.planned).toBe(60)
+  expect(v.crossMin.done).toBe(52 + 40)
+  // Allocation by sport: ride carries all 92 logged minutes here.
+  expect(v.crossMinBySport.ride).toBe(92)
+  expect(v.crossMinBySport.swim).toBe(0)
+})
+
+test('crossMinBySport splits logged cross minutes by declared sport', () => {
+  const v = volumeSplit(
+    [w('c1', 'cross', null, 'done'), w('c2', 'cross', null, 'done')],
+    { c1: act('c1', 15.3, null, '52:00', 'ride'), c2: act('c2', 1.0, null, '35:00', 'swim') },
+    [])
+  expect(v.crossMinBySport.ride).toBe(52)
+  expect(v.crossMinBySport.swim).toBe(35)
+  expect(v.crossMinBySport.run).toBe(0)
+})
+
 test('anything logged against a cross workout lands on the cross side — even with a run pace', () => {
   const v = volumeSplit(
     [w('w1', 'cross', null, 'done'), w('w2', 'cross', null, 'done')],

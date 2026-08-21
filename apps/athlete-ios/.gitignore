@@ -5,3 +5,4 @@ Config.prod.xcconfig
 DerivedData/
 .DS_Store
 RecBuddy/Info.plist
+test-output.log

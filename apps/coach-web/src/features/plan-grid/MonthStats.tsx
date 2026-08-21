@@ -7,6 +7,7 @@ import { fromMiles } from '../../lib/units'
 import { ProgressStat } from '../../components/ui/ProgressStat'
 import { ModeSelect } from '../../components/ui/ModeSelect'
 import { crossSegments } from './crossSegments'
+import { CrossTotals } from './CrossTotals'
 
 /** Month completion against plan (in-month days only), actuals-first, run/cross
  *  split — the weekly KPIs summed over the month. `extras` arrives pre-filtered
@@ -27,14 +28,24 @@ export function MonthStats({ byDate, anchor, actuals = {}, extras = [], mode = '
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
       {vol.hasCross && onModeChange && <ModeSelect mode={mode} onChange={onModeChange} />}
-      <ProgressStat label={label} done={side.done} planned={side.planned}
-        doneText={fromMiles(side.done, unit).toFixed(1)}
-        plannedText={`${fromMiles(side.planned, unit).toFixed(1)} ${unit}`}
-        tint="bg-accent"
-        segments={crossMode ? crossSegments(vol.crossDone) : undefined} />
-      <ProgressStat label="Time on feet" done={vol.doneMin} planned={vol.plannedMin}
-        doneText={fmtDur(vol.doneMin)} plannedText={fmtDur(vol.plannedMin)}
-        tint="bg-text-mute" />
+      {crossMode ? (
+        <CrossTotals crossDone={vol.crossDone} />
+      ) : (
+        <ProgressStat label={label} done={side.done} planned={side.planned}
+          doneText={fromMiles(side.done, unit).toFixed(1)}
+          plannedText={`${fromMiles(side.planned, unit).toFixed(1)} ${unit}`}
+          tint="bg-accent" />
+      )}
+      {crossMode ? (
+        <ProgressStat label="Cross time" done={vol.crossMin.done} planned={vol.crossMin.planned}
+          doneText={fmtDur(vol.crossMin.done)} plannedText={fmtDur(vol.crossMin.planned)}
+          tint="bg-accent"
+          segments={crossSegments(vol.crossMinBySport).map((s) => ({ ...s, label: `${s.label} · ${fmtDur(s.value)}` }))} />
+      ) : (
+        <ProgressStat label="Time on feet" done={vol.doneMin} planned={vol.plannedMin}
+          doneText={fmtDur(vol.doneMin)} plannedText={fmtDur(vol.plannedMin)}
+          tint="bg-text-mute" />
+      )}
     </div>
   )
 }

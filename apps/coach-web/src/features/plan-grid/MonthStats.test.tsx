@@ -23,5 +23,6 @@ test('monthly mileage counts logged actuals and the dropdown swaps to cross volu
   expect(screen.getByText('6.2')).toBeInTheDocument()          // run side, actuals-based
   fireEvent.change(screen.getByRole('combobox', { name: /volume sport/i }), { target: { value: 'cross' } })
   expect(screen.getByText('Cross mileage')).toBeInTheDocument()
-  expect(screen.getByText('18.5')).toBeInTheDocument()
+  expect(screen.getByText('18.5 mi')).toBeInTheDocument()      // done-only, no projection
+  expect(screen.getByText('Cross time')).toBeInTheDocument()
 })

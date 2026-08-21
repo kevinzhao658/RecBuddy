@@ -23,13 +23,18 @@ final class PlanStore {
     /// Run and CROSS volumes are tracked SEPARATELY so the gauge never mixes
     /// them: whatever gets logged against a cross workout (bike, swim, even a
     /// run) counts toward cross totals, never run. Every other non-rest type
-    /// is the run side.
-    var weekPlannedRunMiles: Double { plannedMiles(cross: false) }
-    var weekPlannedCrossMiles: Double { plannedMiles(cross: true) }
+    /// is the run side. Cross has NO planned mileage — prescriptions are
+    /// time-based and the athlete picks the sport, so the cross gauge shows
+    /// done miles only.
+    var weekPlannedRunMiles: Double { plannedRunMiles() }
     var weekDoneRunMiles: Double { doneMiles(cross: false) }
     var weekDoneCrossMiles: Double { doneMiles(cross: true) }
-    /// Any cross volume this week? Drives the gauge's Run/Cross swap chip.
-    var weekHasCrossVolume: Bool { weekPlannedCrossMiles > 0 || weekDoneCrossMiles > 0 }
+    /// Any cross this week — PRESCRIBED cross counts (the chip must appear
+    /// before anything is logged), as does logged cross volume.
+    var weekHasCrossVolume: Bool {
+        weekDoneCrossMiles > 0
+            || workoutsByDate.values.flatMap({ $0 }).contains { $0.type == "cross" }
+    }
 
     /// Done CROSS miles split by declared sport — drives the color-coded
     /// segments in the cross mileage bar. Unlogged done cross workouts count
@@ -55,9 +60,9 @@ final class PlanStore {
         return (run, ride, swim)
     }
 
-    private func plannedMiles(cross: Bool) -> Double {
+    private func plannedRunMiles() -> Double {
         workoutsByDate.values.flatMap { $0 }
-            .filter { $0.type != "rest" && (($0.type == "cross") == cross) }
+            .filter { $0.type != "rest" && $0.type != "cross" }
             .compactMap(\.dist)
             .reduce(0, +)
     }
@@ -243,6 +248,30 @@ final class PlanStore {
         try await Supa.shared.from("workout_actuals")
             .update(patch).eq("id", value: actualId).execute()
         await refresh()
+    }
+
+    /// Insert an ADDITIONAL manual activity for a day as a standalone extra
+    /// (workout_id null) — a cross day can hold more than one sport, and the
+    /// second-and-later entries live beside the attached log as extras. The
+    /// recorded_at is local noon of the workout's day so it always buckets
+    /// onto that day. Caller refreshes when done.
+    func logExtraActivity(athleteId: String, date: String, activity: String,
+                          dist: Double, time: String, pace: String? = nil,
+                          avgWatts: Int? = nil) async throws {
+        struct NewExtra: Encodable {
+            let athlete_id: String
+            let dist: Double
+            let pace: String?
+            let time: String
+            let source: String
+            let recorded_at: String
+            let activity: String?
+            let avg_watts: Int?
+        }
+        let row = NewExtra(athlete_id: athleteId, dist: dist, pace: pace, time: time,
+                           source: "manual", recorded_at: Week.localNoonTimestamp(date),
+                           activity: activity, avg_watts: avgWatts)
+        try await Supa.shared.from("workout_actuals").insert(row).execute()
     }
 
     /// Delete an actual row (used by the extra-card delete flow; the caller

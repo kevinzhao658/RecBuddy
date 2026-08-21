@@ -29,6 +29,17 @@ struct LogRunSheet: View {
     @State private var timeText: String
     /// Average power for rides (watts, optional — needs a power meter).
     @State private var watts: String
+    /// Second-and-later activities on a cross day (swim AND bike, etc.).
+    /// Saved as standalone extras beside the attached log; new logs only —
+    /// saved extras are edited individually from their own cards.
+    struct CrossEntry: Identifiable, Equatable {
+        let id = UUID()
+        var activity = "ride"
+        var dist = ""
+        var time = ""
+        var watts = ""
+    }
+    @State private var moreEntries: [CrossEntry] = []
 
     init(workout: Workout, store: PlanStore, unit: Unit, existing: WorkoutActual? = nil) {
         self.workout = workout
@@ -104,9 +115,23 @@ struct LogRunSheet: View {
         return s
     }
     private var canSave: Bool {
-        if bothEmpty && existing == nil { return true } // plain mark-complete
-        if paced { return derivedTimeSeconds != nil }
-        return miles != nil && typedTimeSeconds != nil
+        if bothEmpty && existing == nil { return moreEntries.isEmpty } // plain mark-complete
+        let primaryOK = paced ? derivedTimeSeconds != nil : (miles != nil && typedTimeSeconds != nil)
+        return primaryOK && moreEntriesValid
+    }
+
+    // ── Added cross activities (each saves as a same-day extra) ──
+    private func entryMiles(_ e: CrossEntry) -> Double? {
+        guard let d = Double(e.dist), d > 0 else { return nil }
+        return e.activity == "swim" ? SportMetrics.miles(fromMeters: d)
+            : (Units.toMiles(d, unit) * 100).rounded() / 100
+    }
+    private func entrySeconds(_ e: CrossEntry) -> Int? {
+        guard let s = Pace.timeToSeconds(e.time), s > 0 else { return nil }
+        return s
+    }
+    private var moreEntriesValid: Bool {
+        moreEntries.allSatisfy { entryMiles($0) != nil && entrySeconds($0) != nil }
     }
 
     var body: some View {
@@ -122,9 +147,9 @@ struct LogRunSheet: View {
                             VStack(alignment: .leading, spacing: 8) {
                                 RBLabel("WHAT DID YOU DO?")
                                 HStack(spacing: 10) {
-                                    activityChip(label: "Run", symbol: "figure.run", value: "run")
-                                    activityChip(label: "Bike", symbol: "bicycle", value: "ride")
-                                    activityChip(label: "Swim", symbol: "figure.pool.swim", value: "swim")
+                                    activityChip(label: "Run", symbol: "figure.run", value: "run", selection: $activity)
+                                    activityChip(label: "Bike", symbol: "bicycle", value: "ride", selection: $activity)
+                                    activityChip(label: "Swim", symbol: "figure.pool.swim", value: "swim", selection: $activity)
                                 }
                             }
                         }
@@ -198,6 +223,23 @@ struct LogRunSheet: View {
                                         }
                                 }
                             }
+                        }
+
+                        // A cross day can hold several sports — each added
+                        // activity gets its own picker + fields and saves as
+                        // a same-day extra beside this log. New logs only:
+                        // saved extras are edited from their own cards.
+                        if workout.type == "cross" && existing == nil {
+                            ForEach($moreEntries) { $entry in
+                                crossEntrySection($entry)
+                            }
+                            Button {
+                                moreEntries.append(CrossEntry())
+                            } label: {
+                                Label("Add another activity", systemImage: "plus")
+                                    .font(.footnote.weight(.semibold))
+                            }
+                            .foregroundStyle(RB.accent)
                         }
 
                         // Heart rate — digits only
@@ -320,11 +362,66 @@ struct LogRunSheet: View {
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
+    /// One added activity: sport picker + the fields that sport needs
+    /// (meters for swims, watts for bikes) with a live sport-native readout.
+    private func crossEntrySection(_ entry: Binding<CrossEntry>) -> some View {
+        let e = entry.wrappedValue
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                RBLabel("ANOTHER ACTIVITY")
+                Spacer()
+                Button {
+                    moreEntries.removeAll { $0.id == e.id }
+                } label: {
+                    Image(systemName: "xmark.circle.fill").foregroundStyle(RB.textFaint)
+                }
+                .accessibilityLabel("Remove activity")
+            }
+            HStack(spacing: 10) {
+                activityChip(label: "Run", symbol: "figure.run", value: "run", selection: entry.activity)
+                activityChip(label: "Bike", symbol: "bicycle", value: "ride", selection: entry.activity)
+                activityChip(label: "Swim", symbol: "figure.pool.swim", value: "swim", selection: entry.activity)
+            }
+            fieldGroup(label: e.activity == "swim" ? "DISTANCE (M)" : "DISTANCE (\(unit.rawValue.uppercased()))") {
+                TextField(e.activity == "swim" ? "1500" : "4.5", text: entry.dist)
+                    .keyboardType(.decimalPad)
+                    .foregroundStyle(.white)
+                    .rbField()
+            }
+            fieldGroup(label: "TOTAL TIME") {
+                TextField("45:00", text: entry.time)
+                    .foregroundStyle(.white)
+                    .rbField()
+            }
+            if e.activity == "ride" {
+                fieldGroup(label: "AVG POWER (W, OPTIONAL)") {
+                    TextField("210", text: entry.watts)
+                        .keyboardType(.numberPad)
+                        .foregroundStyle(.white)
+                        .rbField()
+                }
+            }
+            if let m = entryMiles(e), let s = entrySeconds(e),
+               let lens = e.activity == "swim" ? SportMetrics.swimPace100Text(miles: m, seconds: s)
+                   : e.activity == "ride" ? SportMetrics.avgSpeedText(miles: m, seconds: s, unit: unit)
+                   : nil {
+                Text(lens)
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(RB.accent)
+            }
+        }
+        .padding(12)
+        .background(RB.surface2.opacity(0.5))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(RB.line, lineWidth: 1))
+    }
+
     /// Sport chip for cross workouts — same visual language as feelChip.
-    private func activityChip(label: String, symbol: String, value: String) -> some View {
-        let selected = activity == value
+    private func activityChip(label: String, symbol: String, value: String,
+                              selection: Binding<String>) -> some View {
+        let selected = selection.wrappedValue == value
         return Button {
-            activity = value
+            selection.wrappedValue = value
         } label: {
             VStack(spacing: 5) {
                 Image(systemName: symbol).font(.system(size: 18, weight: .semibold))
@@ -381,6 +478,17 @@ struct LogRunSheet: View {
                                        note: trimmedNote.isEmpty ? nil : trimmedNote,
                                        activity: activity, avgWatts: avgWatts)
             }
+            // Added cross activities land as same-day extras beside the log.
+            for e in moreEntries {
+                guard let m = entryMiles(e), let s = entrySeconds(e) else { continue }
+                try await store.logExtraActivity(
+                    athleteId: workout.athleteId, date: workout.date,
+                    activity: e.activity, dist: m,
+                    time: Pace.timeString(fromSeconds: s),
+                    pace: e.activity == "run" ? Pace.derive(miles: m, totalSeconds: s) : nil,
+                    avgWatts: e.activity == "ride" ? Int(e.watts) : nil)
+            }
+            if !moreEntries.isEmpty { await store.refresh() }
             if share {
                 try? await ChatShare.shareRunCard(
                     athleteId: workout.athleteId, workoutId: workout.id, date: workout.date,

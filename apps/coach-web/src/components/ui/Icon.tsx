@@ -85,3 +85,31 @@ export function TypeIcon({ type, className = '', tinted = true }: { type: Workou
     </svg>
   )
 }
+
+/** Sport glyphs for logged activities (declared run/ride/swim) — used where a
+ *  result is shown by SPORT rather than by prescribed workout type (extras,
+ *  cross per-sport totals). ONE drawing per metaphor across the whole app:
+ *  run and ride reuse the exact TypeIcon glyphs (figure.run / bicycle), and
+ *  every glyph is posed to mirror the athlete iOS app's SF Symbol so the two
+ *  clients read in unison (SF Symbols themselves are Apple-platform-only and
+ *  can't ship on the web). Uncolored: callers tint via text color classes. */
+const SPORT_GLYPH: Record<string, React.ReactNode> = {
+  run: TYPE_GLYPH.easy,    // figure.run — same runner as the Easy type icon
+  ride: TYPE_GLYPH.cross,  // bicycle — same bike as the Cross type icon
+  swim: (
+    <>
+      <circle cx="15.5" cy="6.5" r="1.8" />
+      <path d="M4 11.5 9 9l4 3.5-3 2" />
+      <path d="M3 18c1.5-1.2 3-1.2 4.5 0s3 1.2 4.5 0 3-1.2 4.5 0 3 1.2 4.5 0" />
+    </>
+  ),
+}
+
+export function SportIcon({ sport, className = '' }: { sport: 'run' | 'ride' | 'swim'; className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={`h-4 w-4 ${className}`}
+      fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      {SPORT_GLYPH[sport]}
+    </svg>
+  )
+}

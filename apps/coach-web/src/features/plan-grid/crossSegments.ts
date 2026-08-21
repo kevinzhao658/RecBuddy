@@ -1,13 +1,14 @@
 import type { CrossDoneBySport } from '../../lib/volume'
 import type { StatSegment } from '../../components/ui/ProgressStat'
 
-/** Color-coded slices of the cross volume bar, one per sport. Bike keeps the
- *  accent (it's the cross default); swim and run get distinct tints. Zero
- *  segments are filtered by ProgressStat, so run-free weeks show two slices. */
+/** Slices for the cross TIME bar, one per sport, all in the standard accent —
+ *  color is reserved for workout intensity, so sports are told apart by
+ *  delimiter lines between segments plus a hover tooltip naming the sport.
+ *  Zero segments are filtered by the bar components. */
 export function crossSegments(c: CrossDoneBySport): StatSegment[] {
   return [
     { label: 'Bike', value: c.ride, tint: 'bg-accent' },
-    { label: 'Swim', value: c.swim, tint: 'bg-sky-400' },
-    { label: 'Run', value: c.run, tint: 'bg-amber-400' },
+    { label: 'Swim', value: c.swim, tint: 'bg-accent' },
+    { label: 'Run', value: c.run, tint: 'bg-accent' },
   ]
 }
