@@ -293,11 +293,12 @@ struct CalendarView: View {
     private var mileageBlock: some View {
         // Run and cross volumes never mix — the chip swaps which one the gauge
         // shows. Pure runners never see the chip (zero added chrome). Cross is
-        // DONE-ONLY (no projected total — the athlete picks the sport), so its
-        // bar is a full-width composition split by sport.
+        // DONE-ONLY (no projected total — the athlete picks the sport): an
+        // icon + total per sport, all in the standard accent, mirroring the
+        // coach's cross mileage row. Swims read in meters.
         let cross = showCrossMileage && store.weekHasCrossVolume
         let planned = store.weekPlannedRunMiles
-        let done = cross ? store.weekDoneCrossMiles : store.weekDoneRunMiles
+        let done = store.weekDoneRunMiles
         return VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
                 RBLabel("WEEKLY MILEAGE")
@@ -305,66 +306,67 @@ struct CalendarView: View {
                     mileageModeToggle
                 }
                 Spacer()
-                HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text(fmtMiles(done))
-                        .font(.subheadline.weight(.bold))
-                        .foregroundStyle(RB.accent)
-                    Text(cross ? "mi" : "/ \(fmtMiles(planned)) mi")
-                        .font(.subheadline)
-                        .foregroundStyle(RB.textMute)
+                if !cross {
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                        Text(fmtMiles(done))
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(RB.accent)
+                        Text("/ \(fmtMiles(planned)) mi")
+                            .font(.subheadline)
+                            .foregroundStyle(RB.textMute)
+                    }
                 }
             }
-            GeometryReader { proxy in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(RB.surface2)
-                    if cross {
-                        // Composition bar: full width divided by each sport's
-                        // share of the done miles (bike orange, swim blue,
-                        // run lime — matching coach-web's cross tints).
-                        if done > 0 {
-                            let s = store.weekCrossDoneBySport
-                            HStack(spacing: 0) {
-                                Rectangle().fill(Color.orange).frame(width: proxy.size.width * CGFloat(s.ride / done))
-                                Rectangle().fill(Color.cyan).frame(width: proxy.size.width * CGFloat(s.swim / done))
-                                Rectangle().fill(RB.accent).frame(width: proxy.size.width * CGFloat(s.run / done))
-                            }
-                            .clipShape(Capsule())
-                        }
-                    } else {
+            if cross {
+                let s = store.weekCrossDoneBySport
+                if s.ride > 0 || s.swim > 0 || s.run > 0 {
+                    HStack(spacing: 16) {
+                        if s.ride > 0 { crossTotal("bicycle", "\(fmtMiles(s.ride)) mi") }
+                        if s.swim > 0 { crossTotal("figure.pool.swim", SportMetrics.metersText(miles: s.swim)) }
+                        if s.run > 0 { crossTotal("figure.run", "\(fmtMiles(s.run)) mi") }
+                    }
+                } else {
+                    Text("No cross logged yet")
+                        .font(.caption)
+                        .foregroundStyle(RB.textFaint)
+                }
+            } else {
+                GeometryReader { proxy in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(RB.surface2)
                         let frac = planned > 0 ? min(done / planned, 1.0) : 0.0
                         Capsule()
                             .fill(RB.accent)
                             .frame(width: proxy.size.width * CGFloat(frac))
                     }
                 }
-            }
-            .frame(height: 6)
-            if cross {
-                let s = store.weekCrossDoneBySport
-                HStack(spacing: 10) {
-                    if s.ride > 0 { sportLegend(Color.orange, "Bike") }
-                    if s.swim > 0 { sportLegend(Color.cyan, "Swim") }
-                    if s.run > 0 { sportLegend(RB.accent, "Run") }
+                .frame(height: 6)
+                if planned > 0 {
+                    Text("\(fmtMiles(max(planned - done, 0))) mi to go this week")
+                        .font(.caption)
+                        .foregroundStyle(RB.textFaint)
+                } else {
+                    // Done volume with nothing planned (e.g. off-plan extras only).
+                    Text("No runs planned this week")
+                        .font(.caption)
+                        .foregroundStyle(RB.textFaint)
                 }
-            } else if planned > 0 {
-                Text("\(fmtMiles(max(planned - done, 0))) mi to go this week")
-                    .font(.caption)
-                    .foregroundStyle(RB.textFaint)
-            } else {
-                // Done volume with nothing planned (e.g. off-plan extras only).
-                Text("No runs planned this week")
-                    .font(.caption)
-                    .foregroundStyle(RB.textFaint)
             }
         }
     }
 
-    /// Legend dot + sport name under the color-coded cross bar.
-    private func sportLegend(_ color: Color, _ label: String) -> some View {
-        HStack(spacing: 4) {
-            Circle().fill(color).frame(width: 6, height: 6)
-            Text(label).font(.caption2).foregroundStyle(RB.textFaint)
+    /// Icon + distance for one cross sport — sized so all three fit one line.
+    private func crossTotal(_ symbol: String, _ text: String) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: symbol)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(RB.accent)
+            Text(text)
+                .font(.footnote.weight(.bold))
+                .foregroundStyle(.white)
+                .lineLimit(1)
         }
+        .fixedSize(horizontal: true, vertical: false)
     }
 
     /// Tiny Run/Cross swap beside the gauge label.

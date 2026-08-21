@@ -39,7 +39,8 @@ export function MonthStats({ byDate, anchor, actuals = {}, extras = [], mode = '
       {crossMode ? (
         <ProgressStat label="Cross time" done={vol.crossMin.done} planned={vol.crossMin.planned}
           doneText={fmtDur(vol.crossMin.done)} plannedText={fmtDur(vol.crossMin.planned)}
-          tint="bg-text-mute" segments={crossSegments(vol.crossMinBySport)} legend={false} />
+          tint="bg-accent"
+          segments={crossSegments(vol.crossMinBySport).map((s) => ({ ...s, label: `${s.label} · ${fmtDur(s.value)}` }))} />
       ) : (
         <ProgressStat label="Time on feet" done={vol.doneMin} planned={vol.plannedMin}
           doneText={fmtDur(vol.doneMin)} plannedText={fmtDur(vol.plannedMin)}

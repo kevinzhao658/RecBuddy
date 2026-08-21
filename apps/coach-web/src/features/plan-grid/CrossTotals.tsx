@@ -3,7 +3,6 @@ import { swimMeters } from '../../lib/sportMetrics'
 import { SportIcon } from '../../components/ui/Icon'
 import { useUnit } from '../../lib/useUnit'
 import { fmtDist } from '../../lib/units'
-import { SPORT_TEXT } from './crossSegments'
 
 /** Cross mileage as an icon + total per sport (swims in meters) — no bar:
  *  distance proportions across sports are misleading (a hard 1,500 m swim is
@@ -23,7 +22,7 @@ export function CrossTotals({ crossDone }: { crossDone: CrossDoneBySport }) {
         {sports.length === 0 && <span className="text-text-faint">No cross logged yet</span>}
         {sports.map(({ sport, label, dist }) => (
           <span key={sport} aria-label={`${label} distance`} className="flex items-center gap-1 whitespace-nowrap">
-            <SportIcon sport={sport} className={`h-3.5 w-3.5 shrink-0 ${SPORT_TEXT[sport]}`} />
+            <SportIcon sport={sport} className="h-3.5 w-3.5 shrink-0 text-accent" />
             <span className="font-semibold text-text">
               {sport === 'swim' ? swimMeters(dist) : `${fmtDist(dist, unit)} ${unit}`}
             </span>

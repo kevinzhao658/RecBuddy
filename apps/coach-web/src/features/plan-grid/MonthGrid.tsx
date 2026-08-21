@@ -8,7 +8,6 @@ import { fmtDist } from '../../lib/units'
 import { fmtDur } from '../../lib/fmtDur'
 import { volumeSplit, type VolumeMode } from '../../lib/volume'
 import { swimMeters } from '../../lib/sportMetrics'
-import { SPORT_TEXT, SPORT_TINT } from './crossSegments'
 
 const chunk = <T,>(arr: T[], n: number) => Array.from({ length: Math.ceil(arr.length / n) }, (_, i) => arr.slice(i * n, i * n + n))
 
@@ -62,9 +61,10 @@ function DayCell({ date, ws, inMonth, isToday, isSel, canEdit, onPick }: {
 // A metric row for the KPI column: "done/total" kept to a single line (never
 // wraps, so the calendar row height stays put) over a slim bar with the
 // percentage pulled out to the right of the bar. `segments` (fractions of the
-// FULL bar) color the fill by allocation — cross time split across sports.
+// FULL bar) split the fill by allocation — cross time by sport, told apart by
+// a delimiter line between neighbors and a hover tooltip naming the sport.
 function KpiBar({ value, pct, tint, segments }: {
-  value: ReactNode; pct: number; tint: string; segments?: { tint: string; frac: number }[]
+  value: ReactNode; pct: number; tint: string; segments?: { label: string; frac: number }[]
 }) {
   return (
     <div>
@@ -73,7 +73,9 @@ function KpiBar({ value, pct, tint, segments }: {
         <div className="flex h-1 flex-1 overflow-hidden rounded-full bg-black/30">
           {segments && segments.length > 0 ? (
             segments.map((s, i) => (
-              <div key={i} className={`h-full ${s.tint}`} style={{ width: `${s.frac * 100}%` }} />
+              <div key={s.label} title={s.label}
+                className={`h-full ${tint} ${i > 0 ? 'border-l border-black/60' : ''}`}
+                style={{ width: `${s.frac * 100}%` }} />
             ))
           ) : (
             <div className={`h-full rounded-full ${tint}`} style={{ width: `${Math.min(100, pct)}%` }} />
@@ -107,13 +109,14 @@ function WeekSummary({ days, extras, actuals, mode, isCurrent }: {
   const timeDone = crossMode ? vol.crossMin.done : vol.doneMin
   const timePlanned = crossMode ? vol.crossMin.planned : vol.plannedMin
   const timePct = timePlanned > 0 ? Math.round((timeDone / timePlanned) * 100) : 0
-  // Cross time keeps its completion % — but the FILL is color-coded by how
-  // the logged time was allocated across sports (same tints as the icons).
+  // Cross time keeps its completion % — the fill splits by sport allocation
+  // (delimiter lines + hover tooltips; hue stays the standard accent).
   const timeSegments = crossMode && timeDone > 0
-    ? ([['ride', vol.crossMinBySport.ride], ['swim', vol.crossMinBySport.swim], ['run', vol.crossMinBySport.run]] as const)
+    ? ([['Bike', vol.crossMinBySport.ride], ['Swim', vol.crossMinBySport.swim], ['Run', vol.crossMinBySport.run]] as const)
         .filter(([, min]) => min > 0)
-        .map(([sport, min]) => ({
-          tint: SPORT_TINT[sport], frac: (min / timeDone) * (Math.min(100, timePct) / 100),
+        .map(([label, min]) => ({
+          label: `${label} · ${fmtDur(min)}`,
+          frac: (min / timeDone) * (Math.min(100, timePct) / 100),
         }))
     : undefined
   return (
@@ -127,7 +130,7 @@ function WeekSummary({ days, extras, actuals, mode, isCurrent }: {
             {sports.length === 0 && <span className="text-text-faint">No cross yet</span>}
             {sports.map(({ sport, dist }) => (
               <span key={sport} className="flex items-center gap-0.5 whitespace-nowrap">
-                <SportIcon sport={sport} className={`h-3 w-3 shrink-0 ${SPORT_TEXT[sport]}`} />
+                <SportIcon sport={sport} className="h-3 w-3 shrink-0 text-accent" />
                 <span className="font-bold text-text">
                   {sport === 'swim' ? swimMeters(dist).replace(' ', '') : fmtDist(dist, unit)}
                 </span>
@@ -138,7 +141,7 @@ function WeekSummary({ days, extras, actuals, mode, isCurrent }: {
           <KpiBar tint="bg-accent" pct={milePct}
             value={<><span className="font-bold text-text">{fmtDist(side.done, unit)}</span><span className="text-text-faint">/{fmtDist(side.planned, unit)} {unit}</span></>} />
         )}
-        <KpiBar tint="bg-text-mute" pct={timePct} segments={timeSegments}
+        <KpiBar tint={crossMode ? 'bg-accent' : 'bg-text-mute'} pct={timePct} segments={timeSegments}
           value={<><span className="font-bold text-text">{fmtDur(timeDone)}</span><span className="text-text-faint">/{fmtDur(timePlanned)}</span></>} />
       </div>
     </div>
