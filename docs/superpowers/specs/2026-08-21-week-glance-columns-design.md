@@ -30,6 +30,15 @@ mockup iterations at true iPhone width (393pt).
 | Extras | Off-plan logged activities appear as pairs after the planned workouts: sport icon (aerobic green) + distance (swims in meters, "1500m") |
 | Overflow | Numbers use `minimumScaleFactor(0.7)` + nowrap; columns grow vertically for stacked days (3+ activities) |
 
+## Untouched surfaces (binding)
+
+Everything not explicitly named in this spec is maintained EXACTLY as
+shipped: the screen header row, sync badge, pending-confirm banner, the
+weekly mileage progress gauge (Run/Cross chips included), the Month/Week
+mode toggle, the entire month section, all sheets, and the widget. The only
+regions this spec changes are (a) the week section's day rendering (strip +
+pager → glance columns) and (b) the headliner's DATA SOURCE + chip overlay.
+
 ## Components (athlete iOS)
 
 ```
