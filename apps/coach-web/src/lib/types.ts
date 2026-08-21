@@ -29,6 +29,8 @@ export interface Actual {
   note: string | null; source: string; source_id: string | null; recorded_at: string
   /** Declared sport ('run' | 'ride' | 'swim'); null on legacy rows (readers fall back to pace inference). */
   activity: string | null
+  /** Average power for rides (watts); manual entry or Health sync, usually null. */
+  avg_watts: number | null
 }
 export interface LibraryWorkout {
   id: string; coach_id: string; type: WorkoutType; title: string; dist: number | null

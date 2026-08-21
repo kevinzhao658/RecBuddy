@@ -184,13 +184,15 @@ final class PlanStore {
     /// it when completing a cross workout. Sync writes go through
     /// SupabaseLogSink, not this method.
     func logRun(workout: Workout, dist: Double, time: String, pace: String?,
-                hr: Int?, feel: Int?, note: String?, activity: String? = nil) async throws {
+                hr: Int?, feel: Int?, note: String?, activity: String? = nil,
+                avgWatts: Int? = nil) async throws {
         struct ExistingRow: Decodable { let id: String }
         let existing: [ExistingRow] = try await Supa.shared.from("workout_actuals")
             .select("id").eq("workout_id", value: workout.id).limit(1).execute().value
         if let row = existing.first {
             try await updateRun(actualId: row.id, dist: dist, time: time, pace: pace,
-                                hr: hr, feel: feel, note: note, activity: activity)
+                                hr: hr, feel: feel, note: note, activity: activity,
+                                avgWatts: avgWatts)
         } else {
             struct NewActual: Encodable {
                 let workout_id: String
@@ -203,10 +205,12 @@ final class PlanStore {
                 let note: String?
                 let source: String
                 let activity: String?
+                let avg_watts: Int?
             }
             let row = NewActual(workout_id: workout.id, athlete_id: workout.athleteId,
                                 dist: dist, pace: pace, time: time, hr: hr, feel: feel,
-                                note: note, source: "manual", activity: activity)
+                                note: note, source: "manual", activity: activity,
+                                avg_watts: avgWatts)
             try await Supa.shared.from("workout_actuals").insert(row).execute()
         }
         do {
@@ -219,7 +223,8 @@ final class PlanStore {
     }
 
     func updateRun(actualId: String, dist: Double, time: String, pace: String?,
-                   hr: Int?, feel: Int?, note: String?, activity: String? = nil) async throws {
+                   hr: Int?, feel: Int?, note: String?, activity: String? = nil,
+                   avgWatts: Int? = nil) async throws {
         var patch: [String: AnyJSON] = [
             "dist": .double(dist),
             "pace": pace.map { .string($0) } ?? .null,
@@ -231,6 +236,10 @@ final class PlanStore {
         // Only write activity when declared — an edit that doesn't touch the
         // sport must not null out a previously declared one.
         if let activity { patch["activity"] = .string(activity) }
+        // Watts is authoritative when the caller declared a ride (nil clears
+        // it); other flows leave a synced value untouched.
+        if activity == "ride" { patch["avg_watts"] = avgWatts.map { .integer($0) } ?? .null }
+        else if let avgWatts { patch["avg_watts"] = .integer(avgWatts) }
         try await Supa.shared.from("workout_actuals")
             .update(patch).eq("id", value: actualId).execute()
         await refresh()

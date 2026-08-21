@@ -50,7 +50,7 @@ struct ConfirmActivitySheet: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(kind.noun.capitalized)
                         .font(.subheadline.weight(.bold)).foregroundStyle(.white)
-                    Text("\(Week.fmtDayDate(HealthMatcher.localDay(of: p.sample.startDate))) · \(Units.fmtDist(p.sample.miles, unit)) \(unit.rawValue) · \(Pace.timeString(fromSeconds: p.sample.durationSeconds))")
+                    Text("\(Week.fmtDayDate(HealthMatcher.localDay(of: p.sample.startDate))) · \(kind == .swimming ? SportMetrics.metersText(miles: p.sample.miles) : "\(Units.fmtDist(p.sample.miles, unit)) \(unit.rawValue)") · \(Pace.timeString(fromSeconds: p.sample.durationSeconds))")
                         .font(.caption).foregroundStyle(RB.textMute)
                 }
                 Spacer()

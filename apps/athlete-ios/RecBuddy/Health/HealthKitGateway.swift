@@ -15,6 +15,7 @@ final class HealthKitGateway: ActivityProvider {
             HKQuantityType(.distanceWalkingRunning),
             HKQuantityType(.distanceCycling),
             HKQuantityType(.distanceSwimming),
+            HKQuantityType(.cyclingPower),
         ]
         try await store.requestAuthorization(toShare: [], read: read)
     }
@@ -47,11 +48,16 @@ final class HealthKitGateway: ActivityProvider {
             let hr = w.statistics(for: HKQuantityType(.heartRate))?.averageQuantity()?
                 .doubleValue(for: HKUnit.count().unitDivided(by: .minute()))
             let laps = w.workoutEvents?.filter { $0.type == .lap }.count
+            let watts: Double? = kind == .cycling
+                ? w.statistics(for: HKQuantityType(.cyclingPower))?.averageQuantity()?
+                    .doubleValue(for: .watt())
+                : nil
             return ActivitySample(sourceId: w.uuid.uuidString, source: .appleHealth,
                                   startDate: w.startDate, distanceMeters: meters,
                                   durationSeconds: Int(w.duration.rounded()),
                                   avgHR: hr.map { Int($0.rounded()) }, kind: kind,
-                                  lapEventCount: laps)
+                                  lapEventCount: laps,
+                                  avgWatts: watts.map { Int($0.rounded()) })
         }
     }
 

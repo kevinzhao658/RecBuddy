@@ -1,6 +1,7 @@
 import type { Actual } from '../../lib/types'
 import { actualActivity } from '../../lib/volume'
 import { extraTitle } from '../../lib/extraTitle'
+import { swimMeters } from '../../lib/sportMetrics'
 import { useUnit } from '../../lib/useUnit'
 import { fmtDist } from '../../lib/units'
 
@@ -47,7 +48,9 @@ export function ExtraActivityCard({ actual, onClick }: { actual: Actual; onClick
           : <RunIcon className={iconCls} />}
       </div>
       {actual.dist != null && (
-        <div className="font-num text-xs text-text-mute">{fmtDist(actual.dist, unit)} {unit} · {actual.time}</div>
+        <div className="font-num text-xs text-text-mute">
+          {kind === 'swim' ? swimMeters(actual.dist) : `${fmtDist(actual.dist, unit)} ${unit}`} · {actual.time}
+        </div>
       )}
       <div className="mt-auto flex items-center justify-between pt-1.5">
         <span className="text-sm leading-none text-accent" aria-label="Completed">✓</span>
