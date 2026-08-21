@@ -64,7 +64,7 @@ RecBuddy is a two-sided tool. Athletes get structure and accountability; coaches
 get a clear window into how training is really going. No ads. No tracking. Just
 you, your coach, and the work.
 
-Questions or feedback? Reach us at [support@recbuddy.app].
+Questions or feedback? Reach us at support@recbuddy.app.
 ```
 
 ## What's New (version 1.0)
@@ -87,8 +87,8 @@ rate, and in-app coach messaging. Thanks for running with us.
 | Privacy Policy URL | `https://recbuddy.app/privacy` *(host `privacy-policy.md`)* |
 | Support URL | `https://recbuddy.app/support` *(or a contact page)* |
 | Marketing URL (optional) | `https://recbuddy.app` |
-| Copyright | `2026 [Your name]` |
-| Contact email (App Review) | `[support@recbuddy.app]` |
+| Copyright | `2026 Kevin Zhao` *(change if you file under a business entity)* |
+| Contact email (App Review) | `kevinzhao658@gmail.com` *(private to Apple; support@recbuddy.app is the public one)* |
 
 ## Screenshots to capture (iPhone only; capture on a 6.9" device/simulator)
 Suggested set, in order:

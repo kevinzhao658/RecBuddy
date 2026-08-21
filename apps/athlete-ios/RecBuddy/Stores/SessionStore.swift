@@ -42,7 +42,7 @@ final class SessionStore {
     func start() async {
         for await (event, session) in Supa.shared.auth.authStateChanges {
             guard [.initialSession, .signedIn, .signedOut, .userUpdated].contains(event) else { continue }
-            if session == nil { state = .signedOut; continue }
+            if session == nil { TodaySnapshot.clear(); state = .signedOut; continue }
             await onSignedIn()
         }
     }
@@ -133,7 +133,9 @@ final class SessionStore {
     }
 
     func signOut() async {
+        await PushRegistrar.deleteToken()   // no pushes for a signed-out device
         try? await Supa.shared.auth.signOut()
+        TodaySnapshot.clear()   // never show the previous athlete's plan on a widget
         state = .signedOut
     }
 }
