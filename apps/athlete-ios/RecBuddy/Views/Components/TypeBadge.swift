@@ -13,20 +13,15 @@ struct TypeBadge: View {
         case "long": return "arrow.right.to.line"
         case "speed": return "bolt.fill"
         case "tempo": return "gauge.with.needle"
-        case "recovery": return "arrow.clockwise.heart"
-        case "cross": return "bicycle"
+        case "recovery": return "heart"
+        case "cross": return "arrow.2.circlepath"
         case "rest": return "moon.zzz"
         case "race": return "flag.checkered"
         case "other": return "ellipsis.circle"
         default: return "figure.run"
         }
     }
-    static func tint(for type: String) -> Color {
-        switch type {
-        case "speed", "tempo", "race": return .orange
-        case "long": return .blue
-        case "rest", "other": return .secondary
-        default: return .green
-        }
-    }
+    /// One voice: every type icon renders in the accent. Intensity is carried
+    /// by the plan, not the icon; kept as a function so call sites are stable.
+    static func tint(for type: String) -> Color { RB.accent }
 }

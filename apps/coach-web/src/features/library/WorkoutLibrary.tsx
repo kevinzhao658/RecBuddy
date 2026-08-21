@@ -31,7 +31,7 @@ function LibraryCard({ t, onEdit, onDelete }: { t: LibraryWorkout; onEdit: () =>
       {/* The card body IS the edit affordance — no separate pencil button. */}
       <button aria-label={`Edit workout ${t.title}`} onClick={onEdit}
         className="flex min-w-0 flex-1 items-start gap-2 text-left">
-        <TypeIcon type={t.type} className="mt-0.5 shrink-0 text-text-mute" />
+        <TypeIcon type={t.type} className="mt-0.5 shrink-0 text-accent" />
         <span className="min-w-0 flex-1">
           <span className="block truncate font-semibold">{t.title}</span>
           {t.dist != null && <span className="block font-num text-xs text-text-mute">{fmtDist(t.dist, unit)} {unit} · {fmtPace(t.pace, unit)}</span>}

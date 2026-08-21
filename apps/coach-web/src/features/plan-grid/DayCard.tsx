@@ -28,7 +28,7 @@ export function DayCard({ workout, selected, onClick, onCopy, canEdit = true }: 
       className={`rb-card rb-card-sm flex h-full cursor-pointer flex-col p-2 ${STATUS_BG[workout.status]} ${ring}`}>
       <div className="mb-1 flex items-start justify-between gap-2">
         <div className="line-clamp-1 text-[14px] font-semibold leading-tight">{workout.title}</div>
-        <TypeIcon type={workout.type} className="mt-0.5 shrink-0 text-text-mute" />
+        <TypeIcon type={workout.type} className="mt-0.5 shrink-0 text-accent" />
       </div>
       {workout.dist != null && <div className="font-num text-xs text-text-mute">{fmtDist(workout.dist, unit)} {unit} · {fmtPace(workout.pace, unit)}</div>}
       <div className="mt-auto flex items-center justify-between pt-1.5">

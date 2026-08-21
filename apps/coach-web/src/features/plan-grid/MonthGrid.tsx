@@ -33,7 +33,7 @@ function DayCell({ date, ws, inMonth, isToday, isSel, canEdit, onPick }: {
   // Green outline is reserved for the current day only; a picked day gets a
   // neutral ring so lime never reads as "today" on the wrong cell.
   const ring = drop.isOver ? 'z-10 ring-2 ring-inset ring-accent' : isToday ? 'ring-2 ring-inset ring-accent' : isSel ? 'ring-2 ring-inset ring-text/40' : ''
-  // One tinted icon per workout, up to three, then +N — a quick read of how
+  // One accent icon per workout, up to three, then +N — a quick read of how
   // loaded the day is without opening it.
   const iconWs = ws.filter((x) => x.type !== 'rest' && x.status !== 'rest')
   return (
@@ -42,7 +42,7 @@ function DayCell({ date, ws, inMonth, isToday, isSel, canEdit, onPick }: {
       <div className="flex items-start justify-between">
         <span className={`font-num text-xs ${isToday ? 'font-bold text-accent' : 'text-text-mute'}`}>{day}</span>
         <span className="flex items-center gap-0.5">
-          {iconWs.slice(0, 3).map((x) => <TypeIcon key={x.id} type={x.type} className="h-3.5 w-3.5" />)}
+          {iconWs.slice(0, 3).map((x) => <TypeIcon key={x.id} type={x.type} className="h-3.5 w-3.5 text-accent" />)}
           {iconWs.length > 3 && <span className="text-[10px] text-text-faint">+{iconWs.length - 3}</span>}
         </span>
       </div>

@@ -1,9 +1,11 @@
 import type { WorkoutType } from '../../lib/types'
 
 /** Workout-type icons aligned with the athlete iOS app's SF Symbol metaphors
- *  (runner, arrow-to-line, bolt, gauge, heart-renewal, bicycle, crescent-zzz,
+ *  (runner, arrow-to-line, bolt, gauge, heart, circling-arcs, crescent-zzz,
  *  checkered flag) — redrawn as original line art (SF Symbols are
- *  Apple-platform-only, so the glyphs themselves can't ship on the web). */
+ *  Apple-platform-only, so the glyphs themselves can't ship on the web).
+ *  Icons render in the caller's text color; every surface passes `text-accent`
+ *  for consistency with the athlete iOS app. */
 const TYPE_GLYPH: Record<string, React.ReactNode> = {
   // figure.run — stick runner mid-stride
   easy: (
@@ -24,19 +26,17 @@ const TYPE_GLYPH: Record<string, React.ReactNode> = {
       <circle cx="12" cy="15" r="1" />
     </>
   ),
-  // arrow.clockwise.heart — recovery/renewal
+  // heart — recovery (the refresh arrow now belongs to Cross)
   recovery: (
-    <>
-      <path d="M12 20.5s-6-3.9-6-8.4a3.4 3.4 0 016-2.2 3.4 3.4 0 016 2.2c0 4.5-6 8.4-6 8.4z" />
-      <path d="M8.5 4.5a5.5 5.5 0 017.6.9M16.5 3v2.8h-2.8" />
-    </>
+    <path d="M12 20.5s-6.5-4.2-6.5-9a3.7 3.7 0 016.5-2.4 3.7 3.7 0 016.5 2.4c0 4.8-6.5 9-6.5 9z" />
   ),
-  // bicycle — cross-training
+  // arrow.2.circlepath — cross-training: two arcs chasing each other
   cross: (
     <>
-      <circle cx="6" cy="16.5" r="3.2" />
-      <circle cx="18" cy="16.5" r="3.2" />
-      <path d="M6 16.5l3.6-6.3h4.9l3.5 6.3M9.6 10.2L8.2 7.6h-2M13 7.2h2.6" />
+      <path d="M5.2 13.5a7 7 0 0 1 11.6-6.9" />
+      <polyline points="16.6 2.9 16.9 6.7 13.1 7" />
+      <path d="M18.8 10.5a7 7 0 0 1-11.6 6.9" />
+      <polyline points="7.4 21.1 7.1 17.3 10.9 17" />
     </>
   ),
   // moon.zzz — rest day
@@ -67,19 +67,9 @@ const TYPE_GLYPH: Record<string, React.ReactNode> = {
   ),
 }
 
-/** Per-type tints mirroring the athlete iOS app's TypeBadge (iOS system palette,
- *  dark variants): effort types orange, long blue, aerobic green; rest inherits
- *  the surrounding muted color. Pass tinted={false} to fall back to currentColor. */
-const TYPE_TINT: Record<string, string> = {
-  speed: '#FF9F0A', tempo: '#FF9F0A', race: '#FF9F0A',
-  long: '#0A84FF',
-  easy: '#30D158', recovery: '#30D158', cross: '#30D158',
-}
-
-export function TypeIcon({ type, className = '', tinted = true }: { type: WorkoutType; className?: string; tinted?: boolean }) {
-  const tint = tinted ? TYPE_TINT[type] : undefined
+export function TypeIcon({ type, className = '' }: { type: WorkoutType; className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" className={`h-4 w-4 ${className}`} style={tint ? { color: tint } : undefined}
+    <svg viewBox="0 0 24 24" className={`h-4 w-4 ${className}`}
       fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       {TYPE_GLYPH[type] ?? TYPE_GLYPH.easy}
     </svg>
@@ -89,13 +79,20 @@ export function TypeIcon({ type, className = '', tinted = true }: { type: Workou
 /** Sport glyphs for logged activities (declared run/ride/swim) — used where a
  *  result is shown by SPORT rather than by prescribed workout type (extras,
  *  cross per-sport totals). ONE drawing per metaphor across the whole app:
- *  run and ride reuse the exact TypeIcon glyphs (figure.run / bicycle), and
+ *  run reuses the TypeIcon easy (figure.run), ride has its own bicycle, and
  *  every glyph is posed to mirror the athlete iOS app's SF Symbol so the two
  *  clients read in unison (SF Symbols themselves are Apple-platform-only and
  *  can't ship on the web). Uncolored: callers tint via text color classes. */
 const SPORT_GLYPH: Record<string, React.ReactNode> = {
   run: TYPE_GLYPH.easy,    // figure.run — same runner as the Easy type icon
-  ride: TYPE_GLYPH.cross,  // bicycle — same bike as the Cross type icon
+  // bicycle — a logged ride IS a bike ride; only the cross TYPE stopped being one
+  ride: (
+    <>
+      <circle cx="6" cy="16.5" r="3.2" />
+      <circle cx="18" cy="16.5" r="3.2" />
+      <path d="M6 16.5l3.6-6.3h4.9l3.5 6.3M9.6 10.2L8.2 7.6h-2M13 7.2h2.6" />
+    </>
+  ),
   swim: (
     <>
       <circle cx="15.5" cy="6.5" r="1.8" />

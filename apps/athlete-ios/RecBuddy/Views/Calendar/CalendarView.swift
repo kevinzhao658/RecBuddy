@@ -25,6 +25,8 @@ struct CalendarView: View {
     // Which volume the weekly mileage gauge shows (chip only appears when the
     // week has any cross volume).
     @State private var showCrossMileage = false
+    // The week strip's selected day (today when the week contains it).
+    @State private var selectedDate: String = Week.todayISO()
     // Drives the sync badge's arrow rotation while a pass runs.
     @State private var syncSpin = false
     @AppStorage("unit") private var unitRaw = "mi"
@@ -152,6 +154,10 @@ struct CalendarView: View {
         }
         .sheet(isPresented: $confirmOpen) {
             ConfirmActivitySheet(store: store, unit: unit)
+        }
+        .onChange(of: store.weekMonday) { _, _ in
+            selectedDate = WeekStripLogic.defaultSelection(weekDates: store.weekDates,
+                                                           today: Week.todayISO())
         }
     }
 
@@ -618,6 +624,99 @@ struct CalendarView: View {
 
     // MARK: - Week Section
 
+    /// One page per day; ~88% width so the next day peeks. Strip and pager
+    /// stay in sync both ways: tap a pill → animate here; swipe → pill follows.
+    @State private var pagerID: String?
+
+    private var dayPager: some View {
+        ScrollView(.horizontal) {
+            LazyHStack(alignment: .top, spacing: 10) {
+                weekSentinel(label: "‹ Last week").id("prev")
+                    .containerRelativeFrame(.horizontal) { len, _ in len * 0.4 }
+                ForEach(store.weekDates, id: \.self) { date in
+                    dayPage(date: date)
+                        .id(date)
+                        .containerRelativeFrame(.horizontal) { len, _ in len * 0.88 }
+                }
+                weekSentinel(label: "Next week ›").id("next")
+                    .containerRelativeFrame(.horizontal) { len, _ in len * 0.4 }
+            }
+            .scrollTargetLayout()
+        }
+        .scrollTargetBehavior(.viewAligned)
+        .scrollIndicators(.hidden)
+        .scrollPosition(id: $pagerID)
+        .onAppear { pagerID = selectedDate }
+        .onChange(of: selectedDate) { _, new in
+            guard pagerID != new else { return }
+            withAnimation(.easeInOut(duration: 0.25)) { pagerID = new }
+        }
+        .onChange(of: pagerID) { _, new in
+            guard let new else { return }
+            if new == "next" { rollover(forward: true); return }
+            if new == "prev" { rollover(forward: false); return }
+            guard new != selectedDate, store.weekDates.contains(new) else { return }
+            withAnimation(.easeInOut(duration: 0.15)) { selectedDate = new }
+        }
+    }
+
+    /// Debounces edge rollovers — a second fling while a week loads is ignored.
+    @State private var rolling = false
+
+    private func weekSentinel(label: String) -> some View {
+        VStack {
+            if rolling { ProgressView().tint(RB.accent) }
+            else { Text(label).font(.footnote.weight(.semibold)).foregroundStyle(RB.textMute) }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 28)
+    }
+
+    private func rollover(forward: Bool) {
+        guard !rolling else { return }
+        rolling = true
+        Task {
+            await store.goToWeek(offset: forward ? 1 : -1)
+            let landing = WeekStripLogic.rolloverLanding(forward: forward, weekDates: store.weekDates)
+            selectedDate = landing
+            pagerID = landing        // snap the new week's pager to the landing page
+            rolling = false
+        }
+    }
+
+    @ViewBuilder
+    private func dayPage(date: String) -> some View {
+        let workouts = store.workoutsByDate[date] ?? []
+        let extras = store.standaloneByDate[date] ?? []
+        VStack(spacing: 8) {
+            if workouts.isEmpty && extras.isEmpty {
+                dayEmptyState(label: "Nothing scheduled")
+            } else if workouts.allSatisfy({ $0.type == "rest" || $0.status == "rest" }) && extras.isEmpty {
+                dayEmptyState(label: "Rest day")
+            } else {
+                ForEach(workouts.filter { $0.type != "rest" && $0.status != "rest" }, id: \.id) { w in
+                    weekDayCard(date: date, workout: w)
+                }
+                ForEach(extras, id: \.id) { a in
+                    extraWeekRow(date: date, actual: a)
+                }
+            }
+        }
+    }
+
+    private func dayEmptyState(label: String) -> some View {
+        VStack(spacing: 6) {
+            Image(systemName: label == "Rest day" ? "moon.zzz" : "calendar")
+                .foregroundStyle(RB.textFaint)
+            Text(label).font(.footnote).foregroundStyle(RB.textMute)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 28)
+        .background(RB.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(RB.line, lineWidth: 1))
+    }
+
     private var weekSection: some View {
         VStack(spacing: 10) {
             // Nav row
@@ -642,35 +741,36 @@ struct CalendarView: View {
             }
             .buttonStyle(.plain)
 
-            // Day cards — only days with workouts
-            let workoutDays = store.weekDates.filter {
-                !(store.workoutsByDate[$0] ?? []).isEmpty || !(store.standaloneByDate[$0] ?? []).isEmpty
+            DayStrip(dates: store.weekDates, selected: selectedDate,
+                     marksFor: { date in
+                         WeekStripLogic.marks(workouts: store.workoutsByDate[date] ?? [],
+                                              extras: store.standaloneByDate[date] ?? [])
+                     },
+                     onPick: { date in
+                         withAnimation(.easeInOut(duration: 0.2)) { selectedDate = date }
+                     })
+
+            let weekIsEmpty = store.weekDates.allSatisfy {
+                (store.workoutsByDate[$0] ?? []).isEmpty && (store.standaloneByDate[$0] ?? []).isEmpty
             }
 
-            if workoutDays.isEmpty && store.phase == .loading {
-                // First-load skeleton rows
-                ForEach(0..<4, id: \.self) { _ in
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(RB.surface)
-                        .frame(height: 64)
-                        .redacted(reason: .placeholder)
+            if weekIsEmpty && store.phase == .loading {
+                VStack(spacing: 10) {
+                    ForEach(0..<3, id: \.self) { _ in
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(RB.surface)
+                            .frame(height: 64)
+                            .redacted(reason: .placeholder)
+                    }
                 }
-            } else if workoutDays.isEmpty && store.phase == .idle {
+            } else if weekIsEmpty && store.phase == .idle {
                 Text("Your coach hasn't built your plan yet.")
                     .font(.footnote)
                     .foregroundStyle(RB.textMute)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.vertical, 32)
             } else {
-                ForEach(workoutDays, id: \.self) { date in
-                    // A day can hold several workouts — one card each.
-                    ForEach(store.workoutsByDate[date] ?? [], id: \.id) { w in
-                        weekDayCard(date: date, workout: w)
-                    }
-                    ForEach(store.standaloneByDate[date] ?? [], id: \.id) { a in
-                        extraWeekRow(date: date, actual: a)
-                    }
-                }
+                dayPager
             }
 
             if case .error(let msg) = store.phase {
@@ -686,23 +786,9 @@ struct CalendarView: View {
         let isDone = w.status == "done"
         // Once logged, the card carries the actual run's distance/pace.
         let actual = isDone ? store.actualsByWorkout[w.id] : nil
-        let dowIndex = store.weekDates.firstIndex(of: date) ?? 0
-        let dow = Week.DOW[dowIndex].uppercased()
-        let dayNum = String(Int(date.suffix(2)) ?? 0)
 
         return Button { selected = w } label: {
             HStack(spacing: 12) {
-                // Day column
-                VStack(spacing: 2) {
-                    Text(dow)
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(RB.textFaint)
-                    Text(dayNum)
-                        .font(.body.weight(.bold))
-                        .foregroundStyle(isToday ? .white : RB.textMute)
-                }
-                .frame(width: 40)
-
                 // Icon tile
                 iconTile(type: w.type, size: 36, cornerRadius: 8)
 
@@ -738,16 +824,8 @@ struct CalendarView: View {
     }
 
     private func extraWeekRow(date: String, actual a: WorkoutActual) -> some View {
-        let dowIndex = store.weekDates.firstIndex(of: date) ?? 0
         return Button { selectedExtra = a } label: {
             HStack(spacing: 12) {
-                VStack(spacing: 2) {
-                    Text(Week.DOW[dowIndex].uppercased())
-                        .font(.caption2.weight(.bold)).foregroundStyle(RB.textFaint)
-                    Text(String(Int(date.suffix(2)) ?? 0))
-                        .font(.body.weight(.bold)).foregroundStyle(RB.textMute)
-                }
-                .frame(width: 40)
                 ZStack {
                     RoundedRectangle(cornerRadius: 8).fill(RB.surface2).frame(width: 36, height: 36)
                     Image(systemName: a.activitySymbol)
@@ -869,7 +947,7 @@ struct CalendarView: View {
                 }
                 .frame(height: 28)
 
-                // One dot per workout, tinted by type (a checkmark once done),
+                // One dot per workout in accent (a checkmark once done),
                 // up to three, then "+N".
                 if !workouts.isEmpty {
                     HStack(spacing: 3) {
