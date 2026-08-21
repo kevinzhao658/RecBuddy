@@ -624,9 +624,15 @@ struct CalendarView: View {
 
     // MARK: - Week Section
 
-    /// One page per day; ~88% width so the next day peeks. Strip and pager
-    /// stay in sync both ways: tap a pill → animate here; swipe → pill follows.
+    /// One page per day, full width — the focused day is centered with no
+    /// neighbor peek. Strip and pager stay in sync both ways: tap a pill →
+    /// animate here; swipe → pill follows.
     @State private var pagerID: String?
+    /// False until the pager has settled after (re)mounting. A freshly mounted
+    /// scroller starts at its LEADING edge (the "prev" sentinel) and writes
+    /// that position back before restoring — without this gate, returning from
+    /// month view fired a phantom backward rollover onto last week.
+    @State private var pagerReady = false
 
     private var dayPager: some View {
         ScrollView(.horizontal) {
@@ -642,7 +648,7 @@ struct CalendarView: View {
                 ForEach(store.weekDates, id: \.self) { date in
                     dayPage(date: date)
                         .id(date)
-                        .containerRelativeFrame(.horizontal) { len, _ in len * 0.88 }
+                        .containerRelativeFrame(.horizontal)
                 }
                 weekSentinel(label: "Next week ›").id("next")
                     .containerRelativeFrame(.horizontal) { len, _ in len * 0.4 }
@@ -652,13 +658,27 @@ struct CalendarView: View {
         .scrollTargetBehavior(.viewAligned)
         .scrollIndicators(.hidden)
         .scrollPosition(id: $pagerID)
-        .onAppear { pagerID = selectedDate }
+        .onAppear {
+            pagerReady = false
+            pagerID = selectedDate
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(400))
+                pagerID = selectedDate   // re-assert in case initial layout moved it
+                pagerReady = true
+            }
+        }
         .onChange(of: selectedDate) { _, new in
             guard pagerID != new else { return }
             withAnimation(.easeInOut(duration: 0.25)) { pagerID = new }
         }
         .onChange(of: pagerID) { _, new in
             guard let new else { return }
+            // Position writes before the pager settles are layout noise, not
+            // user intent — snap back instead of rolling weeks or reselecting.
+            guard pagerReady else {
+                if new != selectedDate { pagerID = selectedDate }
+                return
+            }
             if new == "next" { rollover(forward: true); return }
             if new == "prev" { rollover(forward: false); return }
             guard new != selectedDate, store.weekDates.contains(new) else { return }
