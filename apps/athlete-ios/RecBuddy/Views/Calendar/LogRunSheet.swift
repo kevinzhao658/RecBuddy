@@ -27,6 +27,8 @@ struct LogRunSheet: View {
     /// Direct TOTAL TIME entry for bike/swim (no pace — pace is a running
     /// concept, so non-run cross logs take distance + time instead).
     @State private var timeText: String
+    /// Average power for rides (watts, optional — needs a power meter).
+    @State private var watts: String
 
     init(workout: Workout, store: PlanStore, unit: Unit, existing: WorkoutActual? = nil) {
         self.workout = workout
@@ -37,9 +39,13 @@ struct LogRunSheet: View {
         _activity = State(initialValue: existing?.declaredActivity
             ?? (workout.type == "cross" ? "ride" : "run"))
         _timeText = State(initialValue: existing?.time ?? "")
+        _watts = State(initialValue: existing?.avgWatts.map(String.init) ?? "")
         if let existing {
             // Edit: prefill from the logged actual; sharing an update is opt-in.
-            _dist = State(initialValue: Units.fmtDist(existing.dist, unit))
+            // Swims prefill in meters — that's the unit the field takes.
+            _dist = State(initialValue: existing.declaredActivity == "swim"
+                ? String(SportMetrics.meters(fromMiles: existing.dist))
+                : Units.fmtDist(existing.dist, unit))
             _paceDigits = State(initialValue: Self.digits(fromPace: existing.pace, unit: unit))
             _hr = State(initialValue: existing.hr.map(String.init) ?? "")
             _feel = State(initialValue: existing.feel)
@@ -78,8 +84,11 @@ struct LogRunSheet: View {
         guard let disp = paceDispSeconds else { return nil }
         return Pace.fromSeconds(unit == .km ? Int((Double(disp) * Units.kmPerMi).rounded()) : disp)
     }
+    /// Swims enter distance in METERS; everything else in the athlete's unit.
+    private var isSwim: Bool { workout.type == "cross" && activity == "swim" }
     private var miles: Double? {
         guard let d = Double(dist), d > 0 else { return nil }
+        if isSwim { return SportMetrics.miles(fromMeters: d) }
         return (Units.toMiles(d, unit) * 100).rounded() / 100
     }
     /// TOTAL TIME derived from distance x average pace.
@@ -120,8 +129,8 @@ struct LogRunSheet: View {
                             }
                         }
 
-                        // Distance — digits + one decimal point only
-                        fieldGroup(label: "DISTANCE (\(unit.rawValue.uppercased()))") {
+                        // Distance — digits + one decimal point only (meters for swims)
+                        fieldGroup(label: isSwim ? "DISTANCE (M)" : "DISTANCE (\(unit.rawValue.uppercased()))") {
                             TextField("4.5", text: $dist)
                                 .keyboardType(.decimalPad)
                                 .foregroundStyle(.white)
@@ -162,6 +171,32 @@ struct LogRunSheet: View {
                                 TextField("45:00", text: $timeText)
                                     .foregroundStyle(.white)
                                     .rbField()
+                            }
+
+                            // Sport-native readout: rides in avg speed, swims /100m.
+                            if let m = miles, let s = typedTimeSeconds,
+                               let lens = activity == "swim"
+                                   ? SportMetrics.swimPace100Text(miles: m, seconds: s)
+                                   : SportMetrics.avgSpeedText(miles: m, seconds: s, unit: unit) {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    RBLabel(activity == "swim" ? "PACE /100M" : "AVG SPEED")
+                                    Text(lens)
+                                        .font(.body.weight(.semibold))
+                                        .foregroundStyle(RB.accent)
+                                }
+                            }
+
+                            // Power — the ride metric worth recording (optional).
+                            if activity == "ride" {
+                                fieldGroup(label: "AVG POWER (W, OPTIONAL)") {
+                                    TextField("210", text: $watts)
+                                        .keyboardType(.numberPad)
+                                        .foregroundStyle(.white)
+                                        .rbField()
+                                        .onChange(of: watts) { _, new in
+                                            watts = String(new.filter(\.isNumber).prefix(4))
+                                        }
+                                }
                             }
                         }
 
@@ -222,11 +257,20 @@ struct LogRunSheet: View {
                 }
             }
             .navigationTitle(existing != nil ? "Edit logged run" : "Complete workout")
-            .onChange(of: activity) { _, new in
+            .onChange(of: activity) { old, new in
                 // Switching a paced entry to bike/swim: carry the derived time
                 // over so the athlete doesn't retype what the form already knew.
                 if new != "run", timeText.isEmpty, let t = derivedTimeSeconds {
                     timeText = Pace.timeString(fromSeconds: t)
+                }
+                // The distance field changes units with the sport (meters for
+                // swims) — convert the typed value instead of dropping it.
+                if let d = Double(dist), d > 0 {
+                    if new == "swim", old != "swim" {
+                        dist = String(SportMetrics.meters(fromMiles: (Units.toMiles(d, unit) * 100).rounded() / 100))
+                    } else if old == "swim", new != "swim" {
+                        dist = Units.fmtDist(SportMetrics.miles(fromMeters: d), unit)
+                    }
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
@@ -323,18 +367,19 @@ struct LogRunSheet: View {
         }
         let time = Pace.timeString(fromSeconds: secs)
         let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        let avgWatts = activity == "ride" ? Int(watts) : nil
         do {
             if let existing {
                 // Edit in place — the workout stays done, the actual row updates.
                 try await store.updateRun(actualId: existing.id, dist: miles, time: time,
                                           pace: pace, hr: Int(hr), feel: feel,
                                           note: trimmedNote.isEmpty ? nil : trimmedNote,
-                                          activity: activity)
+                                          activity: activity, avgWatts: avgWatts)
             } else {
                 try await store.logRun(workout: workout, dist: miles, time: time,
                                        pace: pace, hr: Int(hr), feel: feel,
                                        note: trimmedNote.isEmpty ? nil : trimmedNote,
-                                       activity: activity)
+                                       activity: activity, avgWatts: avgWatts)
             }
             if share {
                 try? await ChatShare.shareRunCard(

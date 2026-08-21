@@ -1,5 +1,7 @@
 import type { Actual } from '../../lib/types'
 import { extraTitle } from '../../lib/extraTitle'
+import { actualActivity } from '../../lib/volume'
+import { avgSpeed, swimPace100, swimMeters } from '../../lib/sportMetrics'
 import { fmtShortDate, localDayOf } from '../../lib/week'
 import { useUnit } from '../../lib/useUnit'
 import { fmtDist, fmtPace } from '../../lib/units'
@@ -11,6 +13,9 @@ const label = 'mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] 
  *  HR. Mirrors WorkoutResults' layout so the two read as siblings. */
 export function ExtraActivityPanel({ actual, onClose }: { actual: Actual; onClose: () => void }) {
   const { unit } = useUnit()
+  const sport = actualActivity(actual)
+  const speed = sport === 'ride' ? avgSpeed(actual.dist, actual.time, unit) : null
+  const per100 = sport === 'swim' ? swimPace100(actual.dist, actual.time) : null
   return (
     <aside className="rb-surface flex h-full w-80 shrink-0 flex-col border-l border-line">
       <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
@@ -25,13 +30,33 @@ export function ExtraActivityPanel({ actual, onClose }: { actual: Actual; onClos
           {actual.dist != null && (
             <div className="rb-card rb-card-sm p-3">
               <span className={label}>Distance</span>
-              <span className="font-num text-lg font-bold">{fmtDist(actual.dist, unit)} {unit}</span>
+              <span className="font-num text-lg font-bold">
+                {sport === 'swim' ? swimMeters(actual.dist) : `${fmtDist(actual.dist, unit)} ${unit}`}
+              </span>
             </div>
           )}
-          {actual.pace && (
+          {sport === 'run' && actual.pace && (
             <div className="rb-card rb-card-sm p-3">
               <span className={label}>Avg pace</span>
               <span className="font-num text-lg font-bold">{fmtPace(actual.pace, unit)}</span>
+            </div>
+          )}
+          {speed && (
+            <div className="rb-card rb-card-sm p-3">
+              <span className={label}>Avg speed</span>
+              <span className="font-num text-lg font-bold">{speed}</span>
+            </div>
+          )}
+          {per100 && (
+            <div className="rb-card rb-card-sm p-3">
+              <span className={label}>Pace /100m</span>
+              <span className="font-num text-lg font-bold">{per100.replace(' /100m', '')}</span>
+            </div>
+          )}
+          {sport === 'ride' && actual.avg_watts != null && (
+            <div className="rb-card rb-card-sm p-3">
+              <span className={label}>Avg power</span>
+              <span className="font-num text-lg font-bold">{actual.avg_watts} W</span>
             </div>
           )}
           {actual.time && (

@@ -41,9 +41,12 @@ struct ActivitySample: Codable, Equatable, Identifiable {
     /// them). A lap-rich copy is the one worth keeping when duplicates
     /// collapse — laps are what future segment analysis reads.
     let lapEventCount: Int?
+    /// Average power (watts) — rides with a power meter; nil otherwise.
+    let avgWatts: Int?
 
     init(sourceId: String, source: ActivitySource, startDate: Date, distanceMeters: Double,
-         durationSeconds: Int, avgHR: Int?, kind: ActivityKind, lapEventCount: Int? = nil) {
+         durationSeconds: Int, avgHR: Int?, kind: ActivityKind, lapEventCount: Int? = nil,
+         avgWatts: Int? = nil) {
         self.sourceId = sourceId
         self.source = source
         self.startDate = startDate
@@ -52,6 +55,7 @@ struct ActivitySample: Codable, Equatable, Identifiable {
         self.avgHR = avgHR
         self.kind = kind
         self.lapEventCount = lapEventCount
+        self.avgWatts = avgWatts
     }
     var id: String { sourceId }
     /// Canonical storage distance (miles, 2 dp).

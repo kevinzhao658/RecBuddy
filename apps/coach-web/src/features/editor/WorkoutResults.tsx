@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import type { Workout } from '../../lib/types'
 import { useActual } from '../../lib/queries/actuals'
+import { actualActivity } from '../../lib/volume'
+import { avgSpeed, swimPace100, swimMeters } from '../../lib/sportMetrics'
 import { fmtShortDate } from '../../lib/week'
 import { useUnit } from '../../lib/useUnit'
 import { fmtDist, fmtPace } from '../../lib/units'
@@ -32,6 +34,12 @@ export function WorkoutResults({ workout, onClose }: { workout: Workout; onClose
   const [tab, setTab] = useState<'results' | 'plan'>('results')
   const { unit } = useUnit()
   const actual = useActual(workout.id)
+  // Sport-native lenses on the logged result: rides read in avg speed (+ power
+  // when recorded), swims in meters and /100m pace, runs in min/mi pace.
+  const a = actual.data
+  const sport = a ? actualActivity(a) : 'run'
+  const speed = a && sport === 'ride' ? avgSpeed(a.dist, a.time, unit) : null
+  const per100 = a && sport === 'swim' ? swimPace100(a.dist, a.time) : null
 
   return (
     <aside className="rb-surface flex h-full w-80 shrink-0 flex-col border-l border-line">
@@ -60,13 +68,33 @@ export function WorkoutResults({ workout, onClose }: { workout: Workout; onClose
                 {actual.data.dist != null && (
                   <div className="rb-card rb-card-sm p-3">
                     <span className={label}>Distance</span>
-                    <span className="font-num text-lg font-bold">{fmtDist(actual.data.dist, unit)} {unit}</span>
+                    <span className="font-num text-lg font-bold">
+                      {sport === 'swim' ? swimMeters(actual.data.dist) : `${fmtDist(actual.data.dist, unit)} ${unit}`}
+                    </span>
                   </div>
                 )}
-                {actual.data.pace && (
+                {sport === 'run' && actual.data.pace && (
                   <div className="rb-card rb-card-sm p-3">
                     <span className={label}>Avg pace</span>
                     <span className="font-num text-lg font-bold">{fmtPace(actual.data.pace, unit)}</span>
+                  </div>
+                )}
+                {speed && (
+                  <div className="rb-card rb-card-sm p-3">
+                    <span className={label}>Avg speed</span>
+                    <span className="font-num text-lg font-bold">{speed}</span>
+                  </div>
+                )}
+                {per100 && (
+                  <div className="rb-card rb-card-sm p-3">
+                    <span className={label}>Pace /100m</span>
+                    <span className="font-num text-lg font-bold">{per100.replace(' /100m', '')}</span>
+                  </div>
+                )}
+                {sport === 'ride' && actual.data.avg_watts != null && (
+                  <div className="rb-card rb-card-sm p-3">
+                    <span className={label}>Avg power</span>
+                    <span className="font-num text-lg font-bold">{actual.data.avg_watts} W</span>
                   </div>
                 )}
                 {actual.data.time && (

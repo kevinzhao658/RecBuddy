@@ -484,7 +484,7 @@ struct CalendarView: View {
                 Spacer()
                 HStack(spacing: 4) {
                     Image(systemName: "checkmark.circle.fill")
-                    Text("\(Units.fmtDist(a.dist, unit)) \(unit.rawValue)")
+                    Text(a.distDisplay(unit: unit))
                 }
                 .font(.caption2.weight(.semibold)).foregroundStyle(RB.accent)
                 .lineLimit(1).fixedSize(horizontal: true, vertical: false)
@@ -752,7 +752,7 @@ struct CalendarView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(a.extraTitle)
                         .font(.subheadline.weight(.semibold)).foregroundStyle(.white)
-                    Text("\(Units.fmtDist(a.dist, unit)) \(unit.rawValue) · \(a.time)")
+                    Text("\(a.distDisplay(unit: unit)) · \(a.time)")
                         .font(.caption).foregroundStyle(RB.textMute)
                 }
                 Spacer()

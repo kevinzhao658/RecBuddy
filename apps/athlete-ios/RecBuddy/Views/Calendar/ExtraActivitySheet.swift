@@ -17,17 +17,22 @@ struct ExtraActivitySheet: View {
     @State private var error: String?
 
     private var isRun: Bool { actual.declaredActivity == "run" }
+    private var isSwim: Bool { actual.declaredActivity == "swim" }
 
     init(actual: WorkoutActual, store: PlanStore, unit: Unit) {
         self.actual = actual
         self.store = store
         self.unit = unit
-        _dist = State(initialValue: Units.fmtDist(actual.dist, unit))
+        // Swims enter/read distance in meters — their conventional unit.
+        _dist = State(initialValue: actual.declaredActivity == "swim"
+            ? String(SportMetrics.meters(fromMiles: actual.dist))
+            : Units.fmtDist(actual.dist, unit))
         _time = State(initialValue: actual.time)
     }
 
     private var miles: Double? {
         guard let d = Double(dist), d > 0 else { return nil }
+        if isSwim { return SportMetrics.miles(fromMeters: d) }
         return (Units.toMiles(d, unit) * 100).rounded() / 100
     }
     private var seconds: Int? {
@@ -52,14 +57,31 @@ struct ExtraActivitySheet: View {
                             Text(Week.fmtDayDate(day)).font(.caption).foregroundStyle(RB.textMute)
                         }
                         VStack(alignment: .leading, spacing: 8) {
-                            RBLabel("DISTANCE (\(unit.rawValue.uppercased()))")
-                            TextField("4.5", text: $dist).keyboardType(.decimalPad)
+                            RBLabel(isSwim ? "DISTANCE (M)" : "DISTANCE (\(unit.rawValue.uppercased()))")
+                            TextField(isSwim ? "1500" : "4.5", text: $dist).keyboardType(.decimalPad)
                                 .foregroundStyle(.white).rbField()
                         }
                         VStack(alignment: .leading, spacing: 8) {
                             RBLabel("TOTAL TIME")
                             TextField("45:00", text: $time)
                                 .foregroundStyle(.white).rbField()
+                        }
+                        // Sport-native readout: rides in avg speed (+ power
+                        // when the recording has it), swims in /100m pace.
+                        if let m = miles, let s = seconds,
+                           let lens = isSwim
+                               ? SportMetrics.swimPace100Text(miles: m, seconds: s)
+                               : (isRun ? nil : SportMetrics.avgSpeedText(miles: m, seconds: s, unit: unit)) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                RBLabel(isSwim ? "PACE /100M" : "AVG SPEED")
+                                Text(lens).font(.body.weight(.semibold)).foregroundStyle(RB.accent)
+                            }
+                        }
+                        if actual.declaredActivity == "ride", let w = actual.avgWatts {
+                            VStack(alignment: .leading, spacing: 8) {
+                                RBLabel("AVG POWER")
+                                Text("\(w) W").font(.body.weight(.semibold)).foregroundStyle(.white)
+                            }
                         }
                         if let hr = actual.hr {
                             VStack(alignment: .leading, spacing: 8) {

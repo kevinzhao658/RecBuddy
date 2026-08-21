@@ -39,7 +39,7 @@ final class SupabaseLogSink: ActivityLogSink {
             let workout_id: String; let athlete_id: String; let dist: Double
             let pace: String?; let time: String; let hr: Int?
             let source: String; let source_id: String; let recorded_at: String
-            let activity: String?
+            let activity: String?; let avg_watts: Int?
         }
         let pace = sample.kind == .running
             ? Pace.derive(miles: sample.miles, totalSeconds: sample.durationSeconds) : nil
@@ -48,7 +48,8 @@ final class SupabaseLogSink: ActivityLogSink {
                             hr: sample.avgHR, source: sample.source.rawValue,
                             source_id: sample.sourceId,
                             recorded_at: ISO8601DateFormatter().string(from: sample.startDate),
-                            activity: sample.kind.activityString)
+                            activity: sample.kind.activityString,
+                            avg_watts: sample.avgWatts)
         do {
             try await Supa.shared.from("workout_actuals").insert(row).execute()
         } catch {
@@ -64,7 +65,7 @@ final class SupabaseLogSink: ActivityLogSink {
             let athlete_id: String; let dist: Double; let pace: String?
             let time: String; let hr: Int?; let source: String
             let source_id: String; let recorded_at: String
-            let activity: String?
+            let activity: String?; let avg_watts: Int?
         }
         let pace = sample.kind == .running
             ? Pace.derive(miles: sample.miles, totalSeconds: sample.durationSeconds) : nil
@@ -73,7 +74,8 @@ final class SupabaseLogSink: ActivityLogSink {
                                 hr: sample.avgHR, source: sample.source.rawValue,
                                 source_id: sample.sourceId,
                                 recorded_at: ISO8601DateFormatter().string(from: sample.startDate),
-                                activity: sample.kind.activityString)
+                                activity: sample.kind.activityString,
+                                avg_watts: sample.avgWatts)
         do {
             try await Supa.shared.from("workout_actuals").insert(row).execute()
         } catch {

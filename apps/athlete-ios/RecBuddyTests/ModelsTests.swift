@@ -77,5 +77,18 @@ import Foundation
         #expect(a.declaredActivity == "swim")
         #expect(a.extraTitle == "Extra swim")
         #expect(a.activitySymbol == "figure.pool.swim")
+        #expect(a.avgWatts == nil)   // no avg_watts key -> nil, not a decode failure
+    }
+
+    @Test func decodesRideWithAvgWatts() throws {
+        let json = """
+        {"id":"a3","workout_id":null,"athlete_id":"u1","dist":15.3,"pace":null,
+         "time":"52:00","hr":132,"feel":null,"note":null,"source":"apple_health",
+         "source_id":"HK-UUID-3","recorded_at":"2026-08-20T14:03:22+00:00",
+         "activity":"ride","avg_watts":210}
+        """.data(using: .utf8)!
+        let a = try decoder.decode(WorkoutActual.self, from: json)
+        #expect(a.avgWatts == 210)
+        #expect(a.declaredActivity == "ride")
     }
 }

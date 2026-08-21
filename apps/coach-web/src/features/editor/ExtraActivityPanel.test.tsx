@@ -30,3 +30,23 @@ test('a declared swim titles as Extra swim', () => {
   render(<ExtraActivityPanel actual={{ ...run, pace: null, activity: 'swim' }} onClose={() => {}} />)
   expect(screen.getByText(/extra swim/i)).toBeInTheDocument()
 })
+
+test('a ride reads in avg speed and power; no run pace tile', () => {
+  render(<ExtraActivityPanel
+    actual={{ ...run, dist: 15.3, time: '52:00', pace: null, activity: 'ride', avg_watts: 210 }}
+    onClose={() => {}} />)
+  expect(screen.getByText('Avg speed')).toBeInTheDocument()
+  expect(screen.getByText('17.7 mph')).toBeInTheDocument()
+  expect(screen.getByText('Avg power')).toBeInTheDocument()
+  expect(screen.getByText('210 W')).toBeInTheDocument()
+  expect(screen.queryByText('Avg pace')).toBeNull()
+})
+
+test('a swim reads in meters and /100m pace', () => {
+  render(<ExtraActivityPanel
+    actual={{ ...run, dist: 1500 / 1609.344, time: '26:15', pace: null, activity: 'swim' }}
+    onClose={() => {}} />)
+  expect(screen.getByText('1,500 m')).toBeInTheDocument()
+  expect(screen.getByText('Pace /100m')).toBeInTheDocument()
+  expect(screen.getByText('1:45')).toBeInTheDocument()
+})
