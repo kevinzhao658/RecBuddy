@@ -39,7 +39,7 @@ struct DayStrip: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(dow) \(date)")
+        .accessibilityLabel("\(dow) \(Week.fmtShortDate(date))")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 

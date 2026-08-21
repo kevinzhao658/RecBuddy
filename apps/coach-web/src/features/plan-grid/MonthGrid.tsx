@@ -33,7 +33,7 @@ function DayCell({ date, ws, inMonth, isToday, isSel, canEdit, onPick }: {
   // Green outline is reserved for the current day only; a picked day gets a
   // neutral ring so lime never reads as "today" on the wrong cell.
   const ring = drop.isOver ? 'z-10 ring-2 ring-inset ring-accent' : isToday ? 'ring-2 ring-inset ring-accent' : isSel ? 'ring-2 ring-inset ring-text/40' : ''
-  // One tinted icon per workout, up to three, then +N — a quick read of how
+  // One accent icon per workout, up to three, then +N — a quick read of how
   // loaded the day is without opening it.
   const iconWs = ws.filter((x) => x.type !== 'rest' && x.status !== 'rest')
   return (

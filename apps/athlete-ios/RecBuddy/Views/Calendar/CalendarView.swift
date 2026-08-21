@@ -947,7 +947,7 @@ struct CalendarView: View {
                 }
                 .frame(height: 28)
 
-                // One dot per workout, tinted by type (a checkmark once done),
+                // One dot per workout in accent (a checkmark once done),
                 // up to three, then "+N".
                 if !workouts.isEmpty {
                     HStack(spacing: 3) {
