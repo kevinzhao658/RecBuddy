@@ -27,6 +27,22 @@ test("the 'other' type drops metrics but keeps phases and the note", () => {
   expect(screen.getByLabelText('Note')).toBeInTheDocument()
 })
 
+test('cross keeps total time but drops distance and pace (athlete picks the sport)', () => {
+  render(<Harness initial={{ type: 'cross', title: 'Cross Training' }} />)
+  expect(screen.queryByLabelText('Distance')).toBeNull()
+  expect(screen.queryByLabelText('Pace')).toBeNull()
+  expect(screen.getByLabelText('Total time')).toBeInTheDocument()
+})
+
+test('switching a workout to Cross clears its distance and pace', () => {
+  render(<Harness initial={{ dist: 5, pace: '9:00/mi' }} />)
+  fireEvent.click(screen.getByRole('button', { name: /cross/i }))
+  expect(screen.queryByLabelText('Distance')).toBeNull()
+  // Switching back shows the fields again, now empty — the values were cleared.
+  fireEvent.click(screen.getByRole('button', { name: /easy/i }))
+  expect((screen.getByLabelText('Distance') as HTMLInputElement).value).toBe('')
+})
+
 test('editing distance + total time derives the pace (third field auto-calcs)', () => {
   render(<Harness initial={{}} />)
   fireEvent.change(screen.getByLabelText('Distance'), { target: { value: '5' } })
