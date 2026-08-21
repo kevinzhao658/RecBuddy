@@ -4,8 +4,8 @@ import type { WorkoutType } from '../../lib/types'
  *  (runner, arrow-to-line, bolt, gauge, heart, circling-arcs, crescent-zzz,
  *  checkered flag) — redrawn as original line art (SF Symbols are
  *  Apple-platform-only, so the glyphs themselves can't ship on the web).
- *  Icons render in the caller's text color; every surface passes `text-accent`
- *  for consistency with the athlete iOS app. */
+ *  Colored per TYPE_TINT below (effort/long/aerobic); rest/other inherit the
+ *  caller's text color. */
 /** Intensity tints (match athlete iOS): orange = effort, blue = long, green =
  *  aerobic; rest/other inherit the surrounding text color. Accent-only was
  *  tried and reverted — color answers "which days are hard" at a glance. */

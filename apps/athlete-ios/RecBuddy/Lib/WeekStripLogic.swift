@@ -20,6 +20,13 @@ enum WeekStripLogic {
 }
 
 extension WeekStripLogic {
+    /// Always one decimal ("5.0 mi"), deliberately NOT Units.fmtDist (which
+    /// drops the decimal on whole numbers) — the columns match the mileage
+    /// gauge's fixed-precision convention and the approved mockups.
+    private static func distText(_ miles: Double, _ unit: Unit) -> String {
+        String(format: "%.1f", Units.fromMiles(miles, unit)) + " \(unit.rawValue)"
+    }
+
     /// Planned non-rest workouts first (distance in the athlete's unit;
     /// time-based targets as apostrophe minutes), then extras (swims in
     /// meters). Pure — drives every column.
@@ -28,9 +35,7 @@ extension WeekStripLogic {
         for w in workouts where w.type != "rest" && w.status != "rest" {
             let text: String?
             if let d = w.dist {
-                let convertedDist = Units.fromMiles(d, unit)
-                let formatted = String(format: "%.1f", convertedDist)
-                text = "\(formatted) \(unit.rawValue)"
+                text = distText(d, unit)
             } else if let mins = w.estMinutes ?? w.dur {
                 text = "\(mins)'"
             } else {
@@ -41,11 +46,7 @@ extension WeekStripLogic {
         for a in extras {
             let text = a.declaredActivity == "swim"
                 ? "\(SportMetrics.meters(fromMiles: a.dist))m"
-                : {
-                    let convertedDist = Units.fromMiles(a.dist, unit)
-                    let formatted = String(format: "%.1f", convertedDist)
-                    return "\(formatted) \(unit.rawValue)"
-                }()
+                : distText(a.dist, unit)
             out.append(GlancePair(icon: .sport(a.declaredActivity), text: text))
         }
         return out

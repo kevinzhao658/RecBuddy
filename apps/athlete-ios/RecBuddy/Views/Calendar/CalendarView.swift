@@ -39,7 +39,8 @@ struct CalendarView: View {
     // The headliner shows the SELECTED day (today by default) — the week
     // columns pilot it. selectedDate is always inside the displayed week.
     private var todayWorkouts: [Workout] {
-        store.workoutsByDate[selectedDate] ?? []
+        (store.workoutsByDate[selectedDate] ?? [])
+            .filter { $0.type != "rest" && $0.status != "rest" }
     }
 
     private var todayExtras: [WorkoutActual] {
@@ -413,6 +414,19 @@ struct CalendarView: View {
         ZStack(alignment: .topTrailing) {
             if activeToday != nil {
                 todayStack
+            } else if !todayExtras.isEmpty {
+                // No planned workout, but logged extras exist (e.g. a synced
+                // ride on an empty day): the placeholder plays hero so the
+                // extras keep their tucked tabs — and their tap-through.
+                VStack(spacing: 0) {
+                    emptyDayCard
+                        .zIndex(1)
+                    ForEach(Array(todayExtras.enumerated()), id: \.element.id) { i, a in
+                        extraSliver(a)
+                            .padding(.top, i == 0 ? -12 : -16)
+                            .zIndex(Double(-(i + 1)))
+                    }
+                }
             } else {
                 emptyDayCard
             }
@@ -452,7 +466,8 @@ struct CalendarView: View {
     }
 
     private var emptyDayCard: some View {
-        let rest = WeekStripLogic.isRestOnly(workouts: todayWorkouts, extras: todayExtras)
+        let rest = WeekStripLogic.isRestOnly(workouts: store.workoutsByDate[selectedDate] ?? [],
+                                             extras: todayExtras)
         return VStack(spacing: 6) {
             Image(systemName: rest ? TypeBadge.symbol(for: "rest") : "calendar")
                 .foregroundStyle(RB.textFaint)
@@ -581,7 +596,8 @@ struct CalendarView: View {
             VStack(alignment: .leading, spacing: 0) {
                 // Top row: TODAY badge + date
                 HStack {
-                    Text("TODAY")
+                    Text(w.date == Week.todayISO() ? "TODAY"
+                        : (store.weekDates.firstIndex(of: w.date).map { Week.DOW[$0].uppercased() } ?? "DAY"))
                         .font(.caption2.weight(.bold))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 10)
