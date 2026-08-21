@@ -36,15 +36,14 @@ struct CalendarView: View {
     @State private var mode: Mode = .week
     @State private var monthAnchor: String = Week.todayISO()
 
-    // Today's workouts only when today falls in the currently displayed week.
+    // The headliner shows the SELECTED day (today by default) — the week
+    // columns pilot it. selectedDate is always inside the displayed week.
     private var todayWorkouts: [Workout] {
-        let today = Week.todayISO()
-        guard store.weekDates.contains(today) else { return [] }
-        return store.workoutsByDate[today] ?? []
+        store.workoutsByDate[selectedDate] ?? []
     }
 
     private var todayExtras: [WorkoutActual] {
-        store.standaloneByDate[Week.todayISO()] ?? []
+        store.standaloneByDate[selectedDate] ?? []
     }
 
     // Today's stack order: still-to-do workouts first (in plan order), completed
@@ -109,7 +108,7 @@ struct CalendarView: View {
 
                     // Headliner: the active workout shows full; the day's other
                     // workouts tuck behind it as tappable slivers (icon + name).
-                    todayStack
+                    headlinerSection
 
                     modeToggle
 
@@ -140,6 +139,7 @@ struct CalendarView: View {
                 activeTodayId = nil
             }
         }
+        .onChange(of: selectedDate) { _, _ in activeTodayId = nil }
         .sheet(item: $selected) { w in
             WorkoutDetailSheet(workout: w, store: store, unit: unit)
         }
@@ -405,6 +405,67 @@ struct CalendarView: View {
     }
 
     // MARK: - TODAY Headliner Stack
+
+    /// The headliner deck (verbatim), overlaid with the "↩ Today" chip when
+    /// the athlete has navigated off today. An empty/rest selected day shows
+    /// a quiet placeholder card instead of nothing.
+    private var headlinerSection: some View {
+        ZStack(alignment: .topTrailing) {
+            if activeToday != nil {
+                todayStack
+            } else {
+                emptyDayCard
+            }
+            if selectedDate != Week.todayISO() {
+                todayChip
+                    .offset(x: -6, y: -9)
+                    .zIndex(10)
+            }
+        }
+    }
+
+    private var todayChip: some View {
+        Button {
+            let today = Week.todayISO()
+            if store.weekDates.contains(today) {
+                withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) {
+                    selectedDate = today
+                }
+            } else {
+                Task {
+                    store.weekMonday = Week.mondayOf(today)
+                    await store.refresh()
+                    selectedDate = today
+                }
+            }
+        } label: {
+            Text("↩ Today")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(RB.bg)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(RB.accent)
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Back to today")
+    }
+
+    private var emptyDayCard: some View {
+        let rest = WeekStripLogic.isRestOnly(workouts: todayWorkouts, extras: todayExtras)
+        return VStack(spacing: 6) {
+            Image(systemName: rest ? TypeBadge.symbol(for: "rest") : "calendar")
+                .foregroundStyle(RB.textFaint)
+            Text(rest ? "Rest day" : "Nothing scheduled")
+                .font(.footnote)
+                .foregroundStyle(RB.textMute)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 28)
+        .background(RB.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 18))
+        .overlay(RoundedRectangle(cornerRadius: 18).stroke(RB.line, lineWidth: 1))
+    }
 
     /// A day with several workouts reads as a deck: the active one is the full
     /// hero card, the rest peek beneath as slivers you can tap to bring forward.
