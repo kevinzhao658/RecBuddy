@@ -631,11 +631,15 @@ struct CalendarView: View {
     private var dayPager: some View {
         ScrollView(.horizontal) {
             LazyHStack(alignment: .top, spacing: 10) {
+                weekSentinel(label: "‹ Last week").id("prev")
+                    .containerRelativeFrame(.horizontal) { len, _ in len * 0.4 }
                 ForEach(store.weekDates, id: \.self) { date in
                     dayPage(date: date)
                         .id(date)
                         .containerRelativeFrame(.horizontal) { len, _ in len * 0.88 }
                 }
+                weekSentinel(label: "Next week ›").id("next")
+                    .containerRelativeFrame(.horizontal) { len, _ in len * 0.4 }
             }
             .scrollTargetLayout()
         }
@@ -648,8 +652,35 @@ struct CalendarView: View {
             withAnimation(.easeInOut(duration: 0.25)) { pagerID = new }
         }
         .onChange(of: pagerID) { _, new in
-            guard let new, new != selectedDate, store.weekDates.contains(new) else { return }
+            guard let new else { return }
+            if new == "next" { rollover(forward: true); return }
+            if new == "prev" { rollover(forward: false); return }
+            guard new != selectedDate, store.weekDates.contains(new) else { return }
             withAnimation(.easeInOut(duration: 0.15)) { selectedDate = new }
+        }
+    }
+
+    /// Debounces edge rollovers — a second fling while a week loads is ignored.
+    @State private var rolling = false
+
+    private func weekSentinel(label: String) -> some View {
+        VStack {
+            if rolling { ProgressView().tint(RB.accent) }
+            else { Text(label).font(.footnote.weight(.semibold)).foregroundStyle(RB.textMute) }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 28)
+    }
+
+    private func rollover(forward: Bool) {
+        guard !rolling else { return }
+        rolling = true
+        Task {
+            await store.goToWeek(offset: forward ? 1 : -1)
+            let landing = WeekStripLogic.rolloverLanding(forward: forward, weekDates: store.weekDates)
+            selectedDate = landing
+            pagerID = landing        // snap the new week's pager to the landing page
+            rolling = false
         }
     }
 
