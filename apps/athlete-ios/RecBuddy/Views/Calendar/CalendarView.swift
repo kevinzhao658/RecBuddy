@@ -658,15 +658,12 @@ struct CalendarView: View {
         .scrollTargetBehavior(.viewAligned)
         .scrollIndicators(.hidden)
         .scrollPosition(id: $pagerID)
-        .onAppear {
-            pagerReady = false
-            pagerID = selectedDate
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(400))
-                pagerID = selectedDate   // re-assert in case initial layout moved it
-                pagerReady = true
-            }
-        }
+        // Fresh scroller per week: chevrons/rollovers replace the page ids, so
+        // remounting (instead of mutating content under a stale offset) routes
+        // EVERY restore — week change, month→week, first load — through the
+        // single onAppear path below.
+        .id(store.weekMonday)
+        .onAppear { snapPager(to: selectedDate) }
         .onChange(of: selectedDate) { _, new in
             guard pagerID != new else { return }
             withAnimation(.easeInOut(duration: 0.25)) { pagerID = new }
@@ -689,6 +686,22 @@ struct CalendarView: View {
     /// Debounces edge rollovers — a second fling while a week loads is ignored.
     @State private var rolling = false
 
+    /// Programmatic restore. Assigning scrollPosition its CURRENT value is a
+    /// no-op to SwiftUI — the scroller never receives a scroll command and
+    /// stays at its leading edge (this is exactly how month→week kept landing
+    /// on "Nothing scheduled"). Clearing first, then setting on the next tick,
+    /// guarantees a real transition; pagerReady stays false until it settles.
+    private func snapPager(to date: String) {
+        pagerReady = false
+        pagerID = nil
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(80))
+            pagerID = date
+            try? await Task.sleep(for: .milliseconds(350))
+            pagerReady = true
+        }
+    }
+
     private func weekSentinel(label: String) -> some View {
         VStack {
             if rolling { ProgressView().tint(RB.accent) }
@@ -703,9 +716,10 @@ struct CalendarView: View {
         rolling = true
         Task {
             await store.goToWeek(offset: forward ? 1 : -1)
-            let landing = WeekStripLogic.rolloverLanding(forward: forward, weekDates: store.weekDates)
-            selectedDate = landing
-            pagerID = landing        // snap the new week's pager to the landing page
+            // The weekMonday change remounts the pager (its .id), whose
+            // onAppear snaps to selectedDate — so setting the landing here is
+            // all that's needed.
+            selectedDate = WeekStripLogic.rolloverLanding(forward: forward, weekDates: store.weekDates)
             rolling = false
         }
     }
