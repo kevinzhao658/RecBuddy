@@ -34,6 +34,22 @@ test('done workout without a log falls back to planned dist, bucketed by type', 
   expect(v.cross.done).toBe(10)
 })
 
+test('cross has no projected mileage: planned stays 0 and never feeds run', () => {
+  const v = volumeSplit([w('w1', 'easy', 5), w('w2', 'cross', 10)], {}, [])
+  expect(v.run.planned).toBe(5)
+  expect(v.cross.planned).toBe(0)
+  expect(v.hasCross).toBe(false)   // planned-only cross doesn't reveal the gauge
+})
+
+test('crossMin tracks cross-prescribed vs logged minutes (extras add to done)', () => {
+  // w1 cross est 60min planned, done+logged 52:00; extra ride 40:00.
+  const cross = { ...w('w1', 'cross', null, 'done'), est_minutes: 60 }
+  const v = volumeSplit([cross, w('w2', 'easy', 5)],
+    { w1: act('w1', 15.3, null, '52:00', 'ride') }, [extra(12, null, '40:00', 'ride')])
+  expect(v.crossMin.planned).toBe(60)
+  expect(v.crossMin.done).toBe(52 + 40)
+})
+
 test('anything logged against a cross workout lands on the cross side — even with a run pace', () => {
   const v = volumeSplit(
     [w('w1', 'cross', null, 'done'), w('w2', 'cross', null, 'done')],

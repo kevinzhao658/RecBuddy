@@ -22,7 +22,7 @@ test('without a log, done falls back to planned (old behavior preserved)', () =>
   expect(screen.getByText(/\/ 12\.0 mi/)).toBeInTheDocument()
 })
 
-test('cross volume reveals the dropdown; selecting Cross shows cross numbers', () => {
+test('cross volume reveals the dropdown; Cross shows done-only miles and cross time', () => {
   function Wrap() {
     const [mode, setMode] = useState<'run' | 'cross'>('run')
     const week = [[run('w1', 8), run('c1', 15, 'done', 'cross')], [], [], [], [], [], []]
@@ -32,8 +32,9 @@ test('cross volume reveals the dropdown; selecting Cross shows cross numbers', (
   render(<Wrap />)
   fireEvent.change(screen.getByRole('combobox', { name: /volume sport/i }), { target: { value: 'cross' } })
   expect(screen.getByText('Cross mileage')).toBeInTheDocument()
-  expect(screen.getByText('12.4')).toBeInTheDocument()
-  expect(screen.getByText(/\/ 15\.0 mi/)).toBeInTheDocument()
+  expect(screen.getByText('12.4 mi')).toBeInTheDocument()      // done-only figure
+  expect(screen.queryByText(/\/ .*mi/)).toBeNull()             // no projected total
+  expect(screen.getByText('Cross time')).toBeInTheDocument()   // time stat flips too
 })
 
 test('cross mode color-codes the bar with a per-sport legend', () => {

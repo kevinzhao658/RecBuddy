@@ -24,13 +24,21 @@ export function WeekStats({ week, actuals = {}, extras = [], mode = 'run', onMod
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
       {vol.hasCross && onModeChange && <ModeSelect mode={mode} onChange={onModeChange} />}
       <ProgressStat label={label} done={side.done} planned={side.planned}
-        doneText={fromMiles(side.done, unit).toFixed(1)}
-        plannedText={`${fromMiles(side.planned, unit).toFixed(1)} ${unit}`}
+        doneText={crossMode
+          ? `${fromMiles(side.done, unit).toFixed(1)} ${unit}`
+          : fromMiles(side.done, unit).toFixed(1)}
+        plannedText={crossMode ? undefined : `${fromMiles(side.planned, unit).toFixed(1)} ${unit}`}
         tint="bg-accent"
         segments={crossMode ? crossSegments(vol.crossDone) : undefined} />
-      <ProgressStat label="Time on feet" done={vol.doneMin} planned={vol.plannedMin}
-        doneText={fmtDur(vol.doneMin)} plannedText={fmtDur(vol.plannedMin)}
-        tint="bg-text-mute" />
+      {crossMode ? (
+        <ProgressStat label="Cross time" done={vol.crossMin.done} planned={vol.crossMin.planned}
+          doneText={fmtDur(vol.crossMin.done)} plannedText={fmtDur(vol.crossMin.planned)}
+          tint="bg-text-mute" />
+      ) : (
+        <ProgressStat label="Time on feet" done={vol.doneMin} planned={vol.plannedMin}
+          doneText={fmtDur(vol.doneMin)} plannedText={fmtDur(vol.plannedMin)}
+          tint="bg-text-mute" />
+      )}
     </div>
   )
 }

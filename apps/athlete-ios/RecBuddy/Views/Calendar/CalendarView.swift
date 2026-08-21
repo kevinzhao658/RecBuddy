@@ -292,9 +292,11 @@ struct CalendarView: View {
 
     private var mileageBlock: some View {
         // Run and cross volumes never mix — the chip swaps which one the gauge
-        // shows. Pure runners never see the chip (zero added chrome).
+        // shows. Pure runners never see the chip (zero added chrome). Cross is
+        // DONE-ONLY (no projected total — the athlete picks the sport), so its
+        // bar is a full-width composition split by sport.
         let cross = showCrossMileage && store.weekHasCrossVolume
-        let planned = cross ? store.weekPlannedCrossMiles : store.weekPlannedRunMiles
+        let planned = store.weekPlannedRunMiles
         let done = cross ? store.weekDoneCrossMiles : store.weekDoneRunMiles
         return VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
@@ -307,7 +309,7 @@ struct CalendarView: View {
                     Text(fmtMiles(done))
                         .font(.subheadline.weight(.bold))
                         .foregroundStyle(RB.accent)
-                    Text("/ \(fmtMiles(planned)) mi")
+                    Text(cross ? "mi" : "/ \(fmtMiles(planned)) mi")
                         .font(.subheadline)
                         .foregroundStyle(RB.textMute)
                 }
@@ -315,20 +317,20 @@ struct CalendarView: View {
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
                     Capsule().fill(RB.surface2)
-                    let frac = planned > 0 ? min(done / planned, 1.0) : 0.0
-                    if cross && done > 0 {
-                        // Color-coded per sport: bike keeps the accent; swim
-                        // and run get distinct tints. Widths keep each sport's
-                        // share of the done fill.
-                        let s = store.weekCrossDoneBySport
-                        let fill = proxy.size.width * CGFloat(frac)
-                        HStack(spacing: 0) {
-                            Rectangle().fill(RB.accent).frame(width: fill * CGFloat(s.ride / done))
-                            Rectangle().fill(Color.cyan).frame(width: fill * CGFloat(s.swim / done))
-                            Rectangle().fill(Color.orange).frame(width: fill * CGFloat(s.run / done))
+                    if cross {
+                        // Composition bar: full width divided by each sport's
+                        // share of the done miles (bike accent, swim, run).
+                        if done > 0 {
+                            let s = store.weekCrossDoneBySport
+                            HStack(spacing: 0) {
+                                Rectangle().fill(RB.accent).frame(width: proxy.size.width * CGFloat(s.ride / done))
+                                Rectangle().fill(Color.cyan).frame(width: proxy.size.width * CGFloat(s.swim / done))
+                                Rectangle().fill(Color.orange).frame(width: proxy.size.width * CGFloat(s.run / done))
+                            }
+                            .clipShape(Capsule())
                         }
-                        .clipShape(Capsule())
                     } else {
+                        let frac = planned > 0 ? min(done / planned, 1.0) : 0.0
                         Capsule()
                             .fill(RB.accent)
                             .frame(width: proxy.size.width * CGFloat(frac))
@@ -343,14 +345,13 @@ struct CalendarView: View {
                     if s.swim > 0 { sportLegend(Color.cyan, "Swim") }
                     if s.run > 0 { sportLegend(Color.orange, "Run") }
                 }
-            }
-            if planned > 0 {
+            } else if planned > 0 {
                 Text("\(fmtMiles(max(planned - done, 0))) mi to go this week")
                     .font(.caption)
                     .foregroundStyle(RB.textFaint)
             } else {
                 // Done volume with nothing planned (e.g. off-plan extras only).
-                Text(cross ? "No cross-training planned this week" : "No runs planned this week")
+                Text("No runs planned this week")
                     .font(.caption)
                     .foregroundStyle(RB.textFaint)
             }

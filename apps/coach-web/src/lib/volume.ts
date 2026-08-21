@@ -13,6 +13,9 @@ export interface PeriodVolume {
   run: VolumeSide; cross: VolumeSide; hasCross: boolean
   crossDone: CrossDoneBySport
   plannedMin: number; doneMin: number
+  /** Cross-only minutes — the time stat flips to this in cross mode (time IS
+   *  the cross prescription, so planned-vs-done is meaningful here). */
+  crossMin: { planned: number; done: number }
 }
 
 /** '46:48' or '1:25:14' -> whole minutes (rounded); null if unparseable. */
@@ -36,35 +39,44 @@ export function actualActivity(a: Actual): 'run' | 'ride' | 'swim' {
  *  WORKOUT'S type ('cross' -> cross, else run) — whatever gets recorded
  *  against a cross workout (bike, swim, even a run) counts toward cross
  *  totals, never run. Extras bucket by declared activity ('run' -> run;
- *  'ride'/'swim' -> cross; legacy null -> pace inference). Time on feet stays
+ *  'ride'/'swim' -> cross; legacy null -> pace inference). Cross has NO
+ *  planned side (cross.planned stays 0): prescriptions are time-based and
+ *  the athlete picks the sport, so there is no projected cross mileage —
+ *  cross time still counts toward planned time on feet. Time on feet stays
  *  combined: logged elapsed when present, estMinutes fallback. Mirrors the
  *  athlete app's PlanStore split exactly. */
 export function volumeSplit(workouts: Workout[], actuals: Record<string, Actual>, extras: Actual[]): PeriodVolume {
   const run: VolumeSide = { planned: 0, done: 0 }
   const cross: VolumeSide = { planned: 0, done: 0 }
   const crossDone: CrossDoneBySport = { run: 0, ride: 0, swim: 0 }
+  const crossMin = { planned: 0, done: 0 }
   let plannedMin = 0, doneMin = 0
   for (const w of workouts) {
-    if (w.type !== 'rest') (w.type === 'cross' ? cross : run).planned += w.dist ?? 0
+    if (w.type !== 'rest' && w.type !== 'cross') run.planned += w.dist ?? 0
     plannedMin += estMinutes(w)
+    if (w.type === 'cross') crossMin.planned += estMinutes(w)
     if (w.status !== 'done') continue
     const a = actuals[w.id]
-    if (a) {
-      const dist = a.dist ?? 0
-      ;(w.type === 'cross' ? cross : run).done += dist
-      if (w.type === 'cross') crossDone[actualActivity(a)] += dist
-      doneMin += elapsedToMin(a.time) ?? estMinutes(w)
+    const mins = a ? elapsedToMin(a.time) ?? estMinutes(w) : estMinutes(w)
+    doneMin += mins
+    if (w.type === 'cross') {
+      const dist = a ? a.dist ?? 0 : w.dist ?? 0
+      cross.done += dist
+      crossDone[a ? actualActivity(a) : 'ride'] += dist
+      crossMin.done += mins
     } else {
-      ;(w.type === 'cross' ? cross : run).done += w.dist ?? 0
-      if (w.type === 'cross') crossDone.ride += w.dist ?? 0
-      doneMin += estMinutes(w)
+      run.done += a ? a.dist ?? 0 : w.dist ?? 0
     }
   }
   for (const a of extras) {
     const sport = actualActivity(a)
+    const mins = elapsedToMin(a.time) ?? 0
     ;(sport === 'run' ? run : cross).done += a.dist ?? 0
-    if (sport !== 'run') crossDone[sport] += a.dist ?? 0
-    doneMin += elapsedToMin(a.time) ?? 0
+    if (sport !== 'run') {
+      crossDone[sport] += a.dist ?? 0
+      crossMin.done += mins
+    }
+    doneMin += mins
   }
-  return { run, cross, hasCross: cross.planned > 0 || cross.done > 0, crossDone, plannedMin, doneMin }
+  return { run, cross, hasCross: cross.done > 0, crossDone, plannedMin, doneMin, crossMin }
 }

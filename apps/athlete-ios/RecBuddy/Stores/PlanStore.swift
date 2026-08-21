@@ -23,13 +23,14 @@ final class PlanStore {
     /// Run and CROSS volumes are tracked SEPARATELY so the gauge never mixes
     /// them: whatever gets logged against a cross workout (bike, swim, even a
     /// run) counts toward cross totals, never run. Every other non-rest type
-    /// is the run side.
-    var weekPlannedRunMiles: Double { plannedMiles(cross: false) }
-    var weekPlannedCrossMiles: Double { plannedMiles(cross: true) }
+    /// is the run side. Cross has NO planned mileage — prescriptions are
+    /// time-based and the athlete picks the sport, so the cross gauge shows
+    /// done miles only.
+    var weekPlannedRunMiles: Double { plannedRunMiles() }
     var weekDoneRunMiles: Double { doneMiles(cross: false) }
     var weekDoneCrossMiles: Double { doneMiles(cross: true) }
     /// Any cross volume this week? Drives the gauge's Run/Cross swap chip.
-    var weekHasCrossVolume: Bool { weekPlannedCrossMiles > 0 || weekDoneCrossMiles > 0 }
+    var weekHasCrossVolume: Bool { weekDoneCrossMiles > 0 }
 
     /// Done CROSS miles split by declared sport — drives the color-coded
     /// segments in the cross mileage bar. Unlogged done cross workouts count
@@ -55,9 +56,9 @@ final class PlanStore {
         return (run, ride, swim)
     }
 
-    private func plannedMiles(cross: Bool) -> Double {
+    private func plannedRunMiles() -> Double {
         workoutsByDate.values.flatMap { $0 }
-            .filter { $0.type != "rest" && (($0.type == "cross") == cross) }
+            .filter { $0.type != "rest" && $0.type != "cross" }
             .compactMap(\.dist)
             .reduce(0, +)
     }

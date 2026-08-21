@@ -7,6 +7,7 @@ import { useUnit } from '../../lib/useUnit'
 import { fmtDist } from '../../lib/units'
 import { fmtDur } from '../../lib/fmtDur'
 import { volumeSplit, type VolumeMode } from '../../lib/volume'
+import { crossSegments } from './crossSegments'
 
 const chunk = <T,>(arr: T[], n: number) => Array.from({ length: Math.ceil(arr.length / n) }, (_, i) => arr.slice(i * n, i * n + n))
 
@@ -59,16 +60,25 @@ function DayCell({ date, ws, inMonth, isToday, isSel, canEdit, onPick }: {
 
 // A metric row for the KPI column: "done/total" kept to a single line (never
 // wraps, so the calendar row height stays put) over a slim bar with the
-// percentage pulled out to the right of the bar.
-function KpiBar({ value, pct, tint }: { value: ReactNode; pct: number; tint: string }) {
+// percentage pulled out to the right of the bar. Omit `pct` for a done-only
+// stat (no projection); `segments` splits the bar by share (cross by sport).
+function KpiBar({ value, pct, tint, segments }: {
+  value: ReactNode; pct?: number; tint: string; segments?: { tint: string; frac: number }[]
+}) {
   return (
     <div>
       <div className="truncate font-num text-[10px] leading-tight tabular-nums">{value}</div>
       <div className="mt-0.5 flex items-center gap-1.5">
-        <div className="h-1 flex-1 overflow-hidden rounded-full bg-black/30">
-          <div className={`h-full rounded-full ${tint}`} style={{ width: `${Math.min(100, pct)}%` }} />
+        <div className="flex h-1 flex-1 overflow-hidden rounded-full bg-black/30">
+          {segments ? (
+            segments.map((s, i) => (
+              <div key={i} className={`h-full ${s.tint}`} style={{ width: `${s.frac * 100}%` }} />
+            ))
+          ) : (
+            <div className={`h-full rounded-full ${tint}`} style={{ width: `${Math.min(100, pct ?? 0)}%` }} />
+          )}
         </div>
-        <span className="font-num text-[10px] tabular-nums text-text-faint">{pct}%</span>
+        {pct != null && <span className="font-num text-[10px] tabular-nums text-text-faint">{pct}%</span>}
       </div>
     </div>
   )
@@ -80,16 +90,27 @@ function WeekSummary({ days, extras, actuals, mode, isCurrent }: {
 }) {
   const { unit } = useUnit()
   const vol = volumeSplit(days.flat(), actuals, extras)
-  const side = mode === 'cross' ? vol.cross : vol.run
+  const crossMode = mode === 'cross'
+  const side = crossMode ? vol.cross : vol.run
   const milePct = side.planned > 0 ? Math.round((side.done / side.planned) * 100) : 0
-  const timePct = vol.plannedMin > 0 ? Math.round((vol.doneMin / vol.plannedMin) * 100) : 0
+  // Cross has no projected mileage — done-only figure over a by-sport
+  // composition bar; the time row flips to cross-prescribed minutes.
+  const mileSegments = crossMode && side.done > 0
+    ? crossSegments(vol.crossDone).filter((s) => s.value > 0)
+        .map((s) => ({ tint: s.tint, frac: s.value / side.done }))
+    : undefined
+  const timeDone = crossMode ? vol.crossMin.done : vol.doneMin
+  const timePlanned = crossMode ? vol.crossMin.planned : vol.plannedMin
+  const timePct = timePlanned > 0 ? Math.round((timeDone / timePlanned) * 100) : 0
   return (
     <div className="p-1.5">
       <div className={`rb-card-sm flex h-full flex-col justify-center gap-2 p-2.5 ${isCurrent ? 'ring-1 ring-text/30' : ''}`}>
-        <KpiBar tint="bg-accent" pct={milePct}
-          value={<><span className="font-bold text-text">{fmtDist(side.done, unit)}</span><span className="text-text-faint">/{fmtDist(side.planned, unit)} {unit}</span></>} />
+        <KpiBar tint="bg-accent" pct={crossMode ? undefined : milePct} segments={mileSegments}
+          value={crossMode
+            ? <><span className="font-bold text-text">{fmtDist(side.done, unit)}</span><span className="text-text-faint"> {unit}</span></>
+            : <><span className="font-bold text-text">{fmtDist(side.done, unit)}</span><span className="text-text-faint">/{fmtDist(side.planned, unit)} {unit}</span></>} />
         <KpiBar tint="bg-text-mute" pct={timePct}
-          value={<><span className="font-bold text-text">{fmtDur(vol.doneMin)}</span><span className="text-text-faint">/{fmtDur(vol.plannedMin)}</span></>} />
+          value={<><span className="font-bold text-text">{fmtDur(timeDone)}</span><span className="text-text-faint">/{fmtDur(timePlanned)}</span></>} />
       </div>
     </div>
   )
