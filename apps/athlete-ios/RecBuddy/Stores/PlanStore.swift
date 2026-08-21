@@ -246,6 +246,30 @@ final class PlanStore {
         await refresh()
     }
 
+    /// Insert an ADDITIONAL manual activity for a day as a standalone extra
+    /// (workout_id null) — a cross day can hold more than one sport, and the
+    /// second-and-later entries live beside the attached log as extras. The
+    /// recorded_at is local noon of the workout's day so it always buckets
+    /// onto that day. Caller refreshes when done.
+    func logExtraActivity(athleteId: String, date: String, activity: String,
+                          dist: Double, time: String, pace: String? = nil,
+                          avgWatts: Int? = nil) async throws {
+        struct NewExtra: Encodable {
+            let athlete_id: String
+            let dist: Double
+            let pace: String?
+            let time: String
+            let source: String
+            let recorded_at: String
+            let activity: String?
+            let avg_watts: Int?
+        }
+        let row = NewExtra(athlete_id: athleteId, dist: dist, pace: pace, time: time,
+                           source: "manual", recorded_at: Week.localNoonTimestamp(date),
+                           activity: activity, avg_watts: avgWatts)
+        try await Supa.shared.from("workout_actuals").insert(row).execute()
+    }
+
     /// Delete an actual row (used by the extra-card delete flow; the caller
     /// records the source_id in the excluded set so sync never re-imports it).
     func deleteActual(id: String) async throws {

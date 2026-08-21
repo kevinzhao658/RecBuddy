@@ -2,12 +2,12 @@ import { Fragment, type ReactNode } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import type { Workout, WorkoutStatus, Actual } from '../../lib/types'
 import { DOW, monthGridDates, monthOf, todayISO } from '../../lib/week'
-import { TypeIcon } from '../../components/ui/Icon'
+import { TypeIcon, SportIcon } from '../../components/ui/Icon'
 import { useUnit } from '../../lib/useUnit'
 import { fmtDist } from '../../lib/units'
 import { fmtDur } from '../../lib/fmtDur'
 import { volumeSplit, type VolumeMode } from '../../lib/volume'
-import { crossSegments } from './crossSegments'
+import { swimMeters } from '../../lib/sportMetrics'
 
 const chunk = <T,>(arr: T[], n: number) => Array.from({ length: Math.ceil(arr.length / n) }, (_, i) => arr.slice(i * n, i * n + n))
 
@@ -60,28 +60,25 @@ function DayCell({ date, ws, inMonth, isToday, isSel, canEdit, onPick }: {
 
 // A metric row for the KPI column: "done/total" kept to a single line (never
 // wraps, so the calendar row height stays put) over a slim bar with the
-// percentage pulled out to the right of the bar. Omit `pct` for a done-only
-// stat (no projection); `segments` splits the bar by share (cross by sport).
-function KpiBar({ value, pct, tint, segments }: {
-  value: ReactNode; pct?: number; tint: string; segments?: { tint: string; frac: number }[]
-}) {
+// percentage pulled out to the right of the bar.
+function KpiBar({ value, pct, tint }: { value: ReactNode; pct: number; tint: string }) {
   return (
     <div>
       <div className="truncate font-num text-[10px] leading-tight tabular-nums">{value}</div>
       <div className="mt-0.5 flex items-center gap-1.5">
-        <div className="flex h-1 flex-1 overflow-hidden rounded-full bg-black/30">
-          {segments ? (
-            segments.map((s, i) => (
-              <div key={i} className={`h-full ${s.tint}`} style={{ width: `${s.frac * 100}%` }} />
-            ))
-          ) : (
-            <div className={`h-full rounded-full ${tint}`} style={{ width: `${Math.min(100, pct ?? 0)}%` }} />
-          )}
+        <div className="h-1 flex-1 overflow-hidden rounded-full bg-black/30">
+          <div className={`h-full rounded-full ${tint}`} style={{ width: `${Math.min(100, pct)}%` }} />
         </div>
-        {pct != null && <span className="font-num text-[10px] tabular-nums text-text-faint">{pct}%</span>}
+        <span className="font-num text-[10px] tabular-nums text-text-faint">{pct}%</span>
       </div>
     </div>
   )
+}
+
+// Per-sport icon color in the cross totals row — matches the gauge legend
+// (bike keeps the accent; swim and run get their segment tints).
+const SPORT_TEXT: Record<'run' | 'ride' | 'swim', string> = {
+  ride: 'text-accent', swim: 'text-sky-400', run: 'text-amber-400',
 }
 
 function WeekSummary({ days, extras, actuals, mode, isCurrent }: {
@@ -93,22 +90,37 @@ function WeekSummary({ days, extras, actuals, mode, isCurrent }: {
   const crossMode = mode === 'cross'
   const side = crossMode ? vol.cross : vol.run
   const milePct = side.planned > 0 ? Math.round((side.done / side.planned) * 100) : 0
-  // Cross has no projected mileage — done-only figure over a by-sport
-  // composition bar; the time row flips to cross-prescribed minutes.
-  const mileSegments = crossMode && side.done > 0
-    ? crossSegments(vol.crossDone).filter((s) => s.value > 0)
-        .map((s) => ({ tint: s.tint, frac: s.value / side.done }))
-    : undefined
+  // Cross mileage has no projection — an icon + total per sport replaces the
+  // bar; the time row flips to cross-prescribed minutes and KEEPS its %.
+  const sports = crossMode
+    ? ([
+        { sport: 'ride' as const, dist: vol.crossDone.ride },
+        { sport: 'swim' as const, dist: vol.crossDone.swim },
+        { sport: 'run' as const, dist: vol.crossDone.run },
+      ]).filter((s) => s.dist > 0)
+    : []
   const timeDone = crossMode ? vol.crossMin.done : vol.doneMin
   const timePlanned = crossMode ? vol.crossMin.planned : vol.plannedMin
   const timePct = timePlanned > 0 ? Math.round((timeDone / timePlanned) * 100) : 0
   return (
     <div className="p-1.5">
       <div className={`rb-card-sm flex h-full flex-col justify-center gap-2 p-2.5 ${isCurrent ? 'ring-1 ring-text/30' : ''}`}>
-        <KpiBar tint="bg-accent" pct={crossMode ? undefined : milePct} segments={mileSegments}
-          value={crossMode
-            ? <><span className="font-bold text-text">{fmtDist(side.done, unit)}</span><span className="text-text-faint"> {unit}</span></>
-            : <><span className="font-bold text-text">{fmtDist(side.done, unit)}</span><span className="text-text-faint">/{fmtDist(side.planned, unit)} {unit}</span></>} />
+        {crossMode ? (
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 font-num text-[10px] tabular-nums">
+            {sports.length === 0 && <span className="text-text-faint">No cross yet</span>}
+            {sports.map(({ sport, dist }) => (
+              <span key={sport} className="flex items-center gap-1">
+                <SportIcon sport={sport} className={`h-3.5 w-3.5 ${SPORT_TEXT[sport]}`} />
+                <span className="font-bold text-text">
+                  {sport === 'swim' ? swimMeters(dist) : `${fmtDist(dist, unit)} ${unit}`}
+                </span>
+              </span>
+            ))}
+          </div>
+        ) : (
+          <KpiBar tint="bg-accent" pct={milePct}
+            value={<><span className="font-bold text-text">{fmtDist(side.done, unit)}</span><span className="text-text-faint">/{fmtDist(side.planned, unit)} {unit}</span></>} />
+        )}
         <KpiBar tint="bg-text-mute" pct={timePct}
           value={<><span className="font-bold text-text">{fmtDur(timeDone)}</span><span className="text-text-faint">/{fmtDur(timePlanned)}</span></>} />
       </div>

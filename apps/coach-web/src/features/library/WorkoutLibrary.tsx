@@ -21,8 +21,11 @@ function LibraryCard({ t, onEdit, onDelete }: { t: LibraryWorkout; onEdit: () =>
   const setsLine = (t.sets ?? []).map((s) => s[0]).filter(Boolean).join(' · ')
   return (
     <div ref={drag.setNodeRef} className={`rb-card rb-card-sm group flex items-start gap-2 p-3 transition hover:border-text-mute ${drag.isDragging ? 'opacity-40' : ''}`}>
+      {/* Grip spans the card's full height (negative margins eat the card
+          padding), so the drag target is the whole left rail — far easier to
+          grab than the icon alone. */}
       <button {...drag.attributes} {...drag.listeners} aria-label="Drag workout"
-        className="mt-0.5 cursor-grab text-text-faint active:cursor-grabbing">
+        className="-my-3 -ml-3 flex cursor-grab items-center self-stretch py-3 pl-3 pr-1 text-text-faint transition hover:text-text-mute active:cursor-grabbing">
         <GripIcon />
       </button>
       {/* The card body IS the edit affordance — no separate pencil button. */}
