@@ -25,6 +25,8 @@ struct CalendarView: View {
     // Which volume the weekly mileage gauge shows (chip only appears when the
     // week has any cross volume).
     @State private var showCrossMileage = false
+    // The week strip's selected day (today when the week contains it).
+    @State private var selectedDate: String = Week.todayISO()
     // Drives the sync badge's arrow rotation while a pass runs.
     @State private var syncSpin = false
     @AppStorage("unit") private var unitRaw = "mi"
@@ -152,6 +154,10 @@ struct CalendarView: View {
         }
         .sheet(isPresented: $confirmOpen) {
             ConfirmActivitySheet(store: store, unit: unit)
+        }
+        .onChange(of: store.weekMonday) { _, _ in
+            selectedDate = WeekStripLogic.defaultSelection(weekDates: store.weekDates,
+                                                           today: Week.todayISO())
         }
     }
 
@@ -641,6 +647,15 @@ struct CalendarView: View {
                 }
             }
             .buttonStyle(.plain)
+
+            DayStrip(dates: store.weekDates, selected: selectedDate,
+                     marksFor: { date in
+                         WeekStripLogic.marks(workouts: store.workoutsByDate[date] ?? [],
+                                              extras: store.standaloneByDate[date] ?? [])
+                     },
+                     onPick: { date in
+                         withAnimation(.easeInOut(duration: 0.2)) { selectedDate = date }
+                     })
 
             // Day cards — only days with workouts
             let workoutDays = store.weekDates.filter {
