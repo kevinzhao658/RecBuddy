@@ -17,7 +17,7 @@ mockup iterations at true iPhone width (393pt).
 
 | Question | Decision |
 |---|---|
-| Day detail | **The headliner IS the day view** — tapping a column feeds the existing headliner stack (content and styling untouched) with that day's workouts; all its current interactions (stack tabs, detail sheet, complete/log) work for any selected day |
+| Day detail | **The headliner IS the day view** — tapping a column feeds the existing headliner deck with that day's workouts. The deck is retained EXACTLY as shipped: stacked cards with slivers tucked behind, the emphasized DISTANCE and TARGET PACE numerals, To Do/Done states, tab-to-float, tap-to-detail, complete/log flow. Zero content or styling changes — only its data source (selected day, not hardwired today) and the chip overlay |
 | Today chip | A lime **"↩ Today"** chip perches on the headliner's top-right corner ONLY when selected ≠ today; tapping selects today AND returns to the current week if the athlete had navigated away |
 | Column content | Per activity: **icon + number pair** — number hugs its icon; clear vertical air between pairs so ownership is unambiguous |
 | Numbers | Distance-based activities: value + unit in the athlete's setting ("4.0 mi" / "6.4 km"). Time-based (cross, or any workout with no distance but a time target): minutes with apostrophe ("45'"). No target → icon only |
