@@ -25,7 +25,7 @@ mockup iterations at true iPhone width (393pt).
 | Past treatment | Past columns fade (55% opacity) and their pairs fade further (45% within) — outstanding work from today onward is the brightest thing in the row |
 | Icon color | **Intensity tints return, APP-WIDE on both apps** — orange = effort (intervals/tempo/race), blue = long, green = aerobic (easy/recovery/cross), muted = rest/other. Reverts the accent-only pass; the NEW glyphs stay (cross = circling arrows, recovery = plain heart, logged ride = bicycle) |
 | Today marker | Today's **date number renders lime** in its column even when unselected; the selected column keeps the accent ring |
-| Rest / empty days | Rest-only day: the word "rest" (muted) in the column; empty day: bare column (DOW + date only). Both selectable — the headliner shows a matching placeholder card |
+| Rest / empty days | Rest-only day: the rest MOON icon (muted, no number) in the column — same glyph language as everything else; empty day: bare column (DOW + date only). Both selectable — the headliner shows a matching placeholder card |
 | Week navigation | **Chevrons + horizontal swipe** across the columns row (drag threshold, no scroll view); after ANY week change selection re-derives via `WeekStripLogic.defaultSelection` (today when visible, else Monday) |
 | Extras | Off-plan logged activities appear as pairs after the planned workouts: sport icon (aerobic green) + distance (swims in meters, "1500m") |
 | Overflow | Numbers use `minimumScaleFactor(0.7)` + nowrap; columns grow vertically for stacked days (3+ activities) |
@@ -55,7 +55,8 @@ CalendarView
   unit-tested: planned non-rest workouts first (dist → "4.0 mi"/"6.4 km" via
   Units; no dist but estMinutes/dur → "45'"; neither → nil text), then extras
   (dist via their sport display; swims in meters "1500m").
-- `WeekStripLogic.isRestOnly(workouts:extras:)` — rest-only day flag.
+- `WeekStripLogic.isRestOnly(workouts:extras:)` — rest-only day flag (the
+  strip renders the muted rest moon via `TypeBadge` for such days).
 - `DayMark`/`marks(...)` and `rolloverLanding(...)` are DELETED (dots and
   sentinels are gone); `defaultSelection` stays.
 - Week swipe: `DragGesture` on the strip — horizontal translation ≥ 60pt and
