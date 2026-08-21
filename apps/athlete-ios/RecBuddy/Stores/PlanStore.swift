@@ -20,40 +20,69 @@ final class PlanStore {
 
     var weekDates: [String] { Week.weekDates(mondayIso: weekMonday) }
 
-    /// Run and ride volumes are tracked SEPARATELY so the gauge never mixes
-    /// them: cross workouts (and ride actuals — pace == nil) are the ride
-    /// side; every other non-rest type is the run side.
-    var weekPlannedRunMiles: Double { plannedMiles(ride: false) }
-    var weekPlannedRideMiles: Double { plannedMiles(ride: true) }
-    var weekDoneRunMiles: Double { doneMiles(ride: false) }
-    var weekDoneRideMiles: Double { doneMiles(ride: true) }
-    /// Any ride volume this week? Drives the gauge's Run/Ride swap chip.
-    var weekHasRideVolume: Bool { weekPlannedRideMiles > 0 || weekDoneRideMiles > 0 }
+    /// Run and CROSS volumes are tracked SEPARATELY so the gauge never mixes
+    /// them: whatever gets logged against a cross workout (bike, swim, even a
+    /// run) counts toward cross totals, never run. Every other non-rest type
+    /// is the run side. Cross has NO planned mileage — prescriptions are
+    /// time-based and the athlete picks the sport, so the cross gauge shows
+    /// done miles only.
+    var weekPlannedRunMiles: Double { plannedRunMiles() }
+    var weekDoneRunMiles: Double { doneMiles(cross: false) }
+    var weekDoneCrossMiles: Double { doneMiles(cross: true) }
+    /// Any cross this week — PRESCRIBED cross counts (the chip must appear
+    /// before anything is logged), as does logged cross volume.
+    var weekHasCrossVolume: Bool {
+        weekDoneCrossMiles > 0
+            || workoutsByDate.values.flatMap({ $0 }).contains { $0.type == "cross" }
+    }
 
-    private func plannedMiles(ride: Bool) -> Double {
+    /// Done CROSS miles split by declared sport — drives the color-coded
+    /// segments in the cross mileage bar. Unlogged done cross workouts count
+    /// as ride (the log sheet's default); run extras live on the run side.
+    var weekCrossDoneBySport: (run: Double, ride: Double, swim: Double) {
+        var run = 0.0, ride = 0.0, swim = 0.0
+        for w in workoutsByDate.values.flatMap({ $0 }) {
+            guard w.status == "done", w.type == "cross" else { continue }
+            guard let a = actualsByWorkout[w.id] else { ride += w.dist ?? 0; continue }
+            switch a.declaredActivity {
+            case "swim": swim += a.dist
+            case "run":  run += a.dist
+            default:     ride += a.dist
+            }
+        }
+        for a in standaloneByDate.values.flatMap({ $0 }) {
+            switch a.declaredActivity {
+            case "swim": swim += a.dist
+            case "ride": ride += a.dist
+            default:     break
+            }
+        }
+        return (run, ride, swim)
+    }
+
+    private func plannedRunMiles() -> Double {
         workoutsByDate.values.flatMap { $0 }
-            .filter { $0.type != "rest" && (($0.type == "cross") == ride) }
+            .filter { $0.type != "rest" && $0.type != "cross" }
             .compactMap(\.dist)
             .reduce(0, +)
     }
 
     /// ACTUAL miles completed: each done workout counts its logged actual's
-    /// distance, bucketed by the log's kind (pace == nil -> ride); a workout
-    /// marked complete WITHOUT a log falls back to its planned dist, bucketed
-    /// by its type. Off-plan extras bucket by the same kind rule.
-    private func doneMiles(ride: Bool) -> Double {
-        let attached = workoutsByDate.values.flatMap { $0 }
-            .filter { $0.status == "done" }
-            .map { w -> Double in
-                if let a = actualsByWorkout[w.id] { return ((a.pace == nil) == ride) ? a.dist : 0 }
-                return ((w.type == "cross") == ride) ? (w.dist ?? 0) : 0
-            }
-            .reduce(0, +)
-        let extras = standaloneByDate.values.flatMap { $0 }
-            .filter { ($0.pace == nil) == ride }
-            .map(\.dist)
-            .reduce(0, +)
-        return attached + extras
+    /// distance, bucketed by the WORKOUT'S type (cross -> cross side); a
+    /// workout marked complete WITHOUT a log falls back to its planned dist,
+    /// same bucketing. Off-plan extras bucket by their declared activity
+    /// ('run' -> run; 'ride'/'swim' -> cross; legacy rows infer from pace).
+    private func doneMiles(cross: Bool) -> Double {
+        var total = 0.0
+        for w in workoutsByDate.values.flatMap({ $0 }) {
+            guard w.status == "done", (w.type == "cross") == cross else { continue }
+            total += actualsByWorkout[w.id]?.dist ?? w.dist ?? 0
+        }
+        for a in standaloneByDate.values.flatMap({ $0 }) {
+            let isCrossExtra = a.declaredActivity != "run"
+            if isCrossExtra == cross { total += a.dist }
+        }
+        return total
     }
 
     func goToWeek(offset: Int) async {
@@ -156,15 +185,19 @@ final class PlanStore {
 
     /// Save a manual actual and mark the workout done. `pace` is optional so
     /// the extra-activity edit flow (rides have no pace) reuses updateRun.
-    /// Sync writes go through SupabaseLogSink, not this method.
+    /// `activity` is the declared sport ('run'/'ride'/'swim') — athletes pick
+    /// it when completing a cross workout. Sync writes go through
+    /// SupabaseLogSink, not this method.
     func logRun(workout: Workout, dist: Double, time: String, pace: String?,
-                hr: Int?, feel: Int?, note: String?) async throws {
+                hr: Int?, feel: Int?, note: String?, activity: String? = nil,
+                avgWatts: Int? = nil) async throws {
         struct ExistingRow: Decodable { let id: String }
         let existing: [ExistingRow] = try await Supa.shared.from("workout_actuals")
             .select("id").eq("workout_id", value: workout.id).limit(1).execute().value
         if let row = existing.first {
             try await updateRun(actualId: row.id, dist: dist, time: time, pace: pace,
-                                hr: hr, feel: feel, note: note)
+                                hr: hr, feel: feel, note: note, activity: activity,
+                                avgWatts: avgWatts)
         } else {
             struct NewActual: Encodable {
                 let workout_id: String
@@ -176,10 +209,13 @@ final class PlanStore {
                 let feel: Int?
                 let note: String?
                 let source: String
+                let activity: String?
+                let avg_watts: Int?
             }
             let row = NewActual(workout_id: workout.id, athlete_id: workout.athleteId,
                                 dist: dist, pace: pace, time: time, hr: hr, feel: feel,
-                                note: note, source: "manual")
+                                note: note, source: "manual", activity: activity,
+                                avg_watts: avgWatts)
             try await Supa.shared.from("workout_actuals").insert(row).execute()
         }
         do {
@@ -192,8 +228,9 @@ final class PlanStore {
     }
 
     func updateRun(actualId: String, dist: Double, time: String, pace: String?,
-                   hr: Int?, feel: Int?, note: String?) async throws {
-        let patch: [String: AnyJSON] = [
+                   hr: Int?, feel: Int?, note: String?, activity: String? = nil,
+                   avgWatts: Int? = nil) async throws {
+        var patch: [String: AnyJSON] = [
             "dist": .double(dist),
             "pace": pace.map { .string($0) } ?? .null,
             "time": .string(time),
@@ -201,9 +238,40 @@ final class PlanStore {
             "feel": feel.map { .integer($0) } ?? .null,
             "note": note.map { .string($0) } ?? .null,
         ]
+        // Only write activity when declared — an edit that doesn't touch the
+        // sport must not null out a previously declared one.
+        if let activity { patch["activity"] = .string(activity) }
+        // Watts is authoritative when the caller declared a ride (nil clears
+        // it); other flows leave a synced value untouched.
+        if activity == "ride" { patch["avg_watts"] = avgWatts.map { .integer($0) } ?? .null }
+        else if let avgWatts { patch["avg_watts"] = .integer(avgWatts) }
         try await Supa.shared.from("workout_actuals")
             .update(patch).eq("id", value: actualId).execute()
         await refresh()
+    }
+
+    /// Insert an ADDITIONAL manual activity for a day as a standalone extra
+    /// (workout_id null) — a cross day can hold more than one sport, and the
+    /// second-and-later entries live beside the attached log as extras. The
+    /// recorded_at is local noon of the workout's day so it always buckets
+    /// onto that day. Caller refreshes when done.
+    func logExtraActivity(athleteId: String, date: String, activity: String,
+                          dist: Double, time: String, pace: String? = nil,
+                          avgWatts: Int? = nil) async throws {
+        struct NewExtra: Encodable {
+            let athlete_id: String
+            let dist: Double
+            let pace: String?
+            let time: String
+            let source: String
+            let recorded_at: String
+            let activity: String?
+            let avg_watts: Int?
+        }
+        let row = NewExtra(athlete_id: athleteId, dist: dist, pace: pace, time: time,
+                           source: "manual", recorded_at: Week.localNoonTimestamp(date),
+                           activity: activity, avg_watts: avgWatts)
+        try await Supa.shared.from("workout_actuals").insert(row).execute()
     }
 
     /// Delete an actual row (used by the extra-card delete flow; the caller

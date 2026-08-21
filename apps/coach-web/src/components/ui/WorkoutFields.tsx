@@ -40,6 +40,9 @@ export function WorkoutFields({ draft: d, onChange, disabled = false }: {
 
   // 'other' workouts carry no metrics — just title, phases, and the note.
   const hasMetrics = d.type !== 'other'
+  // Cross prescriptions are time-based only: the athlete declares the sport
+  // (run/bike/swim) when logging, so a coach-set distance/pace has no meaning.
+  const hasDistPace = hasMetrics && d.type !== 'cross'
 
   // ── Distance · pace · total time: edit any two, the third solves itself ──
   // The two most-recently edited fields are authoritative; the remaining one
@@ -74,7 +77,8 @@ export function WorkoutFields({ draft: d, onChange, disabled = false }: {
         {/* Type chip grid */}
         <div className="flex flex-wrap gap-1.5">
           {WORKOUT_TYPES.map((t) => (
-            <button key={t} onClick={() => set({ type: t })}
+            <button key={t}
+              onClick={() => set(t === 'cross' ? { type: t, dist: null, pace: null } : { type: t })}
               className={`flex items-center gap-1 rounded-[9px] border px-2 py-1 text-xs font-medium transition ${
                 d.type === t ? 'border-accent bg-surface2 text-accent' : 'border-line text-text-mute hover:border-text-mute'}`}>
               <TypeIcon type={t} className="h-3.5 w-3.5" />{WORKOUT_TYPE_LABEL[t]}
@@ -89,18 +93,20 @@ export function WorkoutFields({ draft: d, onChange, disabled = false }: {
 
         {hasMetrics && (
           <>
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <span className={labelEyebrow}>Distance ({unit})</span>
-                <NumberField ariaLabel="Distance" step={0.5}
-                  value={d.dist != null ? Math.round(fromMiles(d.dist, unit) * 10) / 10 : null}
-                  onChange={(v) => editMetric('dist', { dist: v != null ? Math.round(toMiles(v, unit) * 100) / 100 : null })} />
+            {hasDistPace && (
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <span className={labelEyebrow}>Distance ({unit})</span>
+                  <NumberField ariaLabel="Distance" step={0.5}
+                    value={d.dist != null ? Math.round(fromMiles(d.dist, unit) * 10) / 10 : null}
+                    onChange={(v) => editMetric('dist', { dist: v != null ? Math.round(toMiles(v, unit) * 100) / 100 : null })} />
+                </div>
+                <div className="flex-1">
+                  <span className={labelEyebrow}>Pace</span>
+                  <PaceField value={d.pace} onChange={(v) => editMetric('pace', { pace: v })} unit={unit} />
+                </div>
               </div>
-              <div className="flex-1">
-                <span className={labelEyebrow}>Pace</span>
-                <PaceField value={d.pace} onChange={(v) => editMetric('pace', { pace: v })} unit={unit} />
-              </div>
-            </div>
+            )}
 
             <div>
               <span className={labelEyebrow}>Total time (min)</span>

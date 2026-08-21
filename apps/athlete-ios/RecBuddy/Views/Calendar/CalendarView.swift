@@ -23,8 +23,8 @@ struct CalendarView: View {
     // single workout's detail.
     @State private var multiDay: DayWorkouts?
     // Which volume the weekly mileage gauge shows (chip only appears when the
-    // week has any ride volume).
-    @State private var showRideMileage = false
+    // week has any cross volume).
+    @State private var showCrossMileage = false
     // Drives the sync badge's arrow rotation while a pass runs.
     @State private var syncSpin = false
     @AppStorage("unit") private var unitRaw = "mi"
@@ -101,7 +101,7 @@ struct CalendarView: View {
                         .rbCard(highlighted: true)
                     }
 
-                    if store.weekPlannedRunMiles > 0 || store.weekHasRideVolume {
+                    if store.weekPlannedRunMiles > 0 || store.weekHasCrossVolume {
                         mileageBlock
                     }
 
@@ -291,65 +291,99 @@ struct CalendarView: View {
     // MARK: - Weekly Mileage Block
 
     private var mileageBlock: some View {
-        // Run and ride volumes never mix — the chip swaps which one the gauge
-        // shows. Pure runners never see the chip (zero added chrome).
-        let ride = showRideMileage && store.weekHasRideVolume
-        let planned = ride ? store.weekPlannedRideMiles : store.weekPlannedRunMiles
-        let done = ride ? store.weekDoneRideMiles : store.weekDoneRunMiles
+        // Run and cross volumes never mix — the chip swaps which one the gauge
+        // shows. Pure runners never see the chip (zero added chrome). Cross is
+        // DONE-ONLY (no projected total — the athlete picks the sport): an
+        // icon + total per sport, all in the standard accent, mirroring the
+        // coach's cross mileage row. Swims read in meters.
+        let cross = showCrossMileage && store.weekHasCrossVolume
+        let planned = store.weekPlannedRunMiles
+        let done = store.weekDoneRunMiles
         return VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
                 RBLabel("WEEKLY MILEAGE")
-                if store.weekHasRideVolume {
+                if store.weekHasCrossVolume {
                     mileageModeToggle
                 }
                 Spacer()
-                HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text(fmtMiles(done))
-                        .font(.subheadline.weight(.bold))
-                        .foregroundStyle(RB.accent)
-                    Text("/ \(fmtMiles(planned)) mi")
-                        .font(.subheadline)
-                        .foregroundStyle(RB.textMute)
+                if !cross {
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                        Text(fmtMiles(done))
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(RB.accent)
+                        Text("/ \(fmtMiles(planned)) mi")
+                            .font(.subheadline)
+                            .foregroundStyle(RB.textMute)
+                    }
                 }
             }
-            GeometryReader { proxy in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(RB.surface2)
-                    let frac = planned > 0 ? min(done / planned, 1.0) : 0.0
-                    Capsule()
-                        .fill(RB.accent)
-                        .frame(width: proxy.size.width * CGFloat(frac))
+            if cross {
+                let s = store.weekCrossDoneBySport
+                if s.ride > 0 || s.swim > 0 || s.run > 0 {
+                    HStack(spacing: 16) {
+                        if s.ride > 0 { crossTotal("bicycle", "\(fmtMiles(s.ride)) mi") }
+                        if s.swim > 0 { crossTotal("figure.pool.swim", SportMetrics.metersText(miles: s.swim)) }
+                        if s.run > 0 { crossTotal("figure.run", "\(fmtMiles(s.run)) mi") }
+                    }
+                } else {
+                    Text("No cross logged yet")
+                        .font(.caption)
+                        .foregroundStyle(RB.textFaint)
                 }
-            }
-            .frame(height: 6)
-            if planned > 0 {
-                Text("\(fmtMiles(max(planned - done, 0))) mi to go this week")
-                    .font(.caption)
-                    .foregroundStyle(RB.textFaint)
             } else {
-                // Done volume with nothing planned (e.g. off-plan rides only).
-                Text(ride ? "No rides planned this week" : "No runs planned this week")
-                    .font(.caption)
-                    .foregroundStyle(RB.textFaint)
+                GeometryReader { proxy in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(RB.surface2)
+                        let frac = planned > 0 ? min(done / planned, 1.0) : 0.0
+                        Capsule()
+                            .fill(RB.accent)
+                            .frame(width: proxy.size.width * CGFloat(frac))
+                    }
+                }
+                .frame(height: 6)
+                if planned > 0 {
+                    Text("\(fmtMiles(max(planned - done, 0))) mi to go this week")
+                        .font(.caption)
+                        .foregroundStyle(RB.textFaint)
+                } else {
+                    // Done volume with nothing planned (e.g. off-plan extras only).
+                    Text("No runs planned this week")
+                        .font(.caption)
+                        .foregroundStyle(RB.textFaint)
+                }
             }
         }
     }
 
-    /// Tiny Run/Ride swap beside the gauge label.
+    /// Icon + distance for one cross sport — sized so all three fit one line.
+    private func crossTotal(_ symbol: String, _ text: String) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: symbol)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(RB.accent)
+            Text(text)
+                .font(.footnote.weight(.bold))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+        }
+        .fixedSize(horizontal: true, vertical: false)
+    }
+
+    /// Tiny Run/Cross swap beside the gauge label.
     private var mileageModeToggle: some View {
         HStack(spacing: 2) {
-            mileageChip("Run", isRide: false)
-            mileageChip("Ride", isRide: true)
+            mileageChip("Run", isCross: false)
+            mileageChip("Cross", isCross: true)
         }
         .padding(2)
         .background(RB.surface2)
         .clipShape(Capsule())
     }
 
-    private func mileageChip(_ label: String, isRide: Bool) -> some View {
-        let selected = showRideMileage == isRide
+    private func mileageChip(_ label: String, isCross: Bool) -> some View {
+        let selected = showCrossMileage == isCross
         return Button {
-            withAnimation(.easeInOut(duration: 0.15)) { showRideMileage = isRide }
+            withAnimation(.easeInOut(duration: 0.15)) { showCrossMileage = isCross }
         } label: {
             Text(label)
                 .font(.caption2.weight(.semibold))
@@ -443,19 +477,18 @@ struct CalendarView: View {
 
     /// Off-plan extra activity as a completed-style tab behind the stack.
     private func extraSliver(_ a: WorkoutActual) -> some View {
-        let isRide = a.pace == nil
         let tab = UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: 16,
                                          bottomTrailingRadius: 16, topTrailingRadius: 0)
         return Button { selectedExtra = a } label: {
             HStack(spacing: 12) {
-                Image(systemName: isRide ? "bicycle" : "figure.run")
+                Image(systemName: a.activitySymbol)
                     .font(.footnote).foregroundStyle(RB.accent).frame(width: 30)
-                Text(isRide ? "Extra ride" : "Extra run")
+                Text(a.extraTitle)
                     .font(.subheadline.weight(.semibold)).foregroundStyle(.white).lineLimit(1)
                 Spacer()
                 HStack(spacing: 4) {
                     Image(systemName: "checkmark.circle.fill")
-                    Text("\(Units.fmtDist(a.dist, unit)) \(unit.rawValue)")
+                    Text(a.distDisplay(unit: unit))
                 }
                 .font(.caption2.weight(.semibold)).foregroundStyle(RB.accent)
                 .lineLimit(1).fixedSize(horizontal: true, vertical: false)
@@ -705,7 +738,6 @@ struct CalendarView: View {
     }
 
     private func extraWeekRow(date: String, actual a: WorkoutActual) -> some View {
-        let isRide = a.pace == nil
         let dowIndex = store.weekDates.firstIndex(of: date) ?? 0
         return Button { selectedExtra = a } label: {
             HStack(spacing: 12) {
@@ -718,13 +750,13 @@ struct CalendarView: View {
                 .frame(width: 40)
                 ZStack {
                     RoundedRectangle(cornerRadius: 8).fill(RB.surface2).frame(width: 36, height: 36)
-                    Image(systemName: isRide ? "bicycle" : "figure.run")
+                    Image(systemName: a.activitySymbol)
                         .font(.footnote).foregroundStyle(RB.accent)
                 }
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(isRide ? "Extra ride" : "Extra run")
+                    Text(a.extraTitle)
                         .font(.subheadline.weight(.semibold)).foregroundStyle(.white)
-                    Text("\(Units.fmtDist(a.dist, unit)) \(unit.rawValue) · \(a.time)")
+                    Text("\(a.distDisplay(unit: unit)) · \(a.time)")
                         .font(.caption).foregroundStyle(RB.textMute)
                 }
                 Spacer()

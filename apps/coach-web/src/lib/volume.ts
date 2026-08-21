@@ -2,12 +2,23 @@ import type { Workout, Actual } from './types'
 import { estMinutes } from './estMinutes'
 
 /** Which sport a volume gauge is showing. */
-export type VolumeMode = 'run' | 'ride'
+export type VolumeMode = 'run' | 'cross'
 
 export interface VolumeSide { planned: number; done: number }
+/** Per-sport split of the cross side's DONE miles — drives the color-coded
+ *  segments in the cross volume bar. 'run' is a run the athlete declared on a
+ *  cross day; unlogged done cross workouts default to ride (the log default). */
+export interface CrossDoneBySport { run: number; ride: number; swim: number }
 export interface PeriodVolume {
-  run: VolumeSide; ride: VolumeSide; hasRide: boolean
+  run: VolumeSide; cross: VolumeSide; hasCross: boolean
+  crossDone: CrossDoneBySport
   plannedMin: number; doneMin: number
+  /** Cross-only minutes — the time stat flips to this in cross mode (time IS
+   *  the cross prescription, so planned-vs-done is meaningful here). */
+  crossMin: { planned: number; done: number }
+  /** Done cross minutes split by declared sport — colors the time bar's fill
+   *  to show how the logged time was allocated across activities. */
+  crossMinBySport: CrossDoneBySport
 }
 
 /** '46:48' or '1:25:14' -> whole minutes (rounded); null if unparseable. */
@@ -20,31 +31,63 @@ export function elapsedToMin(time: string | null): number | null {
   return isNaN(secs) ? null : Math.round(secs / 60)
 }
 
-/** Run vs ride volume for a set of workouts, counting LOGGED actuals for done
- *  workouts (kind: pace == null -> ride) with planned-dist fallback bucketed
- *  by type ('cross' -> ride); extras bucket by the same pace rule. Time on
- *  feet stays combined: logged elapsed when present, estMinutes fallback.
- *  Mirrors the athlete app's PlanStore split exactly. */
+/** Declared sport of a logged actual: the explicit activity column when set,
+ *  else the legacy pace inference (pace == null -> ride). */
+export function actualActivity(a: Actual): 'run' | 'ride' | 'swim' {
+  if (a.activity === 'run' || a.activity === 'ride' || a.activity === 'swim') return a.activity
+  return a.pace == null ? 'ride' : 'run'
+}
+
+/** Run vs cross volume for a set of workouts. Attached results bucket by the
+ *  WORKOUT'S type ('cross' -> cross, else run) — whatever gets recorded
+ *  against a cross workout (bike, swim, even a run) counts toward cross
+ *  totals, never run. Extras bucket by declared activity ('run' -> run;
+ *  'ride'/'swim' -> cross; legacy null -> pace inference). Cross has NO
+ *  planned side (cross.planned stays 0): prescriptions are time-based and
+ *  the athlete picks the sport, so there is no projected cross mileage —
+ *  cross time still counts toward planned time on feet. Time on feet stays
+ *  combined: logged elapsed when present, estMinutes fallback. Mirrors the
+ *  athlete app's PlanStore split exactly. */
 export function volumeSplit(workouts: Workout[], actuals: Record<string, Actual>, extras: Actual[]): PeriodVolume {
   const run: VolumeSide = { planned: 0, done: 0 }
-  const ride: VolumeSide = { planned: 0, done: 0 }
-  let plannedMin = 0, doneMin = 0
+  const cross: VolumeSide = { planned: 0, done: 0 }
+  const crossDone: CrossDoneBySport = { run: 0, ride: 0, swim: 0 }
+  const crossMin = { planned: 0, done: 0 }
+  const crossMinBySport: CrossDoneBySport = { run: 0, ride: 0, swim: 0 }
+  let plannedMin = 0, doneMin = 0, hasCrossWorkout = false
   for (const w of workouts) {
-    if (w.type !== 'rest') (w.type === 'cross' ? ride : run).planned += w.dist ?? 0
+    if (w.type !== 'rest' && w.type !== 'cross') run.planned += w.dist ?? 0
     plannedMin += estMinutes(w)
+    if (w.type === 'cross') { crossMin.planned += estMinutes(w); hasCrossWorkout = true }
     if (w.status !== 'done') continue
     const a = actuals[w.id]
-    if (a) {
-      ;(a.pace == null ? ride : run).done += a.dist ?? 0
-      doneMin += elapsedToMin(a.time) ?? estMinutes(w)
+    const mins = a ? elapsedToMin(a.time) ?? estMinutes(w) : estMinutes(w)
+    doneMin += mins
+    if (w.type === 'cross') {
+      const dist = a ? a.dist ?? 0 : w.dist ?? 0
+      const sport = a ? actualActivity(a) : 'ride'
+      cross.done += dist
+      crossDone[sport] += dist
+      crossMin.done += mins
+      crossMinBySport[sport] += mins
     } else {
-      ;(w.type === 'cross' ? ride : run).done += w.dist ?? 0
-      doneMin += estMinutes(w)
+      run.done += a ? a.dist ?? 0 : w.dist ?? 0
     }
   }
   for (const a of extras) {
-    ;(a.pace == null ? ride : run).done += a.dist ?? 0
-    doneMin += elapsedToMin(a.time) ?? 0
+    const sport = actualActivity(a)
+    const mins = elapsedToMin(a.time) ?? 0
+    ;(sport === 'run' ? run : cross).done += a.dist ?? 0
+    if (sport !== 'run') {
+      crossDone[sport] += a.dist ?? 0
+      crossMin.done += mins
+      crossMinBySport[sport] += mins
+    }
+    doneMin += mins
   }
-  return { run, ride, hasRide: ride.planned > 0 || ride.done > 0, plannedMin, doneMin }
+  // The sport dropdown must appear as soon as cross exists in the plan —
+  // PRESCRIBED cross counts (the coach flips to check cross time before
+  // anything is logged), as does any logged cross activity.
+  const hasCross = hasCrossWorkout || cross.done > 0 || crossMin.done > 0
+  return { run, cross, hasCross, crossDone, plannedMin, doneMin, crossMin, crossMinBySport }
 }

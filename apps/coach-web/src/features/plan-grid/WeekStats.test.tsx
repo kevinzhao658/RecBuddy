@@ -22,18 +22,31 @@ test('without a log, done falls back to planned (old behavior preserved)', () =>
   expect(screen.getByText(/\/ 12\.0 mi/)).toBeInTheDocument()
 })
 
-test('ride volume reveals the dropdown; selecting Ride shows ride numbers', () => {
+test('cross volume reveals the dropdown; Cross shows done-only miles and cross time', () => {
   function Wrap() {
-    const [mode, setMode] = useState<'run' | 'ride'>('run')
+    const [mode, setMode] = useState<'run' | 'cross'>('run')
     const week = [[run('w1', 8), run('c1', 15, 'done', 'cross')], [], [], [], [], [], []]
     return <WeekStats week={week} actuals={{ c1: act('c1', 12.4, null, '48:00') }}
       mode={mode} onModeChange={setMode} />
   }
   render(<Wrap />)
-  fireEvent.change(screen.getByRole('combobox', { name: /volume sport/i }), { target: { value: 'ride' } })
-  expect(screen.getByText('Ride mileage')).toBeInTheDocument()
-  expect(screen.getByText('12.4')).toBeInTheDocument()
-  expect(screen.getByText(/\/ 15\.0 mi/)).toBeInTheDocument()
+  fireEvent.change(screen.getByRole('combobox', { name: /volume sport/i }), { target: { value: 'cross' } })
+  expect(screen.getByText('Cross mileage')).toBeInTheDocument()
+  expect(screen.getByText('12.4 mi')).toBeInTheDocument()      // done-only figure
+  expect(screen.queryByText(/\/ .*mi/)).toBeNull()             // no projected total
+  expect(screen.getByText('Cross time')).toBeInTheDocument()   // time stat flips too
+})
+
+test('cross mileage shows an icon + total per sport (swims in meters, no bar)', () => {
+  const week = [[run('c1', 15, 'done', 'cross'), run('c2', 2, 'done', 'cross')], [], [], [], [], [], []]
+  const actuals = {
+    c1: act('c1', 12.4, null, '48:00'),                       // legacy null activity -> ride
+    c2: { id: 'a2', workout_id: 'c2', dist: 1.1, pace: null, time: '35:00', activity: 'swim' } as any,
+  }
+  render(<WeekStats week={week} actuals={actuals} mode="cross" onModeChange={() => {}} />)
+  expect(screen.getByLabelText('Bike distance')).toHaveTextContent('12.4 mi')
+  expect(screen.getByLabelText('Swim distance')).toHaveTextContent('1,770 m')  // 1.1 mi in meters
+  expect(screen.queryByLabelText('Run distance')).toBeNull()  // zero run miles -> no entry
 })
 
 test('time on feet uses logged elapsed when present', () => {

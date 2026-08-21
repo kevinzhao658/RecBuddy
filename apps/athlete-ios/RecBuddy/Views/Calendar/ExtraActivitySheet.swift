@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// Detail for an off-plan extra run/ride: shows the logged values, allows the
-/// same edits as a logged run (distance + elapsed time; pace re-derives for
-/// runs), and delete. Deleting also excludes the source id so sync never
+/// Detail for an off-plan extra run/ride/swim: shows the logged values, allows
+/// the same edits as a logged run (distance + elapsed time; pace re-derives
+/// for runs), and delete. Deleting also excludes the source id so sync never
 /// re-imports the same activity.
 struct ExtraActivitySheet: View {
     let actual: WorkoutActual
@@ -16,18 +16,23 @@ struct ExtraActivitySheet: View {
     @State private var confirmDelete = false
     @State private var error: String?
 
-    private var isRide: Bool { actual.pace == nil }
+    private var isRun: Bool { actual.declaredActivity == "run" }
+    private var isSwim: Bool { actual.declaredActivity == "swim" }
 
     init(actual: WorkoutActual, store: PlanStore, unit: Unit) {
         self.actual = actual
         self.store = store
         self.unit = unit
-        _dist = State(initialValue: Units.fmtDist(actual.dist, unit))
+        // Swims enter/read distance in meters — their conventional unit.
+        _dist = State(initialValue: actual.declaredActivity == "swim"
+            ? String(SportMetrics.meters(fromMiles: actual.dist))
+            : Units.fmtDist(actual.dist, unit))
         _time = State(initialValue: actual.time)
     }
 
     private var miles: Double? {
         guard let d = Double(dist), d > 0 else { return nil }
+        if isSwim { return SportMetrics.miles(fromMeters: d) }
         return (Units.toMiles(d, unit) * 100).rounded() / 100
     }
     private var seconds: Int? {
@@ -42,8 +47,8 @@ struct ExtraActivitySheet: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
                         HStack(spacing: 10) {
-                            Image(systemName: isRide ? "bicycle" : "figure.run").foregroundStyle(RB.accent)
-                            Text(isRide ? "Extra ride" : "Extra run")
+                            Image(systemName: actual.activitySymbol).foregroundStyle(RB.accent)
+                            Text(actual.extraTitle)
                                 .font(.title3.weight(.bold)).foregroundStyle(.white)
                             Spacer()
                             Text("from Health").font(.caption).foregroundStyle(RB.textFaint)
@@ -52,14 +57,31 @@ struct ExtraActivitySheet: View {
                             Text(Week.fmtDayDate(day)).font(.caption).foregroundStyle(RB.textMute)
                         }
                         VStack(alignment: .leading, spacing: 8) {
-                            RBLabel("DISTANCE (\(unit.rawValue.uppercased()))")
-                            TextField("4.5", text: $dist).keyboardType(.decimalPad)
+                            RBLabel(isSwim ? "DISTANCE (M)" : "DISTANCE (\(unit.rawValue.uppercased()))")
+                            TextField(isSwim ? "1500" : "4.5", text: $dist).keyboardType(.decimalPad)
                                 .foregroundStyle(.white).rbField()
                         }
                         VStack(alignment: .leading, spacing: 8) {
                             RBLabel("TOTAL TIME")
                             TextField("45:00", text: $time)
                                 .foregroundStyle(.white).rbField()
+                        }
+                        // Sport-native readout: rides in avg speed (+ power
+                        // when the recording has it), swims in /100m pace.
+                        if let m = miles, let s = seconds,
+                           let lens = isSwim
+                               ? SportMetrics.swimPace100Text(miles: m, seconds: s)
+                               : (isRun ? nil : SportMetrics.avgSpeedText(miles: m, seconds: s, unit: unit)) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                RBLabel(isSwim ? "PACE /100M" : "AVG SPEED")
+                                Text(lens).font(.body.weight(.semibold)).foregroundStyle(RB.accent)
+                            }
+                        }
+                        if actual.declaredActivity == "ride", let w = actual.avgWatts {
+                            VStack(alignment: .leading, spacing: 8) {
+                                RBLabel("AVG POWER")
+                                Text("\(w) W").font(.body.weight(.semibold)).foregroundStyle(.white)
+                            }
                         }
                         if let hr = actual.hr {
                             VStack(alignment: .leading, spacing: 8) {
@@ -97,7 +119,7 @@ struct ExtraActivitySheet: View {
     private func save() async {
         guard let miles, let seconds else { return }
         busy = true; error = nil; defer { busy = false }
-        let pace = isRide ? nil : Pace.derive(miles: miles, totalSeconds: seconds)
+        let pace = isRun ? Pace.derive(miles: miles, totalSeconds: seconds) : nil
         do {
             try await store.updateRun(actualId: actual.id, dist: miles,
                                       time: Pace.timeString(fromSeconds: seconds), pace: pace,

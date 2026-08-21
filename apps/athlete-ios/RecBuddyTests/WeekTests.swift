@@ -67,6 +67,15 @@ import Testing
 }
 
 @Suite struct LocalDayTests {
+    @Test func localNoonTimestampBucketsBackToItsDay() {
+        // recorded_at written for a day must resolve to that SAME local day —
+        // extras logged onto a cross day would otherwise drift a calendar day.
+        for iso in ["2026-11-01", "2026-01-01", "2026-12-31", "2026-07-04"] {
+            let ts = Week.localNoonTimestamp(iso)
+            #expect(Week.localDay(fromTimestamp: ts) == iso)
+        }
+    }
+
     @Test func localDayRoundTripsExactly() {
         // The UTC-parse bug rendered stored Nov 1 as "Oct 31" in DatePickers
         // west of Greenwich — local parse/format must round-trip the same day.

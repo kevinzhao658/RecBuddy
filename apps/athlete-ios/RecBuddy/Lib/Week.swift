@@ -145,4 +145,16 @@ enum Week {
         f.dateFormat = "yyyy-MM-dd"
         return f.string(from: date)
     }
+
+    /// Noon LOCAL time of a 'YYYY-MM-DD' day as an ISO-8601 timestamp — a
+    /// recorded_at that always buckets back onto the same local day via
+    /// localDay(fromTimestamp:), whatever the timezone offset.
+    static func localNoonTimestamp(_ dayIso: String, calendar: Calendar = .current) -> String {
+        let parts = dayIso.split(separator: "-").compactMap { Int($0) }
+        guard parts.count == 3 else { return dayIso + "T12:00:00Z" }
+        var comps = DateComponents()
+        comps.year = parts[0]; comps.month = parts[1]; comps.day = parts[2]; comps.hour = 12
+        let date = calendar.date(from: comps) ?? Date()
+        return ISO8601DateFormatter().string(from: date)
+    }
 }

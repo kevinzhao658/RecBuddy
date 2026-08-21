@@ -91,12 +91,44 @@ struct WorkoutActual: Codable, Identifiable, Equatable {
     let source: String
     let sourceId: String?        // provider's stable id (HealthKit UUID); nil for manual
     let recordedAt: String?      // timestamptz — the activity's start time for synced rows
+    let activity: String?        // declared sport ('run'/'ride'/'swim'); nil on legacy rows
+    let avgWatts: Int?           // average power for rides; manual or Health sync
     enum CodingKeys: String, CodingKey {
-        case id, dist, pace, time, hr, feel, note, source
+        case id, dist, pace, time, hr, feel, note, source, activity
         case workoutId = "workout_id"
         case athleteId = "athlete_id"
         case sourceId = "source_id"
         case recordedAt = "recorded_at"
+        case avgWatts = "avg_watts"
+    }
+
+    /// The row's declared sport, with the legacy fallback for rows written
+    /// before the activity column existed (pace == nil meant a ride).
+    var declaredActivity: String {
+        if let activity, ["run", "ride", "swim"].contains(activity) { return activity }
+        return pace == nil ? "ride" : "run"
+    }
+    /// Display title for off-plan extras ("Extra run/ride/swim").
+    var extraTitle: String {
+        switch declaredActivity {
+        case "ride": return "Extra ride"
+        case "swim": return "Extra swim"
+        default:     return "Extra run"
+        }
+    }
+    /// SF Symbol for the declared sport.
+    var activitySymbol: String {
+        switch declaredActivity {
+        case "ride": return "bicycle"
+        case "swim": return "figure.pool.swim"
+        default:     return "figure.run"
+        }
+    }
+    /// Distance the way the sport reads it: swims in meters, others in the
+    /// athlete's unit ("1,500 m" vs "5.2 mi").
+    func distDisplay(unit: Unit) -> String {
+        declaredActivity == "swim" ? SportMetrics.metersText(miles: dist)
+            : "\(Units.fmtDist(dist, unit)) \(unit.rawValue)"
     }
 }
 
