@@ -60,14 +60,23 @@ function DayCell({ date, ws, inMonth, isToday, isSel, canEdit, onPick }: {
 
 // A metric row for the KPI column: "done/total" kept to a single line (never
 // wraps, so the calendar row height stays put) over a slim bar with the
-// percentage pulled out to the right of the bar.
-function KpiBar({ value, pct, tint }: { value: ReactNode; pct: number; tint: string }) {
+// percentage pulled out to the right of the bar. `segments` (fractions of the
+// FULL bar) color the fill by allocation — cross time split across sports.
+function KpiBar({ value, pct, tint, segments }: {
+  value: ReactNode; pct: number; tint: string; segments?: { tint: string; frac: number }[]
+}) {
   return (
     <div>
       <div className="truncate font-num text-[10px] leading-tight tabular-nums">{value}</div>
       <div className="mt-0.5 flex items-center gap-1.5">
-        <div className="h-1 flex-1 overflow-hidden rounded-full bg-black/30">
-          <div className={`h-full rounded-full ${tint}`} style={{ width: `${Math.min(100, pct)}%` }} />
+        <div className="flex h-1 flex-1 overflow-hidden rounded-full bg-black/30">
+          {segments && segments.length > 0 ? (
+            segments.map((s, i) => (
+              <div key={i} className={`h-full ${s.tint}`} style={{ width: `${s.frac * 100}%` }} />
+            ))
+          ) : (
+            <div className={`h-full rounded-full ${tint}`} style={{ width: `${Math.min(100, pct)}%` }} />
+          )}
         </div>
         <span className="font-num text-[10px] tabular-nums text-text-faint">{pct}%</span>
       </div>
@@ -75,10 +84,13 @@ function KpiBar({ value, pct, tint }: { value: ReactNode; pct: number; tint: str
   )
 }
 
-// Per-sport icon color in the cross totals row — matches the gauge legend
-// (bike keeps the accent; swim and run get their segment tints).
+// Per-sport colors in the cross rows — matched pairs (text for icons, bg for
+// bar fills): bike keeps the accent; swim and run get their segment tints.
 const SPORT_TEXT: Record<'run' | 'ride' | 'swim', string> = {
   ride: 'text-accent', swim: 'text-sky-400', run: 'text-amber-400',
+}
+const SPORT_TINT: Record<'run' | 'ride' | 'swim', string> = {
+  ride: 'bg-accent', swim: 'bg-sky-400', run: 'bg-amber-400',
 }
 
 function WeekSummary({ days, extras, actuals, mode, isCurrent }: {
@@ -102,6 +114,15 @@ function WeekSummary({ days, extras, actuals, mode, isCurrent }: {
   const timeDone = crossMode ? vol.crossMin.done : vol.doneMin
   const timePlanned = crossMode ? vol.crossMin.planned : vol.plannedMin
   const timePct = timePlanned > 0 ? Math.round((timeDone / timePlanned) * 100) : 0
+  // Cross time keeps its completion % — but the FILL is color-coded by how
+  // the logged time was allocated across sports (same tints as the icons).
+  const timeSegments = crossMode && timeDone > 0
+    ? ([['ride', vol.crossMinBySport.ride], ['swim', vol.crossMinBySport.swim], ['run', vol.crossMinBySport.run]] as const)
+        .filter(([, min]) => min > 0)
+        .map(([sport, min]) => ({
+          tint: SPORT_TINT[sport], frac: (min / timeDone) * (Math.min(100, timePct) / 100),
+        }))
+    : undefined
   return (
     <div className="p-1.5">
       <div className={`rb-card-sm flex h-full flex-col justify-center gap-2 p-2.5 ${isCurrent ? 'ring-1 ring-text/30' : ''}`}>
@@ -121,7 +142,7 @@ function WeekSummary({ days, extras, actuals, mode, isCurrent }: {
           <KpiBar tint="bg-accent" pct={milePct}
             value={<><span className="font-bold text-text">{fmtDist(side.done, unit)}</span><span className="text-text-faint">/{fmtDist(side.planned, unit)} {unit}</span></>} />
         )}
-        <KpiBar tint="bg-text-mute" pct={timePct}
+        <KpiBar tint="bg-text-mute" pct={timePct} segments={timeSegments}
           value={<><span className="font-bold text-text">{fmtDur(timeDone)}</span><span className="text-text-faint">/{fmtDur(timePlanned)}</span></>} />
       </div>
     </div>

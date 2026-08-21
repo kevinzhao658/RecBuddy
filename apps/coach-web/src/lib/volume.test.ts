@@ -48,6 +48,19 @@ test('crossMin tracks cross-prescribed vs logged minutes (extras add to done)', 
     { w1: act('w1', 15.3, null, '52:00', 'ride') }, [extra(12, null, '40:00', 'ride')])
   expect(v.crossMin.planned).toBe(60)
   expect(v.crossMin.done).toBe(52 + 40)
+  // Allocation by sport: ride carries all 92 logged minutes here.
+  expect(v.crossMinBySport.ride).toBe(92)
+  expect(v.crossMinBySport.swim).toBe(0)
+})
+
+test('crossMinBySport splits logged cross minutes by declared sport', () => {
+  const v = volumeSplit(
+    [w('c1', 'cross', null, 'done'), w('c2', 'cross', null, 'done')],
+    { c1: act('c1', 15.3, null, '52:00', 'ride'), c2: act('c2', 1.0, null, '35:00', 'swim') },
+    [])
+  expect(v.crossMinBySport.ride).toBe(52)
+  expect(v.crossMinBySport.swim).toBe(35)
+  expect(v.crossMinBySport.run).toBe(0)
 })
 
 test('anything logged against a cross workout lands on the cross side — even with a run pace', () => {

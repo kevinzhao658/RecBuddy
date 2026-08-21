@@ -10,9 +10,11 @@ export interface StatSegment { label: string; value: number; tint: string }
  *  Pass `segments` to color-code the done fill by sport; non-zero segments
  *  also render as a small legend under the bar.
  *  Shared by the week and month KPI rows so the two views read identically. */
-export function ProgressStat({ label, done, planned, doneText, plannedText, tint, segments }: {
+export function ProgressStat({ label, done, planned, doneText, plannedText, tint, segments, legend = true }: {
   label: string; done: number; planned: number; doneText: string; plannedText?: string; tint: string
   segments?: StatSegment[]
+  /** Hide the per-segment legend (when a sibling stat already shows it). */
+  legend?: boolean
 }) {
   const doneOnly = plannedText == null
   const pct = planned > 0 ? Math.min(100, Math.round((done / planned) * 100)) : 0
@@ -39,7 +41,7 @@ export function ProgressStat({ label, done, planned, doneText, plannedText, tint
           <div className={`h-full rounded-full ${tint}`} style={{ width: `${span}%` }} />
         )}
       </div>
-      {shown.length > 0 && (
+      {legend && shown.length > 0 && (
         <div className="mt-1 flex flex-wrap gap-x-2.5 gap-y-0.5">
           {shown.map((s) => (
             <span key={s.label} className="flex items-center gap-1 text-[10px] text-text-faint">

@@ -16,6 +16,9 @@ export interface PeriodVolume {
   /** Cross-only minutes — the time stat flips to this in cross mode (time IS
    *  the cross prescription, so planned-vs-done is meaningful here). */
   crossMin: { planned: number; done: number }
+  /** Done cross minutes split by declared sport — colors the time bar's fill
+   *  to show how the logged time was allocated across activities. */
+  crossMinBySport: CrossDoneBySport
 }
 
 /** '46:48' or '1:25:14' -> whole minutes (rounded); null if unparseable. */
@@ -50,6 +53,7 @@ export function volumeSplit(workouts: Workout[], actuals: Record<string, Actual>
   const cross: VolumeSide = { planned: 0, done: 0 }
   const crossDone: CrossDoneBySport = { run: 0, ride: 0, swim: 0 }
   const crossMin = { planned: 0, done: 0 }
+  const crossMinBySport: CrossDoneBySport = { run: 0, ride: 0, swim: 0 }
   let plannedMin = 0, doneMin = 0
   for (const w of workouts) {
     if (w.type !== 'rest' && w.type !== 'cross') run.planned += w.dist ?? 0
@@ -61,9 +65,11 @@ export function volumeSplit(workouts: Workout[], actuals: Record<string, Actual>
     doneMin += mins
     if (w.type === 'cross') {
       const dist = a ? a.dist ?? 0 : w.dist ?? 0
+      const sport = a ? actualActivity(a) : 'ride'
       cross.done += dist
-      crossDone[a ? actualActivity(a) : 'ride'] += dist
+      crossDone[sport] += dist
       crossMin.done += mins
+      crossMinBySport[sport] += mins
     } else {
       run.done += a ? a.dist ?? 0 : w.dist ?? 0
     }
@@ -75,8 +81,9 @@ export function volumeSplit(workouts: Workout[], actuals: Record<string, Actual>
     if (sport !== 'run') {
       crossDone[sport] += a.dist ?? 0
       crossMin.done += mins
+      crossMinBySport[sport] += mins
     }
     doneMin += mins
   }
-  return { run, cross, hasCross: cross.done > 0, crossDone, plannedMin, doneMin, crossMin }
+  return { run, cross, hasCross: cross.done > 0, crossDone, plannedMin, doneMin, crossMin, crossMinBySport }
 }
