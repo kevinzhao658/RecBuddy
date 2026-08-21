@@ -630,7 +630,13 @@ struct CalendarView: View {
 
     private var dayPager: some View {
         ScrollView(.horizontal) {
-            LazyHStack(alignment: .top, spacing: 10) {
+            // NON-lazy on purpose: a LazyHStack lays out only the visible page,
+            // so the scroller's height matched the CURRENT day and taller
+            // neighbors arrived clipped. Eager layout sizes the row to the
+            // week's tallest day, and the screen's outer vertical scroll then
+            // reaches every workout on any day. Seven lightweight pages — the
+            // laziness bought nothing.
+            HStack(alignment: .top, spacing: 10) {
                 weekSentinel(label: "‹ Last week").id("prev")
                     .containerRelativeFrame(.horizontal) { len, _ in len * 0.4 }
                 ForEach(store.weekDates, id: \.self) { date in
