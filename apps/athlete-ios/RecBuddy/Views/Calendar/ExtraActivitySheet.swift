@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// Detail for an off-plan extra run/ride: shows the logged values, allows the
-/// same edits as a logged run (distance + elapsed time; pace re-derives for
-/// runs), and delete. Deleting also excludes the source id so sync never
+/// Detail for an off-plan extra run/ride/swim: shows the logged values, allows
+/// the same edits as a logged run (distance + elapsed time; pace re-derives
+/// for runs), and delete. Deleting also excludes the source id so sync never
 /// re-imports the same activity.
 struct ExtraActivitySheet: View {
     let actual: WorkoutActual
@@ -16,7 +16,7 @@ struct ExtraActivitySheet: View {
     @State private var confirmDelete = false
     @State private var error: String?
 
-    private var isRide: Bool { actual.pace == nil }
+    private var isRun: Bool { actual.declaredActivity == "run" }
 
     init(actual: WorkoutActual, store: PlanStore, unit: Unit) {
         self.actual = actual
@@ -42,8 +42,8 @@ struct ExtraActivitySheet: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
                         HStack(spacing: 10) {
-                            Image(systemName: isRide ? "bicycle" : "figure.run").foregroundStyle(RB.accent)
-                            Text(isRide ? "Extra ride" : "Extra run")
+                            Image(systemName: actual.activitySymbol).foregroundStyle(RB.accent)
+                            Text(actual.extraTitle)
                                 .font(.title3.weight(.bold)).foregroundStyle(.white)
                             Spacer()
                             Text("from Health").font(.caption).foregroundStyle(RB.textFaint)
@@ -97,7 +97,7 @@ struct ExtraActivitySheet: View {
     private func save() async {
         guard let miles, let seconds else { return }
         busy = true; error = nil; defer { busy = false }
-        let pace = isRide ? nil : Pace.derive(miles: miles, totalSeconds: seconds)
+        let pace = isRun ? Pace.derive(miles: miles, totalSeconds: seconds) : nil
         do {
             try await store.updateRun(actualId: actual.id, dist: miles,
                                       time: Pace.timeString(fromSeconds: seconds), pace: pace,

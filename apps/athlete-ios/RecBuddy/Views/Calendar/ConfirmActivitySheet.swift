@@ -42,13 +42,13 @@ struct ConfirmActivitySheet: View {
     }
 
     private func row(_ p: PendingActivity) -> some View {
-        let isRide = p.sample.kind == .cycling
+        let kind = p.sample.kind
         return VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
-                Image(systemName: isRide ? "bicycle" : "figure.run")
+                Image(systemName: kind.symbol)
                     .foregroundStyle(RB.accent)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(isRide ? "Ride" : "Run")
+                    Text(kind.noun.capitalized)
                         .font(.subheadline.weight(.bold)).foregroundStyle(.white)
                     Text("\(Week.fmtDayDate(HealthMatcher.localDay(of: p.sample.startDate))) · \(Units.fmtDist(p.sample.miles, unit)) \(unit.rawValue) · \(Pace.timeString(fromSeconds: p.sample.durationSeconds))")
                         .font(.caption).foregroundStyle(RB.textMute)
@@ -74,7 +74,7 @@ struct ConfirmActivitySheet: View {
             }
             HStack(spacing: 10) {
                 Button { resolve(p, .standalone) } label: {
-                    Text(isRide ? "Keep as extra ride" : "Keep as extra run")
+                    Text("Keep as extra \(kind.noun)")
                         .font(.footnote.weight(.semibold)).frame(maxWidth: .infinity)
                 }
                 .buttonStyle(VoltButtonStyle())

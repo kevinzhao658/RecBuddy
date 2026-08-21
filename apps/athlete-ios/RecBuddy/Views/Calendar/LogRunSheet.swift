@@ -21,12 +21,18 @@ struct LogRunSheet: View {
     @State private var share = true
     @State private var busy = false
     @State private var error: String?
+    /// Declared sport for CROSS workouts ('run'/'ride'/'swim') — the athlete
+    /// picks what they actually did; non-cross workouts are always 'run'.
+    @State private var activity: String
 
     init(workout: Workout, store: PlanStore, unit: Unit, existing: WorkoutActual? = nil) {
         self.workout = workout
         self.store = store
         self.unit = unit
         self.existing = existing
+        // Cross defaults to Bike (the common case); editing keeps the declared sport.
+        _activity = State(initialValue: existing?.declaredActivity
+            ?? (workout.type == "cross" ? "ride" : "run"))
         if let existing {
             // Edit: prefill from the logged actual; sharing an update is opt-in.
             _dist = State(initialValue: Units.fmtDist(existing.dist, unit))
@@ -84,6 +90,19 @@ struct LogRunSheet: View {
                 RB.bg.ignoresSafeArea()
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
+
+                        // Cross workouts: declare the sport — it decides which
+                        // volume bucket the miles land in (run vs cross).
+                        if workout.type == "cross" {
+                            VStack(alignment: .leading, spacing: 8) {
+                                RBLabel("WHAT DID YOU DO?")
+                                HStack(spacing: 10) {
+                                    activityChip(label: "Run", symbol: "figure.run", value: "run")
+                                    activityChip(label: "Bike", symbol: "bicycle", value: "ride")
+                                    activityChip(label: "Swim", symbol: "figure.pool.swim", value: "swim")
+                                }
+                            }
+                        }
 
                         // Distance — digits + one decimal point only
                         fieldGroup(label: "DISTANCE (\(unit.rawValue.uppercased()))") {
@@ -224,6 +243,28 @@ struct LogRunSheet: View {
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
+    /// Sport chip for cross workouts — same visual language as feelChip.
+    private func activityChip(label: String, symbol: String, value: String) -> some View {
+        let selected = activity == value
+        return Button {
+            activity = value
+        } label: {
+            VStack(spacing: 5) {
+                Image(systemName: symbol).font(.system(size: 18, weight: .semibold))
+                Text(label).font(.caption2.weight(.semibold))
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .foregroundStyle(selected ? RB.accent : RB.textMute)
+            .background(selected ? RB.accent.opacity(0.12) : RB.surface2)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12)
+                .stroke(selected ? RB.accent : RB.line, lineWidth: 1))
+        }
+        .accessibilityLabel("Logged as \(label.lowercased())")
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
     private func save() async {
         busy = true; error = nil; defer { busy = false }
         // No-target workout, nothing entered: plain mark-complete (new logs only).
@@ -243,11 +284,13 @@ struct LogRunSheet: View {
                 // Edit in place — the workout stays done, the actual row updates.
                 try await store.updateRun(actualId: existing.id, dist: miles, time: time,
                                           pace: pace, hr: Int(hr), feel: feel,
-                                          note: trimmedNote.isEmpty ? nil : trimmedNote)
+                                          note: trimmedNote.isEmpty ? nil : trimmedNote,
+                                          activity: activity)
             } else {
                 try await store.logRun(workout: workout, dist: miles, time: time,
                                        pace: pace, hr: Int(hr), feel: feel,
-                                       note: trimmedNote.isEmpty ? nil : trimmedNote)
+                                       note: trimmedNote.isEmpty ? nil : trimmedNote,
+                                       activity: activity)
             }
             if share {
                 try? await ChatShare.shareRunCard(

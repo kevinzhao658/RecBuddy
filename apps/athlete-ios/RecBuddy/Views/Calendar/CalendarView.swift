@@ -23,8 +23,8 @@ struct CalendarView: View {
     // single workout's detail.
     @State private var multiDay: DayWorkouts?
     // Which volume the weekly mileage gauge shows (chip only appears when the
-    // week has any ride volume).
-    @State private var showRideMileage = false
+    // week has any cross volume).
+    @State private var showCrossMileage = false
     // Drives the sync badge's arrow rotation while a pass runs.
     @State private var syncSpin = false
     @AppStorage("unit") private var unitRaw = "mi"
@@ -101,7 +101,7 @@ struct CalendarView: View {
                         .rbCard(highlighted: true)
                     }
 
-                    if store.weekPlannedRunMiles > 0 || store.weekHasRideVolume {
+                    if store.weekPlannedRunMiles > 0 || store.weekHasCrossVolume {
                         mileageBlock
                     }
 
@@ -291,15 +291,15 @@ struct CalendarView: View {
     // MARK: - Weekly Mileage Block
 
     private var mileageBlock: some View {
-        // Run and ride volumes never mix — the chip swaps which one the gauge
+        // Run and cross volumes never mix — the chip swaps which one the gauge
         // shows. Pure runners never see the chip (zero added chrome).
-        let ride = showRideMileage && store.weekHasRideVolume
-        let planned = ride ? store.weekPlannedRideMiles : store.weekPlannedRunMiles
-        let done = ride ? store.weekDoneRideMiles : store.weekDoneRunMiles
+        let cross = showCrossMileage && store.weekHasCrossVolume
+        let planned = cross ? store.weekPlannedCrossMiles : store.weekPlannedRunMiles
+        let done = cross ? store.weekDoneCrossMiles : store.weekDoneRunMiles
         return VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
                 RBLabel("WEEKLY MILEAGE")
-                if store.weekHasRideVolume {
+                if store.weekHasCrossVolume {
                     mileageModeToggle
                 }
                 Spacer()
@@ -316,40 +316,70 @@ struct CalendarView: View {
                 ZStack(alignment: .leading) {
                     Capsule().fill(RB.surface2)
                     let frac = planned > 0 ? min(done / planned, 1.0) : 0.0
-                    Capsule()
-                        .fill(RB.accent)
-                        .frame(width: proxy.size.width * CGFloat(frac))
+                    if cross && done > 0 {
+                        // Color-coded per sport: bike keeps the accent; swim
+                        // and run get distinct tints. Widths keep each sport's
+                        // share of the done fill.
+                        let s = store.weekCrossDoneBySport
+                        let fill = proxy.size.width * CGFloat(frac)
+                        HStack(spacing: 0) {
+                            Rectangle().fill(RB.accent).frame(width: fill * CGFloat(s.ride / done))
+                            Rectangle().fill(Color.cyan).frame(width: fill * CGFloat(s.swim / done))
+                            Rectangle().fill(Color.orange).frame(width: fill * CGFloat(s.run / done))
+                        }
+                        .clipShape(Capsule())
+                    } else {
+                        Capsule()
+                            .fill(RB.accent)
+                            .frame(width: proxy.size.width * CGFloat(frac))
+                    }
                 }
             }
             .frame(height: 6)
+            if cross {
+                let s = store.weekCrossDoneBySport
+                HStack(spacing: 10) {
+                    if s.ride > 0 { sportLegend(RB.accent, "Bike") }
+                    if s.swim > 0 { sportLegend(Color.cyan, "Swim") }
+                    if s.run > 0 { sportLegend(Color.orange, "Run") }
+                }
+            }
             if planned > 0 {
                 Text("\(fmtMiles(max(planned - done, 0))) mi to go this week")
                     .font(.caption)
                     .foregroundStyle(RB.textFaint)
             } else {
-                // Done volume with nothing planned (e.g. off-plan rides only).
-                Text(ride ? "No rides planned this week" : "No runs planned this week")
+                // Done volume with nothing planned (e.g. off-plan extras only).
+                Text(cross ? "No cross-training planned this week" : "No runs planned this week")
                     .font(.caption)
                     .foregroundStyle(RB.textFaint)
             }
         }
     }
 
-    /// Tiny Run/Ride swap beside the gauge label.
+    /// Legend dot + sport name under the color-coded cross bar.
+    private func sportLegend(_ color: Color, _ label: String) -> some View {
+        HStack(spacing: 4) {
+            Circle().fill(color).frame(width: 6, height: 6)
+            Text(label).font(.caption2).foregroundStyle(RB.textFaint)
+        }
+    }
+
+    /// Tiny Run/Cross swap beside the gauge label.
     private var mileageModeToggle: some View {
         HStack(spacing: 2) {
-            mileageChip("Run", isRide: false)
-            mileageChip("Ride", isRide: true)
+            mileageChip("Run", isCross: false)
+            mileageChip("Cross", isCross: true)
         }
         .padding(2)
         .background(RB.surface2)
         .clipShape(Capsule())
     }
 
-    private func mileageChip(_ label: String, isRide: Bool) -> some View {
-        let selected = showRideMileage == isRide
+    private func mileageChip(_ label: String, isCross: Bool) -> some View {
+        let selected = showCrossMileage == isCross
         return Button {
-            withAnimation(.easeInOut(duration: 0.15)) { showRideMileage = isRide }
+            withAnimation(.easeInOut(duration: 0.15)) { showCrossMileage = isCross }
         } label: {
             Text(label)
                 .font(.caption2.weight(.semibold))
@@ -443,14 +473,13 @@ struct CalendarView: View {
 
     /// Off-plan extra activity as a completed-style tab behind the stack.
     private func extraSliver(_ a: WorkoutActual) -> some View {
-        let isRide = a.pace == nil
         let tab = UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: 16,
                                          bottomTrailingRadius: 16, topTrailingRadius: 0)
         return Button { selectedExtra = a } label: {
             HStack(spacing: 12) {
-                Image(systemName: isRide ? "bicycle" : "figure.run")
+                Image(systemName: a.activitySymbol)
                     .font(.footnote).foregroundStyle(RB.accent).frame(width: 30)
-                Text(isRide ? "Extra ride" : "Extra run")
+                Text(a.extraTitle)
                     .font(.subheadline.weight(.semibold)).foregroundStyle(.white).lineLimit(1)
                 Spacer()
                 HStack(spacing: 4) {
@@ -705,7 +734,6 @@ struct CalendarView: View {
     }
 
     private func extraWeekRow(date: String, actual a: WorkoutActual) -> some View {
-        let isRide = a.pace == nil
         let dowIndex = store.weekDates.firstIndex(of: date) ?? 0
         return Button { selectedExtra = a } label: {
             HStack(spacing: 12) {
@@ -718,11 +746,11 @@ struct CalendarView: View {
                 .frame(width: 40)
                 ZStack {
                     RoundedRectangle(cornerRadius: 8).fill(RB.surface2).frame(width: 36, height: 36)
-                    Image(systemName: isRide ? "bicycle" : "figure.run")
+                    Image(systemName: a.activitySymbol)
                         .font(.footnote).foregroundStyle(RB.accent)
                 }
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(isRide ? "Extra ride" : "Extra run")
+                    Text(a.extraTitle)
                         .font(.subheadline.weight(.semibold)).foregroundStyle(.white)
                     Text("\(Units.fmtDist(a.dist, unit)) \(unit.rawValue) · \(a.time)")
                         .font(.caption).foregroundStyle(RB.textMute)

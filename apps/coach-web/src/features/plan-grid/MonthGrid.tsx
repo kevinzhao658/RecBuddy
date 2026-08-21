@@ -80,7 +80,7 @@ function WeekSummary({ days, extras, actuals, mode, isCurrent }: {
 }) {
   const { unit } = useUnit()
   const vol = volumeSplit(days.flat(), actuals, extras)
-  const side = mode === 'ride' ? vol.ride : vol.run
+  const side = mode === 'cross' ? vol.cross : vol.run
   const milePct = side.planned > 0 ? Math.round((side.done / side.planned) * 100) : 0
   const timePct = vol.plannedMin > 0 ? Math.round((vol.doneMin / vol.plannedMin) * 100) : 0
   return (
@@ -107,7 +107,7 @@ export function MonthGrid({ anchor, byDate, selectedDate, canEdit = true, actual
     <div className="overflow-x-auto"><div className="rb-card min-w-[560px] overflow-hidden p-0">
       <div className="grid grid-cols-8 border-b border-line">
         {DOW.map((d) => <div key={d} className="border-r border-line px-2 py-2 text-center text-[11px] font-semibold uppercase tracking-[0.06em] text-text-mute">{d}</div>)}
-        <div className="px-2 py-2 text-center text-[11px] font-semibold uppercase tracking-[0.06em] text-accent">{mode === 'ride' ? 'Weekly ride volume' : 'Weekly volume'}</div>
+        <div className="px-2 py-2 text-center text-[11px] font-semibold uppercase tracking-[0.06em] text-accent">{mode === 'cross' ? 'Weekly cross volume' : 'Weekly volume'}</div>
       </div>
       <div className="grid grid-cols-8">
         {weeks.map((week) => (

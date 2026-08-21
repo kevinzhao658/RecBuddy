@@ -11,9 +11,14 @@ test('renders an extra RUN with distance and time', () => {
   expect(screen.getByText(/5\.2 mi · 46:48/)).toBeInTheDocument()
 })
 
-test('null pace renders as an extra RIDE', () => {
+test('null pace renders as an extra RIDE (legacy fallback)', () => {
   render(<ExtraActivityCard actual={{ ...base, pace: null }} />)
   expect(screen.getByText(/extra ride/i)).toBeInTheDocument()
+})
+
+test('declared swim activity renders as an extra SWIM', () => {
+  render(<ExtraActivityCard actual={{ ...base, pace: null, activity: 'swim' }} />)
+  expect(screen.getByText(/extra swim/i)).toBeInTheDocument()
 })
 
 test('with onClick the card is a button that fires (view details)', () => {

@@ -62,5 +62,20 @@ import Foundation
         #expect(a.pace == nil)
         #expect(a.sourceId == "HK-UUID-1")
         #expect(a.recordedAt == "2026-08-17T14:03:22+00:00")
+        // No activity key on legacy rows -> pace inference says ride.
+        #expect(a.activity == nil)
+        #expect(a.declaredActivity == "ride")
+    }
+
+    @Test func declaredActivityPrefersExplicitColumnOverPaceInference() throws {
+        let json = """
+        {"id":"a2","workout_id":"w1","athlete_id":"u1","dist":1.0,"pace":null,
+         "time":"35:00","hr":null,"feel":null,"note":null,"source":"apple_health",
+         "source_id":"HK-UUID-2","recorded_at":"2026-08-19T14:03:22+00:00","activity":"swim"}
+        """.data(using: .utf8)!
+        let a = try decoder.decode(WorkoutActual.self, from: json)
+        #expect(a.declaredActivity == "swim")
+        #expect(a.extraTitle == "Extra swim")
+        #expect(a.activitySymbol == "figure.pool.swim")
     }
 }

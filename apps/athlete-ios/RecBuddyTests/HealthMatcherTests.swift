@@ -66,6 +66,28 @@ import Foundation
         #expect(classify(a, day: [a, b], ws: [workout("w1", type: "easy")], excluded: ["r2"])
                 == .autoLog(workoutId: "w1"))
     }
+    @Test func swimAutoLogsToACrossDay() {
+        #expect(classify(run("s1", kind: .swimming), ws: [workout("w1", type: "cross")])
+                == .autoLog(workoutId: "w1"))
+    }
+    @Test func swimWithoutCrossDayIsStandalone() {
+        #expect(classify(run("s1", kind: .swimming), ws: [workout("w1", type: "easy")]) == .standalone)
+    }
+    @Test func rideAndSwimSameDayShareTheCrossFamilyAndNeedConfirm() {
+        // Both kinds target the ONE cross workout — neither may auto-attach.
+        let ride = run("c1", kind: .cycling), swim = run("s1", kind: .swimming)
+        let ws = [workout("w1", type: "cross")]
+        #expect(classify(ride, day: [ride, swim], ws: ws)
+                == .needsConfirm(candidateWorkoutIds: ["w1"]))
+        #expect(classify(swim, day: [ride, swim], ws: ws)
+                == .needsConfirm(candidateWorkoutIds: ["w1"]))
+    }
+    @Test func runAndSwimDoNotCrossAmbiguate() {
+        let r = run("r1"), swim = run("s1", kind: .swimming)
+        let ws = [workout("w1", type: "easy"), workout("w2", type: "cross")]
+        #expect(classify(r, day: [r, swim], ws: ws) == .autoLog(workoutId: "w1"))
+        #expect(classify(swim, day: [r, swim], ws: ws) == .autoLog(workoutId: "w2"))
+    }
 
     // ── dedupeOverlapping: duplicate recordings of one physical activity ──
     func rec(_ id: String, start: TimeInterval, dur: Int, kind: ActivityKind = .running,
@@ -97,6 +119,13 @@ import Foundation
         let run = rec("r", start: 0, dur: 2700)
         let ride = rec("c", start: 0, dur: 2700, kind: .cycling)
         #expect(HealthMatcher.dedupeOverlapping([run, ride]).count == 2)
+    }
+    @Test func overlappingSwimsCollapseButRideAndSwimDoNot() {
+        let s1 = rec("s1", start: 0, dur: 1800, kind: .swimming)
+        let s2 = rec("s2", start: 60, dur: 1700, kind: .swimming, hr: 140)
+        let ride = rec("c1", start: 0, dur: 1800, kind: .cycling)
+        let kept = HealthMatcher.dedupeOverlapping([s1, s2, ride])
+        #expect(Set(kept.map(\.sourceId)) == ["s2", "c1"]) // swims dedupe (HR wins); ride survives
     }
     @Test func chainedOverlapsCollapseToOne() {
         let a = rec("a", start: 0, dur: 1800)

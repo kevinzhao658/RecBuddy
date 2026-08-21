@@ -7,6 +7,6 @@ test('renders a sport dropdown and fires onChange with the picked mode', () => {
   render(<ModeSelect mode="run" onChange={onChange} />)
   const select = screen.getByRole('combobox', { name: /volume sport/i })
   expect(select).toHaveValue('run')
-  fireEvent.change(select, { target: { value: 'ride' } })
-  expect(onChange).toHaveBeenCalledWith('ride')
+  fireEvent.change(select, { target: { value: 'cross' } })
+  expect(onChange).toHaveBeenCalledWith('cross')
 })

@@ -2,8 +2,9 @@ import Foundation
 
 /// Pure classification of one provider activity against one day's plan.
 /// No HealthKit, no network, no store — the correctness core, fully unit-tested.
-/// Ambiguity is judged WITHIN an activity family (running vs cycling) so a run
-/// and a ride on the same day never make each other ambiguous.
+/// Ambiguity is judged WITHIN a candidate family (the workout types a kind may
+/// attach to) so a run and a ride on the same day never make each other
+/// ambiguous — but a ride and a swim DO (both compete for cross workouts).
 enum HealthMatcher {
     static let noiseFloorMiles = 0.25
     static let runningTypes: Set<String> = ["easy", "long", "speed", "tempo", "recovery", "race"]
@@ -11,9 +12,10 @@ enum HealthMatcher {
     /// Workout types an activity kind may attach to; nil = unsupported kind.
     static func candidateTypes(for kind: ActivityKind) -> Set<String>? {
         switch kind {
-        case .running: return runningTypes
-        case .cycling: return ["cross"]
-        case .other:   return nil
+        case .running:  return runningTypes
+        case .cycling:  return ["cross"]
+        case .swimming: return ["cross"]
+        case .other:    return nil
         }
     }
 
@@ -37,7 +39,7 @@ enum HealthMatcher {
     /// exactly as the next starts) never collapse.
     static func dedupeOverlapping(_ samples: [ActivitySample]) -> [ActivitySample] {
         var kept: [ActivitySample] = []
-        for kind in [ActivityKind.running, .cycling, .other] {
+        for kind in [ActivityKind.running, .cycling, .swimming, .other] {
             let group = samples.filter { $0.kind == kind }.sorted { $0.startDate < $1.startDate }
             var cluster: [ActivitySample] = []
             var clusterEnd = Date.distantPast
@@ -84,9 +86,13 @@ enum HealthMatcher {
         let candidates = dayWorkouts.filter { types.contains($0.type) && !loggedWorkoutIds.contains($0.id) }
         if candidates.isEmpty { return .standalone }
 
-        // Family siblings that will actually be considered (excluded/noise don't ambiguate).
+        // Family siblings that will actually be considered (excluded/noise
+        // don't ambiguate). Family = same CANDIDATE TYPES, not same kind: a
+        // ride and a swim both target cross workouts, so together they must
+        // route to confirm — never both auto-attach to the one cross slot.
         let familyCount = dayActivities.filter {
-            $0.kind == activity.kind && !excludedSourceIds.contains($0.sourceId) && $0.miles >= noiseFloorMiles
+            candidateTypes(for: $0.kind) == types
+                && !excludedSourceIds.contains($0.sourceId) && $0.miles >= noiseFloorMiles
         }.count
 
         if candidates.count == 1 && familyCount == 1 { return .autoLog(workoutId: candidates[0].id) }

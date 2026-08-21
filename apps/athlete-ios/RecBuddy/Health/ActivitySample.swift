@@ -5,7 +5,29 @@ import Foundation
 /// adds zero matching or UI logic.
 enum ActivitySource: String, Codable { case appleHealth = "apple_health" }
 
-enum ActivityKind: String, Codable { case running, cycling, other }
+enum ActivityKind: String, Codable {
+    case running, cycling, swimming, other
+
+    /// The workout_actuals.activity value for this kind; nil for unsupported.
+    var activityString: String? {
+        switch self {
+        case .running:  return "run"
+        case .cycling:  return "ride"
+        case .swimming: return "swim"
+        case .other:    return nil
+        }
+    }
+    /// Display noun for confirm UI/notifications ("run"/"ride"/"swim").
+    var noun: String { activityString ?? "activity" }
+    /// SF Symbol for the kind.
+    var symbol: String {
+        switch self {
+        case .cycling:  return "bicycle"
+        case .swimming: return "figure.pool.swim"
+        default:        return "figure.run"
+        }
+    }
+}
 
 struct ActivitySample: Codable, Equatable, Identifiable {
     let sourceId: String        // provider's stable id (HealthKit workout UUID)
