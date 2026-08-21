@@ -319,13 +319,14 @@ struct CalendarView: View {
                     Capsule().fill(RB.surface2)
                     if cross {
                         // Composition bar: full width divided by each sport's
-                        // share of the done miles (bike accent, swim, run).
+                        // share of the done miles (bike orange, swim blue,
+                        // run lime — matching coach-web's cross tints).
                         if done > 0 {
                             let s = store.weekCrossDoneBySport
                             HStack(spacing: 0) {
-                                Rectangle().fill(RB.accent).frame(width: proxy.size.width * CGFloat(s.ride / done))
+                                Rectangle().fill(Color.orange).frame(width: proxy.size.width * CGFloat(s.ride / done))
                                 Rectangle().fill(Color.cyan).frame(width: proxy.size.width * CGFloat(s.swim / done))
-                                Rectangle().fill(Color.orange).frame(width: proxy.size.width * CGFloat(s.run / done))
+                                Rectangle().fill(RB.accent).frame(width: proxy.size.width * CGFloat(s.run / done))
                             }
                             .clipShape(Capsule())
                         }
@@ -341,9 +342,9 @@ struct CalendarView: View {
             if cross {
                 let s = store.weekCrossDoneBySport
                 HStack(spacing: 10) {
-                    if s.ride > 0 { sportLegend(RB.accent, "Bike") }
+                    if s.ride > 0 { sportLegend(Color.orange, "Bike") }
                     if s.swim > 0 { sportLegend(Color.cyan, "Swim") }
-                    if s.run > 0 { sportLegend(Color.orange, "Run") }
+                    if s.run > 0 { sportLegend(RB.accent, "Run") }
                 }
             } else if planned > 0 {
                 Text("\(fmtMiles(max(planned - done, 0))) mi to go this week")

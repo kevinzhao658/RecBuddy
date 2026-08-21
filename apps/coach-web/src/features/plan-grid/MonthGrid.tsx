@@ -8,6 +8,7 @@ import { fmtDist } from '../../lib/units'
 import { fmtDur } from '../../lib/fmtDur'
 import { volumeSplit, type VolumeMode } from '../../lib/volume'
 import { swimMeters } from '../../lib/sportMetrics'
+import { SPORT_TEXT, SPORT_TINT } from './crossSegments'
 
 const chunk = <T,>(arr: T[], n: number) => Array.from({ length: Math.ceil(arr.length / n) }, (_, i) => arr.slice(i * n, i * n + n))
 
@@ -84,14 +85,6 @@ function KpiBar({ value, pct, tint, segments }: {
   )
 }
 
-// Per-sport colors in the cross rows — matched pairs (text for icons, bg for
-// bar fills): bike keeps the accent; swim and run get their segment tints.
-const SPORT_TEXT: Record<'run' | 'ride' | 'swim', string> = {
-  ride: 'text-accent', swim: 'text-sky-400', run: 'text-amber-400',
-}
-const SPORT_TINT: Record<'run' | 'ride' | 'swim', string> = {
-  ride: 'bg-accent', swim: 'bg-sky-400', run: 'bg-amber-400',
-}
 
 function WeekSummary({ days, extras, actuals, mode, isCurrent }: {
   days: Workout[][]; extras: Actual[]; actuals: Record<string, Actual>
