@@ -1,11 +1,11 @@
 import { render } from '@testing-library/react'
 import { TypeIcon, SportIcon } from './Icon'
 
-test('TypeIcon inherits currentColor — no baked-in tint style', () => {
-  const { container } = render(<TypeIcon type="tempo" className="text-accent" />)
-  const svg = container.querySelector('svg')!
-  expect(svg.getAttribute('style')).toBeNull()
-  expect(svg.getAttribute('class')).toContain('text-accent')
+test('TypeIcon carries its intensity tint inline; rest inherits currentColor', () => {
+  const { container: tempo } = render(<TypeIcon type="tempo" />)
+  expect(tempo.querySelector('svg')!.getAttribute('style')).toContain('color: rgb(255, 159, 10)')
+  const { container: rest } = render(<TypeIcon type="rest" className="text-text-mute" />)
+  expect(rest.querySelector('svg')!.getAttribute('style')).toBeNull()
 })
 
 test('cross renders circling arrows (two arcs + two arrowheads), not a bicycle', () => {

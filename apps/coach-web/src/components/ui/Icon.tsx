@@ -6,6 +6,15 @@ import type { WorkoutType } from '../../lib/types'
  *  Apple-platform-only, so the glyphs themselves can't ship on the web).
  *  Icons render in the caller's text color; every surface passes `text-accent`
  *  for consistency with the athlete iOS app. */
+/** Intensity tints (match athlete iOS): orange = effort, blue = long, green =
+ *  aerobic; rest/other inherit the surrounding text color. Accent-only was
+ *  tried and reverted — color answers "which days are hard" at a glance. */
+const TYPE_TINT: Record<string, string> = {
+  speed: '#FF9F0A', tempo: '#FF9F0A', race: '#FF9F0A',
+  long: '#0A84FF',
+  easy: '#30D158', recovery: '#30D158', cross: '#30D158',
+}
+
 const TYPE_GLYPH: Record<string, React.ReactNode> = {
   // figure.run — stick runner mid-stride
   easy: (
@@ -68,8 +77,9 @@ const TYPE_GLYPH: Record<string, React.ReactNode> = {
 }
 
 export function TypeIcon({ type, className = '' }: { type: WorkoutType; className?: string }) {
+  const tint = TYPE_TINT[type]
   return (
-    <svg viewBox="0 0 24 24" className={`h-4 w-4 ${className}`}
+    <svg viewBox="0 0 24 24" className={`h-4 w-4 ${className}`} style={tint ? { color: tint } : undefined}
       fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       {TYPE_GLYPH[type] ?? TYPE_GLYPH.easy}
     </svg>
