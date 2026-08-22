@@ -426,10 +426,10 @@ struct CalendarView: View {
             .padding(.vertical, 16)
             .background(RB.surface)
             .clipShape(RoundedRectangle(cornerRadius: 16))
-            // Today's activities carry the accent outline — other days' rows
-            // stay on the quiet hairline.
+            // Today's activities carry a white outline — other days' rows
+            // stay on the quiet hairline. (White = today, accent = selection.)
             .overlay(RoundedRectangle(cornerRadius: 16)
-                .stroke(selectedDate == Week.todayISO() ? RB.accent.opacity(0.65) : RB.line,
+                .stroke(selectedDate == Week.todayISO() ? Color.white.opacity(0.7) : RB.line,
                         lineWidth: selectedDate == Week.todayISO() ? 1.5 : 1))
             .contentShape(Rectangle())
             .opacity(isDone ? 0.6 : 1)
@@ -490,10 +490,10 @@ struct CalendarView: View {
             .padding(.vertical, 16)
             .background(RB.surface)
             .clipShape(RoundedRectangle(cornerRadius: 16))
-            // Today's activities carry the accent outline — other days' rows
-            // stay on the quiet hairline.
+            // Today's activities carry a white outline — other days' rows
+            // stay on the quiet hairline. (White = today, accent = selection.)
             .overlay(RoundedRectangle(cornerRadius: 16)
-                .stroke(selectedDate == Week.todayISO() ? RB.accent.opacity(0.65) : RB.line,
+                .stroke(selectedDate == Week.todayISO() ? Color.white.opacity(0.7) : RB.line,
                         lineWidth: selectedDate == Week.todayISO() ? 1.5 : 1))
             .contentShape(Rectangle())
             .opacity(0.6)
