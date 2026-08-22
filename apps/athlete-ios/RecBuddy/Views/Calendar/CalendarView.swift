@@ -380,100 +380,106 @@ struct CalendarView: View {
         }
     }
 
-    /// The selected day as a to-do list: one row per activity (to-dos first,
-    /// completed sink and fade), extras appended. Each row leads with its type
-    /// tile and title, carries the KEY figure as a quiet subtitle (distance ·
-    /// pace for runs, total time for cross/other, the logged actuals once
-    /// done), and ends in its status. Tapping a row opens the detail sheet.
+    /// The selected day as a to-do list: one CARD per activity (to-dos first,
+    /// completed sink and fade), extras appended — distinct items with air
+    /// between them. Each row: type tile, title, a quiet key-figure subtitle
+    /// (distance · pace for runs, total time for cross/other, logged actuals
+    /// once done), and the bubble/checkmark status on the right. Tapping a
+    /// row opens the detail sheet.
     private var dayRowsPanel: some View {
-        VStack(spacing: 0) {
-            ForEach(Array(orderedToday.enumerated()), id: \.element.id) { i, w in
-                if i > 0 { Divider().overlay(RB.line) }
+        VStack(spacing: 8) {
+            ForEach(orderedToday, id: \.id) { w in
                 workoutRow(w)
             }
-            ForEach(Array(todayExtras.enumerated()), id: \.element.id) { i, a in
-                if !orderedToday.isEmpty || i > 0 { Divider().overlay(RB.line) }
+            ForEach(todayExtras, id: \.id) { a in
                 extraRow(a)
             }
         }
-        .background(RB.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 18))
-        .overlay(RoundedRectangle(cornerRadius: 18).stroke(RB.line, lineWidth: 1))
     }
 
     private func workoutRow(_ w: Workout) -> some View {
         let isDone = w.status == "done"
         return Button { selected = w } label: {
             HStack(spacing: 12) {
-                iconTile(type: w.type, size: 32, cornerRadius: 9)
-                VStack(alignment: .leading, spacing: 2) {
+                iconTile(type: w.type, size: 38, cornerRadius: 10)
+                VStack(alignment: .leading, spacing: 3) {
                     Text(w.title)
-                        .font(.subheadline.weight(.semibold))
+                        .font(.body.weight(.semibold))
                         .foregroundStyle(.white)
                         .lineLimit(1)
                     if let sub = rowSubtitle(w) {
                         Text(sub)
-                            .font(.caption)
+                            .font(.footnote)
                             .foregroundStyle(RB.textMute)
                             .lineLimit(1)
                     }
                 }
                 Spacer(minLength: 8)
-                if isDone {
-                    HStack(spacing: 4) {
-                        Image(systemName: "checkmark.circle.fill")
-                        Text("Done")
-                    }
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(RB.accent)
-                    .fixedSize(horizontal: true, vertical: false)
-                } else {
-                    Text("To Do")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(RB.textMute)
-                        .fixedSize(horizontal: true, vertical: false)
-                }
+                statusMark(done: isDone)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 16)
+            .background(RB.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(RB.line, lineWidth: 1))
             .contentShape(Rectangle())
             .opacity(isDone ? 0.6 : 1)
         }
         .buttonStyle(.plain)
     }
 
+    /// The row's completion affordance: an empty bubble over "To Do" while
+    /// pending; a filled accent checkmark over "Completed" once done.
+    private func statusMark(done: Bool) -> some View {
+        VStack(spacing: 3) {
+            if done {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 20))
+                    .foregroundStyle(RB.accent)
+                Text("Completed")
+                    .font(.system(size: 9.5, weight: .semibold))
+                    .foregroundStyle(RB.accent)
+            } else {
+                Circle()
+                    .stroke(RB.textFaint, lineWidth: 1.5)
+                    .frame(width: 19, height: 19)
+                Text("To Do")
+                    .font(.system(size: 9.5, weight: .semibold))
+                    .foregroundStyle(RB.textMute)
+            }
+        }
+        .fixedSize(horizontal: true, vertical: false)
+    }
+
     private func extraRow(_ a: WorkoutActual) -> some View {
         Button { selectedExtra = a } label: {
             HStack(spacing: 12) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 9)
+                    RoundedRectangle(cornerRadius: 10)
                         .fill(RB.surface2)
-                        .frame(width: 32, height: 32)
+                        .frame(width: 38, height: 38)
                     Image(systemName: a.activitySymbol)
-                        .font(.footnote)
+                        .font(.subheadline)
                         .foregroundStyle(RB.accent)
                 }
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 3) {
                     Text(a.extraTitle)
-                        .font(.subheadline.weight(.semibold))
+                        .font(.body.weight(.semibold))
                         .foregroundStyle(.white)
                         .lineLimit(1)
                     Text("\(a.distDisplay(unit: unit)) · \(a.time)")
-                        .font(.caption)
+                        .font(.footnote)
                         .foregroundStyle(RB.textMute)
                         .lineLimit(1)
                 }
                 Spacer(minLength: 8)
-                HStack(spacing: 4) {
-                    Image(systemName: "checkmark.circle.fill")
-                    Text("Done")
-                }
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(RB.accent)
-                .fixedSize(horizontal: true, vertical: false)
+                statusMark(done: true)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 16)
+            .background(RB.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(RB.line, lineWidth: 1))
             .contentShape(Rectangle())
             .opacity(0.6)
         }
