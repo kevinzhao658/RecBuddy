@@ -1,12 +1,5 @@
 import SwiftUI
 
-/// A day's worth of workouts, keyed by date — lets `.sheet(item:)` present the
-/// multi-workout day sheet.
-private struct DayWorkouts: Identifiable {
-    let id: String   // the date, 'YYYY-MM-DD'
-    let workouts: [Workout]
-}
-
 struct CalendarView: View {
     let profile: Profile
     @Environment(SessionStore.self) private var session
@@ -16,12 +9,6 @@ struct CalendarView: View {
     @State private var selectedExtra: WorkoutActual?
     @State private var accountOpen = false
     @State private var confirmOpen = false
-    // Which of today's workouts sits on top of the headliner stack. nil =
-    // fall back to the first unfinished (the natural "up next").
-    @State private var activeTodayId: String?
-    // A month day with 2+ workouts opens this high-level sheet instead of a
-    // single workout's detail.
-    @State private var multiDay: DayWorkouts?
     // Which volume the weekly mileage gauge shows (chip only appears when the
     // week has any cross volume).
     @State private var showCrossMileage = false
@@ -52,26 +39,6 @@ struct CalendarView: View {
     private var uncompletedToday: [Workout] { todayWorkouts.filter { $0.status != "done" } }
     private var orderedToday: [Workout] { uncompletedToday + todayWorkouts.filter { $0.status == "done" } }
 
-    // The workout shown full in the headliner: whichever the athlete floated up
-    // (done or not), else the first unfinished, else the first. Only this top
-    // card opens details — tabs just reorder the stack.
-    private var activeToday: Workout? {
-        todayWorkouts.first(where: { $0.id == activeTodayId })
-            ?? uncompletedToday.first
-            ?? orderedToday.first
-    }
-
-    // Drives the stack's reflow animation: changes when a card is floated up or a
-    // workout is completed (which reorders + re-highlights).
-    private var todayStackKey: String {
-        (activeTodayId ?? "") + orderedToday.map { "\($0.id):\($0.status)" }.joined()
-    }
-
-    // Signature of today's completed workouts; grows when one is finished, which
-    // drives the auto-advance in .onChange.
-    private var doneTodayKey: String {
-        todayWorkouts.filter { $0.status == "done" }.map(\.id).joined()
-    }
 
     var body: some View {
         ZStack {
@@ -106,8 +73,8 @@ struct CalendarView: View {
                     // Always present — an unplanned week just reads zero.
                     mileageBlock
 
-                    // Headliner: the active workout shows full; the day's other
-                    // workouts tuck behind it as tappable slivers (icon + name).
+                    // Headliner: the selected day's activities as a to-do
+                    // list — one row per activity, key figure emphasized.
                     headlinerSection
 
                     modeToggle
@@ -132,19 +99,8 @@ struct CalendarView: View {
             await store.refresh()
         }
         .task(id: monthAnchor) { await store.loadMonth(anchor: monthAnchor) }
-        .onChange(of: doneTodayKey) { _, _ in
-            // A workout was just completed — if it was the one on top, advance the
-            // headliner to the next uncompleted by dropping the manual pick.
-            if let id = activeTodayId, todayWorkouts.first(where: { $0.id == id })?.status == "done" {
-                activeTodayId = nil
-            }
-        }
-        .onChange(of: selectedDate) { _, _ in activeTodayId = nil }
         .sheet(item: $selected) { w in
             WorkoutDetailSheet(workout: w, store: store, unit: unit)
-        }
-        .sheet(item: $multiDay) { day in
-            MultiWorkoutDaySheet(date: day.id, workouts: day.workouts, store: store, unit: unit)
         }
         .sheet(item: $selectedExtra) { a in
             ExtraActivitySheet(actual: a, store: store, unit: unit)
@@ -411,21 +367,8 @@ struct CalendarView: View {
     /// a quiet placeholder card instead of nothing.
     private var headlinerSection: some View {
         ZStack(alignment: .topTrailing) {
-            if activeToday != nil {
-                todayStack
-            } else if !todayExtras.isEmpty {
-                // No planned workout, but logged extras exist (e.g. a synced
-                // ride on an empty day): the placeholder plays hero so the
-                // extras keep their tucked tabs — and their tap-through.
-                VStack(spacing: 0) {
-                    emptyDayCard
-                        .zIndex(1)
-                    ForEach(Array(todayExtras.enumerated()), id: \.element.id) { i, a in
-                        extraSliver(a)
-                            .padding(.top, i == 0 ? -12 : -16)
-                            .zIndex(Double(-(i + 1)))
-                    }
-                }
+            if !orderedToday.isEmpty || !todayExtras.isEmpty {
+                dayRowsPanel
             } else {
                 emptyDayCard
             }
@@ -437,20 +380,154 @@ struct CalendarView: View {
         }
     }
 
-    private var todayChip: some View {
-        Button {
-            let today = Week.todayISO()
-            if store.weekDates.contains(today) {
-                withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) {
-                    selectedDate = today
+    /// The selected day as a to-do list: one row per activity (to-dos first,
+    /// completed sink and fade), extras appended. Each row leads with its type
+    /// tile and title, carries the KEY figure as a quiet subtitle (distance ·
+    /// pace for runs, total time for cross/other, the logged actuals once
+    /// done), and ends in its status. Tapping a row opens the detail sheet.
+    private var dayRowsPanel: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(orderedToday.enumerated()), id: \.element.id) { i, w in
+                if i > 0 { Divider().overlay(RB.line) }
+                workoutRow(w)
+            }
+            ForEach(Array(todayExtras.enumerated()), id: \.element.id) { i, a in
+                if !orderedToday.isEmpty || i > 0 { Divider().overlay(RB.line) }
+                extraRow(a)
+            }
+        }
+        .background(RB.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 18))
+        .overlay(RoundedRectangle(cornerRadius: 18).stroke(RB.line, lineWidth: 1))
+    }
+
+    private func workoutRow(_ w: Workout) -> some View {
+        let isDone = w.status == "done"
+        return Button { selected = w } label: {
+            HStack(spacing: 12) {
+                iconTile(type: w.type, size: 32, cornerRadius: 9)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(w.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                    if let sub = rowSubtitle(w) {
+                        Text(sub)
+                            .font(.caption)
+                            .foregroundStyle(RB.textMute)
+                            .lineLimit(1)
+                    }
                 }
-            } else {
-                Task {
-                    store.weekMonday = Week.mondayOf(today)
-                    await store.refresh()
-                    selectedDate = today
+                Spacer(minLength: 8)
+                if isDone {
+                    HStack(spacing: 4) {
+                        Image(systemName: "checkmark.circle.fill")
+                        Text("Done")
+                    }
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(RB.accent)
+                    .fixedSize(horizontal: true, vertical: false)
+                } else {
+                    Text("To Do")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(RB.textMute)
+                        .fixedSize(horizontal: true, vertical: false)
                 }
             }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .contentShape(Rectangle())
+            .opacity(isDone ? 0.6 : 1)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func extraRow(_ a: WorkoutActual) -> some View {
+        Button { selectedExtra = a } label: {
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 9)
+                        .fill(RB.surface2)
+                        .frame(width: 32, height: 32)
+                    Image(systemName: a.activitySymbol)
+                        .font(.footnote)
+                        .foregroundStyle(RB.accent)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(a.extraTitle)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                    Text("\(a.distDisplay(unit: unit)) · \(a.time)")
+                        .font(.caption)
+                        .foregroundStyle(RB.textMute)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 8)
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.circle.fill")
+                    Text("Done")
+                }
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(RB.accent)
+                .fixedSize(horizontal: true, vertical: false)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .contentShape(Rectangle())
+            .opacity(0.6)
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// The row's key figure. Logged results win (sport-aware: meters for
+    /// swims, elapsed time when there's no pace); otherwise the prescription —
+    /// distance · pace for runs, apostrophe minutes for time-based types.
+    private func rowSubtitle(_ w: Workout) -> String? {
+        if w.status == "done", let a = store.actualsByWorkout[w.id] {
+            if let pace = a.pace {
+                return "\(a.distDisplay(unit: unit)) · \(Units.fmtPace(pace, unit))"
+            }
+            return "\(a.distDisplay(unit: unit)) · \(a.time)"
+        }
+        if w.type == "cross" || w.type == "other" {
+            let mins = EstMinutes.compute(type: w.type, estMinutes: w.estMinutes,
+                                          dist: nil, pace: nil, dur: w.dur)
+            return mins > 0 ? "\(mins)' total" : nil
+        }
+        if let d = w.dist {
+            var sub = "\(Units.fmtDist(d, unit)) \(unit.rawValue)"
+            if let p = w.pace, !p.isEmpty { sub += " · \(Units.fmtPace(p, unit))" }
+            return sub
+        }
+        if let mins = w.estMinutes ?? w.dur { return "\(mins)' total" }
+        return nil
+    }
+
+    /// Unified day selection — the headliner follows, the week navigates
+    /// beneath when the picked day lives outside the loaded week, and the
+    /// month grid re-centers when the pick crosses months. Shared by the week
+    /// strip, the month grid, and the Today chip.
+    private func pickDay(_ date: String) {
+        if mode == .month, Week.firstOfMonth(date) != Week.firstOfMonth(monthAnchor) {
+            monthAnchor = date
+        }
+        if store.weekDates.contains(date) {
+            withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) {
+                selectedDate = date
+            }
+        } else {
+            Task {
+                store.weekMonday = Week.mondayOf(date)
+                await store.refresh()
+                selectedDate = date
+            }
+        }
+    }
+
+    private var todayChip: some View {
+        Button {
+            pickDay(Week.todayISO())
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: "arrow.uturn.left")
@@ -485,197 +562,6 @@ struct CalendarView: View {
         .overlay(RoundedRectangle(cornerRadius: 18).stroke(RB.line, lineWidth: 1))
     }
 
-    /// A day with several workouts reads as a deck: the active one is the full
-    /// hero card, the rest peek beneath as slivers you can tap to bring forward.
-    /// A single-workout day is just the hero, unchanged.
-    @ViewBuilder
-    private var todayStack: some View {
-        if let active = activeToday {
-            let behind = orderedToday.filter { $0.id != active.id }
-            VStack(spacing: 0) {
-                todayHeroCard(active)
-                    .zIndex(Double(behind.count + 1))
-                // Each tab tucks a little further under the card above it (same
-                // width — like the coach view), leaving just a strip showing.
-                ForEach(Array(behind.enumerated()), id: \.element.id) { i, w in
-                    todaySliver(w)
-                        .padding(.top, i == 0 ? -12 : -16)
-                        .zIndex(Double(behind.count - i))
-                }
-                ForEach(Array(todayExtras.enumerated()), id: \.element.id) { i, a in
-                    extraSliver(a)
-                        .padding(.top, (behind.isEmpty && i == 0) ? -12 : -16)
-                        .zIndex(Double(-(i + 1)))
-                }
-            }
-            .animation(.spring(response: 0.34, dampingFraction: 0.82), value: todayStackKey)
-        }
-    }
-
-    /// A tab behind the headliner — squared top (it slides under the card above)
-    /// and a rounded bottom edge, so it reads as a drawer rather than a pill.
-    /// Tapping any tab (done or not) floats it to the top; only the top card
-    /// opens details. Completed tabs are faded and marked done.
-    private func todaySliver(_ w: Workout) -> some View {
-        let isDone = w.status == "done"
-        // Flat top, rounded bottom = the "poking out from under the card" look.
-        let tab = UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: 16,
-                                         bottomTrailingRadius: 16, topTrailingRadius: 0)
-        return Button {
-            withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) { activeTodayId = w.id }
-        } label: {
-            HStack(spacing: 12) {
-                iconTile(type: w.type, size: 30, cornerRadius: 8)
-                Text(w.title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                Spacer()
-                if isDone {
-                    HStack(spacing: 4) {
-                        Image(systemName: "checkmark.circle.fill")
-                        Text("Completed")
-                    }
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(RB.accent)
-                    .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
-                } else {
-                    Text("To Do")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(RB.textMute)
-                        .lineLimit(1)
-                        .fixedSize(horizontal: true, vertical: false)
-                }
-            }
-            .padding(.horizontal, 14)
-            .padding(.top, 18) // content sits low, in the strip below the card
-            .padding(.bottom, 11)
-            .frame(maxWidth: .infinity)
-            .background(RB.surface2, in: tab)
-            .overlay(tab.stroke(RB.line, lineWidth: 1))
-            .opacity(isDone ? 0.55 : 1)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-
-    /// Off-plan extra activity as a completed-style tab behind the stack.
-    private func extraSliver(_ a: WorkoutActual) -> some View {
-        let tab = UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: 16,
-                                         bottomTrailingRadius: 16, topTrailingRadius: 0)
-        return Button { selectedExtra = a } label: {
-            HStack(spacing: 12) {
-                Image(systemName: a.activitySymbol)
-                    .font(.footnote).foregroundStyle(RB.accent).frame(width: 30)
-                Text(a.extraTitle)
-                    .font(.subheadline.weight(.semibold)).foregroundStyle(.white).lineLimit(1)
-                Spacer()
-                HStack(spacing: 4) {
-                    Image(systemName: "checkmark.circle.fill")
-                    Text(a.distDisplay(unit: unit))
-                }
-                .font(.caption2.weight(.semibold)).foregroundStyle(RB.accent)
-                .lineLimit(1).fixedSize(horizontal: true, vertical: false)
-            }
-            .padding(.horizontal, 14)
-            .padding(.top, 18)
-            .padding(.bottom, 11)
-            .frame(maxWidth: .infinity)
-            .background(RB.surface2, in: tab)
-            .overlay(tab.stroke(RB.line, lineWidth: 1))
-            .opacity(0.55)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-
-    // MARK: - TODAY Hero Card
-
-    private func todayHeroCard(_ w: Workout) -> some View {
-        // A completed workout on top shows what was actually logged, not the plan.
-        let actual = w.status == "done" ? store.actualsByWorkout[w.id] : nil
-        return Button { selected = w } label: {
-            VStack(alignment: .leading, spacing: 0) {
-                // Top row: TODAY badge + date
-                HStack {
-                    Text(w.date == Week.todayISO() ? "TODAY"
-                        : (store.weekDates.firstIndex(of: w.date).map { Week.DOW[$0].uppercased() } ?? "DAY"))
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(RB.surface2)
-                        .clipShape(Capsule())
-                    Spacer()
-                    Text(Week.fmtDayDate(w.date))
-                        .font(.caption)
-                        .foregroundStyle(RB.textMute)
-                }
-                .padding(.bottom, 14)
-
-                // Middle: icon tile + type label + title
-                HStack(spacing: 12) {
-                    iconTile(type: w.type, size: 44, cornerRadius: 10)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(w.type.capitalized)
-                            .font(.caption)
-                            .foregroundStyle(RB.textMute)
-                        Text(w.title)
-                            .font(.title3.weight(.bold))
-                            .foregroundStyle(.white)
-                    }
-                    Spacer()
-                }
-                .padding(.bottom, 14)
-
-                Divider()
-                    .overlay(RB.line)
-
-                // Bottom: stats + completion status (To Do / Completed). Once
-                // logged, distance/pace reflect the actual run, not the plan.
-                HStack(alignment: .top, spacing: 20) {
-                    if let dist = actual?.dist ?? w.dist {
-                        VStack(alignment: .leading, spacing: 4) {
-                            RBLabel(actual != nil ? "LOGGED DIST" : "DISTANCE")
-                            Text("\(Units.fmtDist(dist, unit)) \(unit.rawValue)")
-                                .font(.body.weight(.bold))
-                                .foregroundStyle(.white)
-                        }
-                    }
-                    if let pace = actual?.pace ?? w.pace, !pace.isEmpty {
-                        VStack(alignment: .leading, spacing: 4) {
-                            RBLabel(actual != nil ? "AVG PACE" : "TARGET PACE")
-                            Text(Units.fmtPace(pace, unit))
-                                .font(.body.weight(.bold))
-                                .foregroundStyle(.white)
-                        }
-                    }
-                    Spacer()
-                    if w.status == "done" {
-                        Label("Completed", systemImage: "checkmark.circle.fill")
-                            .labelStyle(.titleAndIcon)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(RB.accent)
-                            .lineLimit(1)
-                            .fixedSize(horizontal: true, vertical: false)
-                    } else {
-                        Text("To Do")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(RB.textMute)
-                            .lineLimit(1)
-                            .fixedSize(horizontal: true, vertical: false)
-                    }
-                }
-                .padding(.top, 14)
-            }
-            .padding(16)
-            .contentShape(Rectangle()) // whole card tappable, not just drawn pixels
-        }
-        .buttonStyle(.plain)
-        .rbCard(highlighted: true)
-    }
-
     // MARK: - Mode Toggle
 
     private var modeToggle: some View {
@@ -688,7 +574,12 @@ struct CalendarView: View {
     }
 
     private func modeButton(_ label: String, _ m: Mode) -> some View {
-        Button { mode = m } label: {
+        Button {
+            // Month opens centered on the week view's selected day — the two
+            // views share one selection.
+            if m == .month { monthAnchor = selectedDate }
+            mode = m
+        } label: {
             Text(label)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(mode == m ? .white : RB.textMute)
@@ -753,11 +644,7 @@ struct CalendarView: View {
                         WeekStripLogic.isRestOnly(workouts: store.workoutsByDate[date] ?? [],
                                                   extras: store.standaloneByDate[date] ?? [])
                     },
-                    onPick: { date in
-                        withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) {
-                            selectedDate = date
-                        }
-                    },
+                    onPick: { date in pickDay(date) },
                     onSwipeWeek: { offset in
                         Task { await store.goToWeek(offset: offset) }
                     }
@@ -831,17 +718,14 @@ struct CalendarView: View {
     private func monthDayCell(date: String) -> some View {
         let currentMonth = Week.firstOfMonth(date) == Week.firstOfMonth(monthAnchor)
         let isToday = date == Week.todayISO()
+        let isSelected = date == selectedDate
         let workouts = store.monthWorkouts[date] ?? []
         let dayNum = String(Int(date.suffix(2)) ?? 0)
 
         return Button {
-            // 2+ workouts open the high-level day sheet; a lone one goes straight
-            // to its detail.
-            if workouts.count > 1 {
-                multiDay = DayWorkouts(id: date, workouts: workouts)
-            } else if let w = workouts.first {
-                selected = w
-            }
+            // Selecting a month day pilots the headliner — same model as the
+            // week strip (navigating the week under the hood when needed).
+            pickDay(date)
         } label: {
             VStack(spacing: 3) {
                 ZStack {
@@ -849,11 +733,16 @@ struct CalendarView: View {
                         Circle()
                             .fill(Color.white)
                             .frame(width: 28, height: 28)
+                    } else if isSelected {
+                        Circle()
+                            .stroke(RB.accent, lineWidth: 1.5)
+                            .frame(width: 28, height: 28)
                     }
                     Text(dayNum)
-                        .font(.caption.weight(isToday ? .bold : .regular))
+                        .font(.caption.weight(isToday || isSelected ? .bold : .regular))
                         .foregroundStyle(
                             isToday ? Color.black :
+                            isSelected ? RB.accent :
                             currentMonth ? Color.white : RB.textFaint
                         )
                 }
@@ -888,7 +777,6 @@ struct CalendarView: View {
             .frame(maxWidth: .infinity)
         }
         .buttonStyle(.plain)
-        .disabled(workouts.isEmpty)
     }
 
     private var typeLegend: some View {
