@@ -2,6 +2,8 @@
 
 > Canonical copy: https://recbuddy.app/privacy — update this file and
 > `apps/coach-web/src/routes/legal/PrivacyPage.tsx` together.
+> Structural note: the web page renders "Apple Health (HealthKit)" as its own
+> top-level section (12 sections vs this file's 11) — content is identical.
 
 **Effective date:** July 31, 2026
 **Last updated:** July 31, 2026
