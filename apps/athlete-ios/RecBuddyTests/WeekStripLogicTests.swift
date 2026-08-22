@@ -37,6 +37,17 @@ import Foundation
         #expect(WeekStripLogic.pairs(workouts: [w], extras: [], unit: .mi)
                 == [GlancePair(icon: .type("cross"), text: "45'")])
     }
+    @Test func phantomDistOnTimeBasedTypesNeverShowsMiles() {
+        // Legacy rows saved dist/pace while the editor hid the fields —
+        // cross/other must STILL read as minutes, never miles.
+        let cross = workout("c1", type: "cross", dist: 10)        // phantom dist
+        let other = workout("o1", type: "other", dist: 4, estMinutes: 40)
+        let bare = workout("o2", type: "other", dist: 4)          // phantom, no est
+        let p = WeekStripLogic.pairs(workouts: [cross, other, bare], extras: [], unit: .mi)
+        #expect(p == [GlancePair(icon: .type("cross"), text: "45'"),   // cross est fallback
+                      GlancePair(icon: .type("other"), text: "40'"),
+                      GlancePair(icon: .type("other"), text: nil)])    // no time known -> icon only
+    }
     @Test func otherTypeShowsApostropheMinutesLikeCross() {
         // 'Other' (strength/mobility) is time-based — its coach-set Total time
         // renders under the icon exactly like cross ("40'").
@@ -44,10 +55,12 @@ import Foundation
         #expect(WeekStripLogic.pairs(workouts: [w], extras: [], unit: .mi)
                 == [GlancePair(icon: .type("other"), text: "40'")])
     }
-    @Test func noTargetMeansIconOnly() {
+    @Test func crossWithoutTargetsUsesTheEstConvention() {
+        // No est/dur set -> cross reads its 45' estimate (same convention the
+        // coach gauges use); a truly unknowable time is icon-only ('other').
         let w = workout("c1", type: "cross", dist: nil, estMinutes: nil)
         #expect(WeekStripLogic.pairs(workouts: [w], extras: [], unit: .mi)
-                == [GlancePair(icon: .type("cross"), text: nil)])
+                == [GlancePair(icon: .type("cross"), text: "45'")])
     }
     @Test func restWorkoutsAreExcludedFromPairs() {
         #expect(WeekStripLogic.pairs(workouts: [workout("r", type: "rest")], extras: [], unit: .mi).isEmpty)

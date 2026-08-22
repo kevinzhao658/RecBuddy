@@ -34,7 +34,14 @@ extension WeekStripLogic {
         var out: [GlancePair] = []
         for w in workouts where w.type != "rest" && w.status != "rest" {
             let text: String?
-            if let d = w.dist {
+            if w.type == "cross" || w.type == "other" {
+                // Time-based types ALWAYS read as minutes — never a distance,
+                // even when a legacy row still carries a phantom dist/pace
+                // (saved before the coach editor went time-based for them).
+                let mins = EstMinutes.compute(type: w.type, estMinutes: w.estMinutes,
+                                              dist: nil, pace: nil, dur: w.dur)
+                text = mins > 0 ? "\(mins)'" : nil
+            } else if let d = w.dist {
                 text = distText(d, unit)
             } else if let mins = w.estMinutes ?? w.dur {
                 text = "\(mins)'"

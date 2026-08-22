@@ -103,9 +103,8 @@ struct CalendarView: View {
                         .rbCard(highlighted: true)
                     }
 
-                    if store.weekPlannedRunMiles > 0 || store.weekHasCrossVolume {
-                        mileageBlock
-                    }
+                    // Always present — an unplanned week just reads zero.
+                    mileageBlock
 
                     // Headliner: the active workout shows full; the day's other
                     // workouts tuck behind it as tappable slivers (icon + name).
