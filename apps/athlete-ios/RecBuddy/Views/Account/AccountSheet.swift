@@ -205,8 +205,8 @@ struct AccountSheet: View {
 
     private var supportSection: some View {
         sectionGroup(title: "SUPPORT") {
-            Link(destination: URL(string: "mailto:kevin@recbuddy.app")!) {
-                navRow(icon: "envelope.badge.fill", title: "Contact support", caption: "kevin@recbuddy.app")
+            Link(destination: URL(string: "mailto:support@recbuddy.app")!) {
+                navRow(icon: "envelope.badge.fill", title: "Contact support", caption: "support@recbuddy.app")
             }
             .buttonStyle(.plain)
 
