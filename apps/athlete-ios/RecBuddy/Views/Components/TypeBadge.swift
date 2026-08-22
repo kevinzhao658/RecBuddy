@@ -9,7 +9,7 @@ struct TypeBadge: View {
     }
     static func symbol(for type: String) -> String {
         switch type {
-        case "easy": return "figure.run"
+        case "easy": return "arrow.right"          // easy forward motion (runner stays a SPORT glyph)
         case "long": return "arrow.right.to.line"
         case "speed": return "bolt.fill"
         case "tempo": return "gauge.with.needle"
@@ -18,7 +18,7 @@ struct TypeBadge: View {
         case "rest": return "moon.zzz"
         case "race": return "flag.checkered"
         case "other": return "ellipsis.circle"
-        default: return "figure.run"
+        default: return "arrow.right"
         }
     }
     /// Intensity code: orange = effort, blue = long, green = aerobic,

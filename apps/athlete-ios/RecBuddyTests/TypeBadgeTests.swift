@@ -15,7 +15,8 @@ import SwiftUI
         for t in ["rest", "other"] { #expect(TypeBadge.tint(for: t) == .secondary) }
         for t in ["easy", "recovery", "cross"] { #expect(TypeBadge.tint(for: t) == .green) }
     }
-    @Test func unknownTypeFallsBackToRunner() {
-        #expect(TypeBadge.symbol(for: "mystery") == "figure.run")
+    @Test func easyIsAForwardArrowAndUnknownFallsBackToIt() {
+        #expect(TypeBadge.symbol(for: "easy") == "arrow.right")
+        #expect(TypeBadge.symbol(for: "mystery") == "arrow.right")
     }
 }
