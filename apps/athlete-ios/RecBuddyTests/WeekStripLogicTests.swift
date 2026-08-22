@@ -37,6 +37,13 @@ import Foundation
         #expect(WeekStripLogic.pairs(workouts: [w], extras: [], unit: .mi)
                 == [GlancePair(icon: .type("cross"), text: "45'")])
     }
+    @Test func otherTypeShowsApostropheMinutesLikeCross() {
+        // 'Other' (strength/mobility) is time-based — its coach-set Total time
+        // renders under the icon exactly like cross ("40'").
+        let w = workout("o1", type: "other", dist: nil, estMinutes: 40)
+        #expect(WeekStripLogic.pairs(workouts: [w], extras: [], unit: .mi)
+                == [GlancePair(icon: .type("other"), text: "40'")])
+    }
     @Test func noTargetMeansIconOnly() {
         let w = workout("c1", type: "cross", dist: nil, estMinutes: nil)
         #expect(WeekStripLogic.pairs(workouts: [w], extras: [], unit: .mi)
