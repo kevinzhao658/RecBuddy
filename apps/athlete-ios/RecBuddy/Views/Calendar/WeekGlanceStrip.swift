@@ -97,27 +97,33 @@ struct WeekGlanceStrip: View {
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
+    /// One activity row. Fixed slot heights keep every column's rows on the
+    /// same horizontal lines (an icon-only pair still reserves its text line),
+    /// and one fixed font size means no per-column shrinking — "11.5 mi" and
+    /// "4.0 mi" render identically.
     @ViewBuilder
     private func pairView(_ pair: GlancePair) -> some View {
         VStack(spacing: 1) {
-            switch pair.icon {
-            case .type(let t):
-                Image(systemName: TypeBadge.symbol(for: t))
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(TypeBadge.tint(for: t))
-            case .sport(let s):
-                Image(systemName: s == "ride" ? "bicycle"
-                    : s == "swim" ? "figure.pool.swim" : "figure.run")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(Color.green)
+            Group {
+                switch pair.icon {
+                case .type(let t):
+                    Image(systemName: TypeBadge.symbol(for: t))
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(TypeBadge.tint(for: t))
+                case .sport(let s):
+                    Image(systemName: s == "ride" ? "bicycle"
+                        : s == "swim" ? "figure.pool.swim" : "figure.run")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(Color.green)
+                }
             }
-            if let text = pair.text {
-                Text(text)
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(RB.textMute)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-            }
+            .frame(height: 16)
+            Text(pair.text ?? " ")
+                .font(.system(size: 9.5, weight: .semibold))
+                .foregroundStyle(RB.textMute)
+                .lineLimit(1)
+                .allowsTightening(true)
+                .frame(height: 11)
         }
     }
 }
