@@ -1,5 +1,8 @@
 # RecBuddy Privacy Policy
 
+> Canonical copy: https://recbuddy.app/privacy — update this file and
+> `apps/coach-web/src/routes/legal/PrivacyPage.tsx` together.
+
 **Effective date:** July 31, 2026
 **Last updated:** July 31, 2026
 
