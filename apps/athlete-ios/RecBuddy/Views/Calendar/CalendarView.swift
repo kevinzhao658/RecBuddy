@@ -575,10 +575,10 @@ struct CalendarView: View {
                 Text("Today")
                     .font(.caption2.weight(.bold))
             }
-            .foregroundStyle(RB.bg)
+            .foregroundStyle(.black)
             .padding(.horizontal, 10)
             .padding(.vertical, 4)
-            .background(RB.accent)
+            .background(Color.white)
             .clipShape(Capsule())
         }
         .buttonStyle(.plain)
