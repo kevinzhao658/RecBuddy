@@ -167,6 +167,7 @@ final class PlanStore {
             day[idx].status = status
             workoutsByDate[workout.date] = day
         }
+        setMonthStatus(workoutId: workout.id, date: workout.date, to: status)
         publishTodaySnapshot()
         do {
             try await Supa.shared.rpc("mark_workout_status",
@@ -178,9 +179,20 @@ final class PlanStore {
                 day[idx].status = old
                 workoutsByDate[workout.date] = day
             }
+            if let old { setMonthStatus(workoutId: workout.id, date: workout.date, to: old) }
             publishTodaySnapshot()   // roll the widget back too
             throw error
         }
+    }
+
+    /// Mirror a status change into the month cache — it's fetched separately
+    /// (loadMonth) and only refetches on month change, so without this an
+    /// unmarked workout kept its ✓ in the month grid until the anchor moved.
+    private func setMonthStatus(workoutId: String, date: String, to status: String) {
+        guard var day = monthWorkouts[date],
+              let idx = day.firstIndex(where: { $0.id == workoutId }) else { return }
+        day[idx].status = status
+        monthWorkouts[date] = day
     }
 
     /// Save a manual actual and mark the workout done. `pace` is optional so
