@@ -67,16 +67,16 @@ import Foundation
         #expect(!WeekStripLogic.isRestOnly(workouts: [], extras: []))
         #expect(!WeekStripLogic.isRestOnly(workouts: [workout("r", type: "rest"), workout("w")], extras: []))
     }
-    @Test func columnsCapAtFivePairsThenOverflow() {
+    @Test func columnsCapAtFourPairsThenOverflow() {
         let seven = (1...7).map { workout("w\($0)", dist: Double($0)) }
         let capped = WeekStripLogic.capped(WeekStripLogic.pairs(workouts: seven, extras: [], unit: .mi))
-        #expect(capped.shown.count == 5)
-        #expect(capped.overflow == 2)
+        #expect(capped.shown.count == 4)
+        #expect(capped.overflow == 3)
         #expect(capped.shown.first == GlancePair(icon: .type("easy"), text: "1.0 mi"))
         // At exactly the cap, nothing collapses.
-        let five = (1...5).map { workout("w\($0)", dist: Double($0)) }
-        let atCap = WeekStripLogic.capped(WeekStripLogic.pairs(workouts: five, extras: [], unit: .mi))
-        #expect(atCap.shown.count == 5)
+        let four = (1...4).map { workout("w\($0)", dist: Double($0)) }
+        let atCap = WeekStripLogic.capped(WeekStripLogic.pairs(workouts: four, extras: [], unit: .mi))
+        #expect(atCap.shown.count == 4)
         #expect(atCap.overflow == 0)
     }
 }
