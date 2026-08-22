@@ -15,11 +15,14 @@ struct WeekGlanceStrip: View {
     let onSwipeWeek: (Int) -> Void         // ±1
 
     var body: some View {
+        // fixedSize(vertical) makes every swimlane adopt the tallest column's
+        // height, so lanes read as one even row regardless of workload.
         HStack(alignment: .top, spacing: 5) {
             ForEach(Array(dates.enumerated()), id: \.element) { i, date in
                 column(date: date, dow: Week.DOW[i].uppercased())
             }
         }
+        .fixedSize(horizontal: false, vertical: true)
         .gesture(
             DragGesture(minimumDistance: 24)
                 .onEnded { g in
@@ -30,40 +33,55 @@ struct WeekGlanceStrip: View {
         )
     }
 
+    /// One column = a fixed-size DATE BOX up top, then the day's icons floating
+    /// free beneath it, all sitting on a faint full-height swimlane. The box is
+    /// where selection state lives (accent ring, brighter fill); the lane only
+    /// whispers the column boundary.
     private func column(date: String, dow: String) -> some View {
         let isSelected = date == selected
         let isToday = date == today
         let isPast = date < today                       // ISO strings sort correctly
         let pairs = pairsFor(date)
         return Button { onPick(date) } label: {
-            VStack(spacing: 0) {
-                Text(dow)
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(RB.textFaint)
-                Text(String(Int(date.suffix(2)) ?? 0))
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(isToday ? RB.accent : isSelected ? .white : RB.textMute)
-                    .padding(.top, 1)
-                if restFor(date) {
-                    Image(systemName: TypeBadge.symbol(for: "rest"))
-                        .font(.system(size: 15, weight: .medium))
+            VStack(spacing: 12) {                       // clear air: date box ↔ icons
+                // Date header — its own box, identical size on every column.
+                VStack(spacing: 1) {
+                    Text(dow)
+                        .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(RB.textFaint)
-                        .padding(.top, 10)
-                } else {
-                    ForEach(Array(pairs.enumerated()), id: \.offset) { _, pair in
-                        pairView(pair)
-                            .padding(.top, 9)   // air BETWEEN pairs; number hugs its icon
-                            .opacity(isPast ? 0.45 : 1)
+                    Text(String(Int(date.suffix(2)) ?? 0))
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(isToday ? RB.accent : isSelected ? .white : RB.textMute)
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 44)
+                .background(isSelected ? RB.surface2 : RB.surface)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .overlay(RoundedRectangle(cornerRadius: 10)
+                    .stroke(isSelected ? RB.accent : RB.line, lineWidth: isSelected ? 1.5 : 1))
+
+                // Icons — outside the box, breathing on the lane.
+                VStack(spacing: 9) {
+                    if restFor(date) {
+                        Image(systemName: TypeBadge.symbol(for: "rest"))
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(RB.textFaint)
+                    } else {
+                        ForEach(Array(pairs.enumerated()), id: \.offset) { _, pair in
+                            pairView(pair)
+                        }
                     }
                 }
+                .opacity(isPast ? 0.45 : 1)
+
+                Spacer(minLength: 0)                    // lanes stretch to one height
             }
-            .padding(.vertical, 8)
-            .padding(.horizontal, 2)
-            .frame(maxWidth: .infinity, alignment: .top)
-            .background(isSelected ? RB.surface2 : RB.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .overlay(RoundedRectangle(cornerRadius: 12)
-                .stroke(isSelected ? RB.accent : RB.line, lineWidth: isSelected ? 1.5 : 1))
+            .padding(.top, 3)
+            .padding(.bottom, 8)
+            .padding(.horizontal, 3)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .background(RoundedRectangle(cornerRadius: 12)
+                .fill(RB.surface.opacity(isSelected ? 0.6 : 0.35)))  // light swimlane
             .opacity(isPast ? 0.55 : 1)
             .contentShape(Rectangle())
         }

@@ -4,15 +4,16 @@ import type { WorkoutType } from '../../lib/types'
  *  (runner, arrow-to-line, bolt, gauge, heart, circling-arcs, crescent-zzz,
  *  checkered flag) — redrawn as original line art (SF Symbols are
  *  Apple-platform-only, so the glyphs themselves can't ship on the web).
- *  Colored per TYPE_TINT below (effort/long/aerobic); rest/other inherit the
- *  caller's text color. */
+ *  Colored per TYPE_TINT below. */
 /** Intensity tints (match athlete iOS): orange = effort, blue = long, green =
- *  aerobic; rest/other inherit the surrounding text color. Accent-only was
- *  tried and reverted — color answers "which days are hard" at a glance. */
+ *  aerobic, muted grey = off (rest/other). Accent-only was tried and
+ *  reverted — color answers "which days are hard" at a glance. */
 const TYPE_TINT: Record<string, string> = {
   speed: '#FF9F0A', tempo: '#FF9F0A', race: '#FF9F0A',
   long: '#0A84FF',
   easy: '#30D158', recovery: '#30D158', cross: '#30D158',
+  // Off days stay muted grey (matches iOS .secondary) — never the accent.
+  rest: 'rgba(243, 251, 232, 0.56)', other: 'rgba(243, 251, 232, 0.56)',
 }
 
 const TYPE_GLYPH: Record<string, React.ReactNode> = {
