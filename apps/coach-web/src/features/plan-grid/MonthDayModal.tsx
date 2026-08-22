@@ -56,7 +56,10 @@ export function MonthDayModal({ open, date, workouts, onPick, onClose, extras, o
                 <span className={`shrink-0 text-xs font-semibold ${st.cls}`}>{st.label}</span>
               </div>
               <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-0.5 font-num text-xs text-text-mute">
-                {w.dist != null && <span>{fmtDist(w.dist, unit)} {unit} · {fmtPace(w.pace, unit)}</span>}
+                {/* Time-based types (cross/other) read as time only — the dist
+                    line is suppressed even for legacy rows with phantom dist. */}
+                {w.type !== 'cross' && w.type !== 'other' && w.dist != null
+                  && <span>{fmtDist(w.dist, unit)} {unit} · {fmtPace(w.pace, unit)}</span>}
                 {mins > 0 && <span>{fmtDur(mins)}</span>}
               </div>
               {w.note && <p className="mt-1.5 line-clamp-2 text-xs text-text-faint">{w.note}</p>}

@@ -1,7 +1,7 @@
 import type { Workout } from '../../lib/types'
 import { TypeIcon } from '../../components/ui/Icon'
 import { useUnit } from '../../lib/useUnit'
-import { fmtDist, fmtPace } from '../../lib/units'
+import { workoutMetricLine } from '../../lib/workoutMetric'
 
 // Completion status is the ONLY thing that colors a card (lime=done, red=missed).
 // The current day is outlined on the CELL by date (WeekGrid), not here. Workout
@@ -30,7 +30,7 @@ export function DayCard({ workout, selected, onClick, onCopy, canEdit = true }: 
         <div className="line-clamp-1 text-[14px] font-semibold leading-tight">{workout.title}</div>
         <TypeIcon type={workout.type} className="mt-0.5 shrink-0 text-accent" />
       </div>
-      {workout.dist != null && <div className="font-num text-xs text-text-mute">{fmtDist(workout.dist, unit)} {unit} · {fmtPace(workout.pace, unit)}</div>}
+      {workoutMetricLine(workout, unit) && <div className="font-num text-xs text-text-mute">{workoutMetricLine(workout, unit)}</div>}
       <div className="mt-auto flex items-center justify-between pt-1.5">
         <span className={`text-sm leading-none ${STATUS_DOT[workout.status]}`} aria-label={STATUS_LABEL[workout.status]}>
           {workout.status === 'done' ? '✓' : workout.status === 'missed' ? '✕' : ''}
