@@ -52,6 +52,14 @@ extension WeekStripLogic {
         return out
     }
 
+    /// A column shows at most 5 pairs; the rest collapse to a "+N" marker so
+    /// a stacked day can't stretch the whole row unbounded.
+    static let maxColumnPairs = 5
+    static func capped(_ pairs: [GlancePair]) -> (shown: [GlancePair], overflow: Int) {
+        guard pairs.count > maxColumnPairs else { return (pairs, 0) }
+        return (Array(pairs.prefix(maxColumnPairs)), pairs.count - maxColumnPairs)
+    }
+
     /// True when the day is nothing but rest — the column shows the moon.
     static func isRestOnly(workouts: [Workout], extras: [WorkoutActual]) -> Bool {
         !workouts.isEmpty && extras.isEmpty

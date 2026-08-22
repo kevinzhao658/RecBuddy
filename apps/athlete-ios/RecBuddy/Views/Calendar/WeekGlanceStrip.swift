@@ -60,15 +60,22 @@ struct WeekGlanceStrip: View {
                 .overlay(RoundedRectangle(cornerRadius: 10)
                     .stroke(isSelected ? RB.accent : RB.line, lineWidth: isSelected ? 1.5 : 1))
 
-                // Icons — outside the box, breathing on the lane.
+                // Icons — outside the box, breathing on the lane. Capped at 5
+                // pairs; anything beyond collapses to "+N".
                 VStack(spacing: 9) {
                     if restFor(date) {
                         Image(systemName: TypeBadge.symbol(for: "rest"))
                             .font(.system(size: 15, weight: .medium))
                             .foregroundStyle(RB.textFaint)
                     } else {
-                        ForEach(Array(pairs.enumerated()), id: \.offset) { _, pair in
+                        let capped = WeekStripLogic.capped(pairs)
+                        ForEach(Array(capped.shown.enumerated()), id: \.offset) { _, pair in
                             pairView(pair)
+                        }
+                        if capped.overflow > 0 {
+                            Text("+\(capped.overflow)")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(RB.textFaint)
                         }
                     }
                 }

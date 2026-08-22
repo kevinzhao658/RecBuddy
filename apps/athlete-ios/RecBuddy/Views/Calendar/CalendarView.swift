@@ -407,7 +407,7 @@ struct CalendarView: View {
 
     // MARK: - TODAY Headliner Stack
 
-    /// The headliner deck (verbatim), overlaid with the "↩ Today" chip when
+    /// The headliner deck (verbatim), overlaid with the Today chip when
     /// the athlete has navigated off today. An empty/rest selected day shows
     /// a quiet placeholder card instead of nothing.
     private var headlinerSection: some View {
@@ -453,13 +453,17 @@ struct CalendarView: View {
                 }
             }
         } label: {
-            Text("↩ Today")
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(RB.bg)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .background(RB.accent)
-                .clipShape(Capsule())
+            HStack(spacing: 4) {
+                Image(systemName: "arrow.uturn.left")
+                    .font(.system(size: 9, weight: .bold))
+                Text("Today")
+                    .font(.caption2.weight(.bold))
+            }
+            .foregroundStyle(RB.bg)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(RB.accent)
+            .clipShape(Capsule())
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Back to today")

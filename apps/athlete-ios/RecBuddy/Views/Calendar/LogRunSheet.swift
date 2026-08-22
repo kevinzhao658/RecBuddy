@@ -298,7 +298,7 @@ struct LogRunSheet: View {
                     .padding(.bottom, 32)
                 }
             }
-            .navigationTitle(existing != nil ? "Edit logged run" : "Complete workout")
+            .navigationTitle(existing != nil ? "Edit activity" : "Complete workout")
             .onChange(of: activity) { old, new in
                 // Switching a paced entry to bike/swim: carry the derived time
                 // over so the athlete doesn't retype what the form already knew.
