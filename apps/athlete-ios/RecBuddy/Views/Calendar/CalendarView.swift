@@ -1,26 +1,5 @@
 import SwiftUI
 
-/// Subtle breathing glow for today's white card outline — a soft white
-/// shadow easing between two low intensities so the card feels gently
-/// three-dimensional. Deliberately quiet; static under Reduce Motion.
-private struct TodayGlow: ViewModifier {
-    let active: Bool
-    @State private var pulse = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    func body(content: Content) -> some View {
-        content
-            .shadow(color: active ? .white.opacity(pulse ? 0.30 : 0.10) : .clear,
-                    radius: pulse ? 7 : 3)
-            .onAppear {
-                guard active, !reduceMotion else { return }
-                withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) {
-                    pulse = true
-                }
-            }
-    }
-}
-
 struct CalendarView: View {
     let profile: Profile
     @Environment(SessionStore.self) private var session
@@ -447,13 +426,11 @@ struct CalendarView: View {
             .padding(.vertical, 16)
             .background(RB.surface)
             .clipShape(RoundedRectangle(cornerRadius: 16))
-            // Today's activities carry a softly glowing white outline — other
-            // days' rows stay on the quiet hairline. (White = today, accent =
-            // selection.)
+            // Today's activities carry a white outline — other days' rows
+            // stay on the quiet hairline.
             .overlay(RoundedRectangle(cornerRadius: 16)
                 .stroke(selectedDate == Week.todayISO() ? Color.white.opacity(0.7) : RB.line,
                         lineWidth: selectedDate == Week.todayISO() ? 1.5 : 1))
-            .modifier(TodayGlow(active: selectedDate == Week.todayISO()))
             .contentShape(Rectangle())
             .opacity(isDone ? 0.6 : 1)
         }
@@ -507,13 +484,11 @@ struct CalendarView: View {
             .padding(.vertical, 16)
             .background(RB.surface)
             .clipShape(RoundedRectangle(cornerRadius: 16))
-            // Today's activities carry a softly glowing white outline — other
-            // days' rows stay on the quiet hairline. (White = today, accent =
-            // selection.)
+            // Today's activities carry a white outline — other days' rows
+            // stay on the quiet hairline.
             .overlay(RoundedRectangle(cornerRadius: 16)
                 .stroke(selectedDate == Week.todayISO() ? Color.white.opacity(0.7) : RB.line,
                         lineWidth: selectedDate == Week.todayISO() ? 1.5 : 1))
-            .modifier(TodayGlow(active: selectedDate == Week.todayISO()))
             .contentShape(Rectangle())
             .opacity(0.6)
         }
