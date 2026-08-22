@@ -38,11 +38,10 @@ export function WorkoutFields({ draft: d, onChange, disabled = false }: {
   const editPhase = (i: number, which: 0 | 1, val: string) =>
     set({ sets: d.sets.map((p, j) => (j === i ? (which === 0 ? [val, p[1]] : [p[0], val]) : p)) })
 
-  // 'other' workouts carry no metrics — just title, phases, and the note.
-  const hasMetrics = d.type !== 'other'
-  // Cross prescriptions are time-based only: the athlete declares the sport
-  // (run/bike/swim) when logging, so a coach-set distance/pace has no meaning.
-  const hasDistPace = hasMetrics && d.type !== 'cross'
+  // Cross and 'other' prescriptions are TIME-based only (cross: the athlete
+  // declares the sport; other: strength/mobility carry no distance) — they
+  // keep the standard Total time field but drop distance/pace.
+  const hasDistPace = d.type !== 'cross' && d.type !== 'other'
 
   // ── Distance · pace · total time: edit any two, the third solves itself ──
   // The two most-recently edited fields are authoritative; the remaining one
@@ -78,7 +77,7 @@ export function WorkoutFields({ draft: d, onChange, disabled = false }: {
         <div className="flex flex-wrap gap-1.5">
           {WORKOUT_TYPES.map((t) => (
             <button key={t}
-              onClick={() => set(t === 'cross' ? { type: t, dist: null, pace: null } : { type: t })}
+              onClick={() => set(t === 'cross' || t === 'other' ? { type: t, dist: null, pace: null } : { type: t })}
               className={`flex items-center gap-1 rounded-[9px] border px-2 py-1 text-xs font-medium transition ${
                 d.type === t ? 'border-accent bg-surface2 text-accent' : 'border-line text-text-mute hover:border-text-mute'}`}>
               <TypeIcon type={t} className="h-3.5 w-3.5" />{WORKOUT_TYPE_LABEL[t]}
@@ -91,38 +90,35 @@ export function WorkoutFields({ draft: d, onChange, disabled = false }: {
           <input aria-label="Title" value={d.title} onChange={(e) => set({ title: e.target.value })} className={field} />
         </div>
 
-        {hasMetrics && (
-          <>
-            {hasDistPace && (
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <span className={labelEyebrow}>Distance ({unit})</span>
-                  <NumberField ariaLabel="Distance" step={0.5}
-                    value={d.dist != null ? Math.round(fromMiles(d.dist, unit) * 10) / 10 : null}
-                    onChange={(v) => editMetric('dist', { dist: v != null ? Math.round(toMiles(v, unit) * 100) / 100 : null })} />
-                </div>
-                <div className="flex-1">
-                  <span className={labelEyebrow}>Pace</span>
-                  <PaceField value={d.pace} onChange={(v) => editMetric('pace', { pace: v })} unit={unit} />
-                </div>
-              </div>
-            )}
-
-            <div>
-              <span className={labelEyebrow}>Total time (min)</span>
-              {/* The auto estimate renders as a real value (not a faded
-                  placeholder) — the field always shows the live number. */}
-              <input aria-label="Total time" type="number"
-                value={timeDraft ?? d.est_minutes ?? (autoEst || '')}
-                onFocus={(e) => setTimeDraft(e.target.value)}
-                onBlur={() => setTimeDraft(null)}
-                onChange={(e) => {
-                  setTimeDraft(e.target.value)
-                  editMetric('time', { est_minutes: e.target.value ? Number(e.target.value) : null })
-                }} className={`${field} font-num`} />
+        {hasDistPace && (
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <span className={labelEyebrow}>Distance ({unit})</span>
+              <NumberField ariaLabel="Distance" step={0.5}
+                value={d.dist != null ? Math.round(fromMiles(d.dist, unit) * 10) / 10 : null}
+                onChange={(v) => editMetric('dist', { dist: v != null ? Math.round(toMiles(v, unit) * 100) / 100 : null })} />
             </div>
-          </>
+            <div className="flex-1">
+              <span className={labelEyebrow}>Pace</span>
+              <PaceField value={d.pace} onChange={(v) => editMetric('pace', { pace: v })} unit={unit} />
+            </div>
+          </div>
         )}
+
+        {/* Total time — the one metric EVERY type carries ('other' included). */}
+        <div>
+          <span className={labelEyebrow}>Total time (min)</span>
+          {/* The auto estimate renders as a real value (not a faded
+              placeholder) — the field always shows the live number. */}
+          <input aria-label="Total time" type="number"
+            value={timeDraft ?? d.est_minutes ?? (autoEst || '')}
+            onFocus={(e) => setTimeDraft(e.target.value)}
+            onBlur={() => setTimeDraft(null)}
+            onChange={(e) => {
+              setTimeDraft(e.target.value)
+              editMetric('time', { est_minutes: e.target.value ? Number(e.target.value) : null })
+            }} className={`${field} font-num`} />
+        </div>
 
         {/* Workout structure / phases */}
         <div className="flex flex-col gap-2">
