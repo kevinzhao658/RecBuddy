@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { Wordmark } from '../components/ui/Wordmark'
 import { Button } from '../components/ui/Button'
+import { Footer } from '../components/ui/Footer'
 
 // Inline lime check icon (no emoji — house rule)
 function CheckIcon() {
@@ -52,47 +53,50 @@ export default function ConfirmedPage() {
   const err = useMemo(() => parseHashError(), [])
 
   return (
-    <div className="grid min-h-screen place-items-center p-8">
-      <div className="w-full max-w-[380px]">
-        <Wordmark className="text-3xl" />
+    <div className="flex min-h-screen flex-col">
+      <div className="grid flex-1 place-items-center p-8">
+        <div className="w-full max-w-[380px]">
+          <Wordmark className="text-3xl" />
 
-        {err ? (
-          /* ── Error state ──────────────────────────────────────────── */
-          <>
-            <div className="mt-8 flex justify-center">
-              <ErrorIcon />
-            </div>
-            <h2 className="mt-5 text-center text-[26px] font-bold tracking-tight">
-              This link is invalid or has expired
-            </h2>
-            {err.description && (
-              <p className="mt-2 text-center text-[15px] text-missed">{err.description}</p>
-            )}
-            <p className="mt-4 text-center text-[15px] text-text-mute">
-              Head back to the RecBuddy app on your phone and request a new confirmation email.
-            </p>
-          </>
-        ) : (
-          /* ── Success state ────────────────────────────────────────── */
-          <>
-            <div className="mt-8 flex justify-center">
-              <CheckIcon />
-            </div>
-            <h2 className="mt-5 text-center text-[26px] font-bold tracking-tight">
-              Email confirmed
-            </h2>
-            <p className="mt-2 text-center text-[15px] text-text-mute">
-              Your RecBuddy account is ready. Head back to the app on your phone and sign in.
-            </p>
-            <a href="recbuddy://confirmed" className="mt-6 block">
-              <Button className="w-full">Open the RecBuddy app</Button>
-            </a>
-            <p className="mt-3 text-center text-sm text-text-faint">
-              On your phone, this opens the app directly.
-            </p>
-          </>
-        )}
+          {err ? (
+            /* ── Error state ──────────────────────────────────────────── */
+            <>
+              <div className="mt-8 flex justify-center">
+                <ErrorIcon />
+              </div>
+              <h2 className="mt-5 text-center text-[26px] font-bold tracking-tight">
+                This link is invalid or has expired
+              </h2>
+              {err.description && (
+                <p className="mt-2 text-center text-[15px] text-missed">{err.description}</p>
+              )}
+              <p className="mt-4 text-center text-[15px] text-text-mute">
+                Head back to the RecBuddy app on your phone and request a new confirmation email.
+              </p>
+            </>
+          ) : (
+            /* ── Success state ────────────────────────────────────────── */
+            <>
+              <div className="mt-8 flex justify-center">
+                <CheckIcon />
+              </div>
+              <h2 className="mt-5 text-center text-[26px] font-bold tracking-tight">
+                Email confirmed
+              </h2>
+              <p className="mt-2 text-center text-[15px] text-text-mute">
+                Your RecBuddy account is ready. Head back to the app on your phone and sign in.
+              </p>
+              <a href="recbuddy://confirmed" className="mt-6 block">
+                <Button className="w-full">Open the RecBuddy app</Button>
+              </a>
+              <p className="mt-3 text-center text-sm text-text-faint">
+                On your phone, this opens the app directly.
+              </p>
+            </>
+          )}
+        </div>
       </div>
+      <Footer />
     </div>
   )
 }
