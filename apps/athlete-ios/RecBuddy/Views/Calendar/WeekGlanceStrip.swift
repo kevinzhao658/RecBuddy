@@ -2,8 +2,8 @@ import SwiftUI
 
 /// The glanceable week: seven day columns, each stacking icon + number pairs
 /// for its activities (intensity-tinted type icons; distances in the
-/// athlete's unit, time targets as 45'). Past columns fade; today's date is
-/// accent; the selected column carries the ring and pilots the headliner.
+/// athlete's unit, time targets as 45'). Past columns fade; today's date and
+/// the selected box read in white; the selection pilots the headliner.
 /// Horizontal drag switches weeks.
 struct WeekGlanceStrip: View {
     let dates: [String]                    // Mon..Sun ISO days
@@ -45,8 +45,8 @@ struct WeekGlanceStrip: View {
         return Button { onPick(date) } label: {
             VStack(spacing: 12) {                       // clear air: date box ↔ icons
                 // Date header — its own box, identical size on every column.
-                // Today reads in WHITE (both lines of "SAT 22"); selection
-                // stays the accent ring on the box.
+                // Today reads in WHITE (both lines of "SAT 22"); the selected
+                // box carries a white ring.
                 VStack(spacing: 1) {
                     Text(dow)
                         .font(.system(size: 9, weight: .bold))
@@ -60,7 +60,8 @@ struct WeekGlanceStrip: View {
                 .background(isSelected ? RB.surface2 : RB.surface)
                 .clipShape(RoundedRectangle(cornerRadius: 10))
                 .overlay(RoundedRectangle(cornerRadius: 10)
-                    .stroke(isSelected ? RB.accent : RB.line, lineWidth: isSelected ? 1.5 : 1))
+                    .stroke(isSelected ? Color.white.opacity(0.8) : RB.line,
+                            lineWidth: isSelected ? 1.5 : 1))
 
                 // Icons — outside the box, breathing on the lane. Capped at 5
                 // pairs; anything beyond collapses to "+N".
