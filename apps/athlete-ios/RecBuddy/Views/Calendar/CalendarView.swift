@@ -696,6 +696,10 @@ struct CalendarView: View {
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.vertical, 16)
                 }
+                // Same type legend the month view shows — the strip's icons
+                // deserve the decoder too.
+                typeLegend
+                    .padding(.top, 4)
             }
 
             if case .error(let msg) = store.phase {
