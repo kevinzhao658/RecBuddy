@@ -45,13 +45,15 @@ struct WeekGlanceStrip: View {
         return Button { onPick(date) } label: {
             VStack(spacing: 12) {                       // clear air: date box ↔ icons
                 // Date header — its own box, identical size on every column.
+                // Today reads in WHITE (both lines of "SAT 22"); selection
+                // stays the accent ring on the box.
                 VStack(spacing: 1) {
                     Text(dow)
                         .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(RB.textFaint)
+                        .foregroundStyle(isToday ? .white : RB.textFaint)
                     Text(String(Int(date.suffix(2)) ?? 0))
                         .font(.subheadline.weight(.bold))
-                        .foregroundStyle(isToday ? RB.accent : isSelected ? .white : RB.textMute)
+                        .foregroundStyle(isToday || isSelected ? .white : RB.textMute)
                 }
                 .frame(maxWidth: .infinity)
                 .frame(height: 44)

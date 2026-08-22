@@ -437,29 +437,23 @@ struct CalendarView: View {
         .buttonStyle(.plain)
     }
 
-    /// The row's completion affordance: an empty bubble over "To Do" while
-    /// pending; a filled accent checkmark over "Completed" once done.
+    /// The row's completion affordance: an empty bubble while pending; a
+    /// filled accent checkmark once done. No labels — the bubble IS the state.
     private func statusMark(done: Bool) -> some View {
-        VStack(spacing: 3) {
+        Group {
             if done {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 20))
-                    .foregroundStyle(RB.accent)
-                Text("Completed")
-                    .font(.system(size: 9.5, weight: .semibold))
                     .foregroundStyle(RB.accent)
             } else {
                 Circle()
                     .stroke(RB.textFaint, lineWidth: 1.5)
                     .frame(width: 19, height: 19)
-                Text("To Do")
-                    .font(.system(size: 9.5, weight: .semibold))
-                    .foregroundStyle(RB.textMute)
             }
         }
-        // Fixed width so the bubble centers at the SAME x on every card —
-        // "Completed" is wider than "To Do" and would otherwise shift it.
-        .frame(width: 54)
+        // Fixed width keeps every bubble on the same center line.
+        .frame(width: 24)
+        .accessibilityLabel(done ? "Completed" : "To do")
     }
 
     private func extraRow(_ a: WorkoutActual) -> some View {
