@@ -162,9 +162,14 @@ struct CalendarView: View {
                 if let plan = store.plan {
                     RBLabel(weekLabel(plan), color: RB.accent)
                 }
-                Text("Your Plan")
+                // The screen title IS the selected day — it follows the
+                // week strip / month grid selection.
+                Text(Week.fmtWeekday(selectedDate))
                     .font(.largeTitle.bold())
                     .foregroundStyle(.white)
+                Text(Week.fmtFullDate(selectedDate))
+                    .font(.subheadline)
+                    .foregroundStyle(RB.textMute)
             }
             Spacer()
             if health.state.connected {

@@ -76,6 +76,11 @@ import Testing
         }
     }
 
+    @Test func weekdayAndFullDateFormat() {
+        #expect(Week.fmtWeekday("2026-08-22") == "Saturday")
+        #expect(Week.fmtFullDate("2026-08-22") == "August 22, 2026")
+    }
+
     @Test func localDayRoundTripsExactly() {
         // The UTC-parse bug rendered stored Nov 1 as "Oct 31" in DatePickers
         // west of Greenwich — local parse/format must round-trip the same day.

@@ -146,6 +146,22 @@ enum Week {
         return f.string(from: date)
     }
 
+    /// "Saturday" — full weekday name for an ISO local day.
+    static func fmtWeekday(_ iso: String) -> String {
+        guard let d = parseLocalDay(iso) else { return iso }
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "EEEE"
+        return f.string(from: d)
+    }
+
+    /// "August 22, 2026" — full date for an ISO local day.
+    static func fmtFullDate(_ iso: String) -> String {
+        let parts = iso.split(separator: "-").compactMap { Int($0) }
+        guard parts.count == 3 else { return iso }
+        return "\(FULLMON[parts[1] - 1]) \(parts[2]), \(parts[0])"
+    }
+
     /// Noon LOCAL time of a 'YYYY-MM-DD' day as an ISO-8601 timestamp — a
     /// recorded_at that always buckets back onto the same local day via
     /// localDay(fromTimestamp:), whatever the timezone offset.
