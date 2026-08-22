@@ -13,7 +13,7 @@ export function WorkoutKey() {
       <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-text-faint">Workout key</span>
       {TYPES.map(([t, label]) => (
         <span key={t} className="flex items-center gap-1.5 text-xs text-text-mute">
-          <TypeIcon type={t} className="h-3.5 w-3.5 text-text-mute" />{label}
+          <TypeIcon type={t} className="h-3.5 w-3.5 text-accent" />{label}
         </span>
       ))}
       <span className="mx-1 h-4 w-px bg-line" />

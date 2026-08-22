@@ -18,13 +18,21 @@ test('total time is part of the standard field set (both editors aligned)', () =
   expect(screen.getByLabelText('Pace')).toBeInTheDocument()
 })
 
-test("the 'other' type drops metrics but keeps phases and the note", () => {
+test("the 'other' type keeps Total time (standardized) but drops distance and pace", () => {
   render(<Harness initial={{ type: 'other', title: 'Strength' }} />)
   expect(screen.queryByLabelText('Distance')).toBeNull()
   expect(screen.queryByLabelText('Pace')).toBeNull()
-  expect(screen.queryByLabelText('Total time')).toBeNull()
+  expect(screen.getByLabelText('Total time')).toBeInTheDocument()
   expect(screen.getByLabelText('Add phase')).toBeInTheDocument()
   expect(screen.getByLabelText('Note')).toBeInTheDocument()
+})
+
+test("switching a workout to Other clears its distance and pace (like Cross)", () => {
+  render(<Harness initial={{ dist: 5, pace: '9:00/mi' }} />)
+  fireEvent.click(screen.getByRole('button', { name: /other/i }))
+  expect(screen.queryByLabelText('Distance')).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: /easy/i }))
+  expect((screen.getByLabelText('Distance') as HTMLInputElement).value).toBe('')
 })
 
 test('cross keeps total time but drops distance and pace (athlete picks the sport)', () => {

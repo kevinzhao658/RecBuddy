@@ -7,6 +7,7 @@ import { useUnit } from '../../lib/useUnit'
 import { fmtDist } from '../../lib/units'
 import { fmtDur } from '../../lib/fmtDur'
 import { volumeSplit, type VolumeMode } from '../../lib/volume'
+import { estMinutes } from '../../lib/estMinutes'
 import { swimMeters } from '../../lib/sportMetrics'
 
 const chunk = <T,>(arr: T[], n: number) => Array.from({ length: Math.ceil(arr.length / n) }, (_, i) => arr.slice(i * n, i * n + n))
@@ -33,7 +34,7 @@ function DayCell({ date, ws, inMonth, isToday, isSel, canEdit, onPick }: {
   // Green outline is reserved for the current day only; a picked day gets a
   // neutral ring so lime never reads as "today" on the wrong cell.
   const ring = drop.isOver ? 'z-10 ring-2 ring-inset ring-accent' : isToday ? 'ring-2 ring-inset ring-accent' : isSel ? 'ring-2 ring-inset ring-text/40' : ''
-  // One tinted icon per workout, up to three, then +N — a quick read of how
+  // One accent icon per workout, up to three, then +N — a quick read of how
   // loaded the day is without opening it.
   const iconWs = ws.filter((x) => x.type !== 'rest' && x.status !== 'rest')
   return (
@@ -42,7 +43,7 @@ function DayCell({ date, ws, inMonth, isToday, isSel, canEdit, onPick }: {
       <div className="flex items-start justify-between">
         <span className={`font-num text-xs ${isToday ? 'font-bold text-accent' : 'text-text-mute'}`}>{day}</span>
         <span className="flex items-center gap-0.5">
-          {iconWs.slice(0, 3).map((x) => <TypeIcon key={x.id} type={x.type} className="h-3.5 w-3.5" />)}
+          {iconWs.slice(0, 3).map((x) => <TypeIcon key={x.id} type={x.type} className="h-3.5 w-3.5 text-accent" />)}
           {iconWs.length > 3 && <span className="text-[10px] text-text-faint">+{iconWs.length - 3}</span>}
         </span>
       </div>
@@ -50,7 +51,13 @@ function DayCell({ date, ws, inMonth, isToday, isSel, canEdit, onPick }: {
         <span className="m-auto text-xs text-text-faint">Rest</span>
       ) : (
         <div className="mt-auto">
-          {w.dist != null && <div className="font-num text-sm text-text">{fmtDist(w.dist, unit)} <span className="text-xs text-text-faint">{unit}</span></div>}
+          {/* Time-based types (cross/other) read as total time, never a
+              phantom distance. */}
+          {w.type === 'cross' || w.type === 'other' ? (
+            estMinutes(w) > 0 && <div className="font-num text-sm text-text">{fmtDur(estMinutes(w))}</div>
+          ) : (
+            w.dist != null && <div className="font-num text-sm text-text">{fmtDist(w.dist, unit)} <span className="text-xs text-text-faint">{unit}</span></div>
+          )}
           <div className={`text-[11px] ${STATUS[w.status]?.cls ?? 'text-text-faint'}`}>{STATUS[w.status]?.label}</div>
         </div>
       ))}

@@ -28,3 +28,4 @@ supabase/.env.functions
 
 # Xcode/SPM build output (athlete-ios) — never commit
 apps/athlete-ios/.build/
+.superpowers/
