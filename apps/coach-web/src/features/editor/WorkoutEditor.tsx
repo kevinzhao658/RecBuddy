@@ -21,9 +21,13 @@ export function WorkoutEditor({ date, workout, onSave, onClear, onShare, canDele
   /** Read-only coach: fields disabled, no save/delete/share. */
   readOnly?: boolean
 }) {
+  // Time-based types (cross/other) never carry dist/pace — nulling them here
+  // also scrubs phantom values legacy rows saved before the fields were hidden.
+  const timeBased = workout?.type === 'cross' || workout?.type === 'other'
   const [d, setD] = useState<WorkoutDraft>(() => ({
     type: workout?.type ?? 'easy', title: workout?.title ?? 'Easy Run',
-    dist: workout?.dist ?? 4, pace: workout?.pace ?? '9:30/mi',
+    dist: workout ? (timeBased ? null : workout.dist) : 4,
+    pace: workout ? (timeBased ? null : workout.pace) : '9:30/mi',
     est_minutes: workout?.est_minutes ?? null, dur: workout?.dur ?? null,
     note: workout?.note ?? '', sets: workout?.sets ?? [],
   }))

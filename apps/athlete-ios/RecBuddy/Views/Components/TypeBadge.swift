@@ -9,7 +9,7 @@ struct TypeBadge: View {
     }
     static func symbol(for type: String) -> String {
         switch type {
-        case "easy": return "figure.run"
+        case "easy": return "arrow.right"          // easy forward motion (runner stays a SPORT glyph)
         case "long": return "arrow.right.to.line"
         case "speed": return "bolt.fill"
         case "tempo": return "gauge.with.needle"
@@ -18,10 +18,18 @@ struct TypeBadge: View {
         case "rest": return "moon.zzz"
         case "race": return "flag.checkered"
         case "other": return "ellipsis.circle"
-        default: return "figure.run"
+        default: return "arrow.right"
         }
     }
-    /// One voice: every type icon renders in the accent. Intensity is carried
-    /// by the plan, not the icon; kept as a function so call sites are stable.
-    static func tint(for type: String) -> Color { RB.accent }
+    /// Intensity code: orange = effort, blue = long, green = aerobic,
+    /// muted = off. (Accent-only was tried and reverted — color answers
+    /// "which days are hard" at a glance.)
+    static func tint(for type: String) -> Color {
+        switch type {
+        case "speed", "tempo", "race": return .orange
+        case "long": return .blue
+        case "rest", "other": return .secondary
+        default: return .green
+        }
+    }
 }

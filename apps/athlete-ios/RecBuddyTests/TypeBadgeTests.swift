@@ -9,12 +9,14 @@ import SwiftUI
     @Test func recoveryIsAPlainHeart() {
         #expect(TypeBadge.symbol(for: "recovery") == "heart")
     }
-    @Test func everyTypeTintsAccent() {
-        for t in ["easy", "long", "speed", "tempo", "recovery", "cross", "rest", "race", "other"] {
-            #expect(TypeBadge.tint(for: t) == RB.accent)
-        }
+    @Test func intensityTintsRestored() {
+        for t in ["speed", "tempo", "race"] { #expect(TypeBadge.tint(for: t) == .orange) }
+        #expect(TypeBadge.tint(for: "long") == .blue)
+        for t in ["rest", "other"] { #expect(TypeBadge.tint(for: t) == .secondary) }
+        for t in ["easy", "recovery", "cross"] { #expect(TypeBadge.tint(for: t) == .green) }
     }
-    @Test func unknownTypeFallsBackToRunner() {
-        #expect(TypeBadge.symbol(for: "mystery") == "figure.run")
+    @Test func easyIsAForwardArrowAndUnknownFallsBackToIt() {
+        #expect(TypeBadge.symbol(for: "easy") == "arrow.right")
+        #expect(TypeBadge.symbol(for: "mystery") == "arrow.right")
     }
 }

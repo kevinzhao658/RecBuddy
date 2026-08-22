@@ -136,7 +136,13 @@ final class PlanStore {
             phase = .idle
             publishTodaySnapshot()
         } catch {
+            // Debug builds carry the real reason — the friendly line alone
+            // hid what was actually failing.
+            #if DEBUG
+            phase = .error("Couldn't load your plan. Pull to retry.\n[\(String(describing: error).prefix(160))]")
+            #else
             phase = .error("Couldn't load your plan. Pull to retry.")
+            #endif
         }
     }
 

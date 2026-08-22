@@ -10,9 +10,11 @@ export function LibraryEditor({ initial, busy, onSave, onCancel, onDelete }: {
   initial?: LibraryWorkout | null; busy?: boolean
   onSave: (d: LibraryDraft) => void; onCancel: () => void; onDelete?: () => void
 }) {
+  // Time-based types (cross/other) never carry dist/pace (scrubs legacy rows).
+  const timeBased = initial?.type === 'cross' || initial?.type === 'other'
   const [d, setD] = useState<WorkoutFieldsDraft>(() => ({
     type: initial?.type ?? 'easy', title: initial?.title ?? '',
-    dist: initial?.dist ?? null, pace: initial?.pace ?? null,
+    dist: timeBased ? null : (initial?.dist ?? null), pace: timeBased ? null : (initial?.pace ?? null),
     est_minutes: initial?.est_minutes ?? null,
     note: initial?.note ?? '', sets: initial?.sets ?? [],
   }))

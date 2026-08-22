@@ -4,16 +4,21 @@ import type { WorkoutType } from '../../lib/types'
  *  (runner, arrow-to-line, bolt, gauge, heart, circling-arcs, crescent-zzz,
  *  checkered flag) — redrawn as original line art (SF Symbols are
  *  Apple-platform-only, so the glyphs themselves can't ship on the web).
- *  Icons render in the caller's text color; every surface passes `text-accent`
- *  for consistency with the athlete iOS app. */
+ *  Colored per TYPE_TINT below. */
+/** Intensity tints (match athlete iOS): orange = effort, blue = long, green =
+ *  aerobic, muted grey = off (rest/other). Accent-only was tried and
+ *  reverted — color answers "which days are hard" at a glance. */
+const TYPE_TINT: Record<string, string> = {
+  speed: '#FF9F0A', tempo: '#FF9F0A', race: '#FF9F0A',
+  long: '#0A84FF',
+  easy: '#30D158', recovery: '#30D158', cross: '#30D158',
+  // Off days stay muted grey (matches iOS .secondary) — never the accent.
+  rest: 'rgba(243, 251, 232, 0.56)', other: 'rgba(243, 251, 232, 0.56)',
+}
+
 const TYPE_GLYPH: Record<string, React.ReactNode> = {
-  // figure.run — stick runner mid-stride
-  easy: (
-    <>
-      <circle cx="13.5" cy="4.6" r="1.7" />
-      <path d="M12.8 7.4L11 12M8.6 9.8l3.4-1.6 2.6 1.4 2.4 2.6M11 12l-2.4 4.2L6 18.4M11 12l2.2 3.2 2.8 1.8" />
-    </>
-  ),
+  // arrow.right — easy forward motion (the runner now lives on the run SPORT glyph)
+  easy: <path d="M4 12h14M13 6l6 6-6 6" />,
   // arrow.right.to.line — long steady push to the finish
   long: <path d="M3.5 12h12M11 7l5 5-5 5M20.5 6v12" />,
   // bolt — intervals/speed
@@ -68,8 +73,9 @@ const TYPE_GLYPH: Record<string, React.ReactNode> = {
 }
 
 export function TypeIcon({ type, className = '' }: { type: WorkoutType; className?: string }) {
+  const tint = TYPE_TINT[type]
   return (
-    <svg viewBox="0 0 24 24" className={`h-4 w-4 ${className}`}
+    <svg viewBox="0 0 24 24" className={`h-4 w-4 ${className}`} style={tint ? { color: tint } : undefined}
       fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       {TYPE_GLYPH[type] ?? TYPE_GLYPH.easy}
     </svg>
@@ -79,12 +85,18 @@ export function TypeIcon({ type, className = '' }: { type: WorkoutType; classNam
 /** Sport glyphs for logged activities (declared run/ride/swim) — used where a
  *  result is shown by SPORT rather than by prescribed workout type (extras,
  *  cross per-sport totals). ONE drawing per metaphor across the whole app:
- *  run reuses the TypeIcon easy (figure.run), ride has its own bicycle, and
+ *  run keeps the runner, ride has its own bicycle, and
  *  every glyph is posed to mirror the athlete iOS app's SF Symbol so the two
  *  clients read in unison (SF Symbols themselves are Apple-platform-only and
  *  can't ship on the web). Uncolored: callers tint via text color classes. */
 const SPORT_GLYPH: Record<string, React.ReactNode> = {
-  run: TYPE_GLYPH.easy,    // figure.run — same runner as the Easy type icon
+  // figure.run — a logged run keeps the runner (the easy TYPE moved to an arrow)
+  run: (
+    <>
+      <circle cx="13.5" cy="4.6" r="1.7" />
+      <path d="M12.8 7.4L11 12M8.6 9.8l3.4-1.6 2.6 1.4 2.4 2.6M11 12l-2.4 4.2L6 18.4M11 12l2.2 3.2 2.8 1.8" />
+    </>
+  ),
   // bicycle — a logged ride IS a bike ride; only the cross TYPE stopped being one
   ride: (
     <>

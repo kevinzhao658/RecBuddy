@@ -6,16 +6,17 @@ import Foundation
     let week = ["2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20",
                 "2026-08-21", "2026-08-22", "2026-08-23"]
 
-    func workout(_ id: String, type: String = "easy", status: String = "planned") -> Workout {
+    func workout(_ id: String, type: String = "easy", status: String = "planned",
+                 dist: Double? = 5, estMinutes: Int? = nil) -> Workout {
         Workout(id: id, planId: "p", athleteId: "a", date: "2026-08-19", type: type,
-                title: "W", dist: 5, pace: "9:00/mi", estMinutes: nil,
-                dur: nil, note: nil, sets: [], status: status)
+                title: "W", dist: dist, pace: dist != nil ? "9:00/mi" : nil,
+                estMinutes: estMinutes, dur: nil, note: nil, sets: [], status: status)
     }
-    func extra(_ id: String) throws -> WorkoutActual {
+    func extra(_ id: String, dist: Double = 3.0, activity: String = "ride") throws -> WorkoutActual {
         let json = """
-        {"id":"\(id)","workout_id":null,"athlete_id":"a","dist":3.0,"pace":null,
+        {"id":"\(id)","workout_id":null,"athlete_id":"a","dist":\(dist),"pace":null,
          "time":"30:00","hr":null,"feel":null,"note":null,"source":"manual",
-         "source_id":null,"recorded_at":"2026-08-19T16:00:00+00:00","activity":"ride"}
+         "source_id":null,"recorded_at":"2026-08-19T16:00:00+00:00","activity":"\(activity)"}
         """.data(using: .utf8)!
         return try JSONDecoder().decode(WorkoutActual.self, from: json)
     }
@@ -26,26 +27,69 @@ import Foundation
     @Test func selectsMondayWhenTodayOutsideWeek() {
         #expect(WeekStripLogic.defaultSelection(weekDates: week, today: "2026-09-01") == "2026-08-17")
     }
-    @Test func rolloverLandsOnMondayForwardSundayBackward() {
-        #expect(WeekStripLogic.rolloverLanding(forward: true, weekDates: week) == "2026-08-17")
-        #expect(WeekStripLogic.rolloverLanding(forward: false, weekDates: week) == "2026-08-23")
+
+    @Test func distanceWorkoutsCarryUnitSuffix() {
+        let p = WeekStripLogic.pairs(workouts: [workout("w1", dist: 5)], extras: [], unit: .mi)
+        #expect(p == [GlancePair(icon: .type("easy"), text: "5.0 mi")])
     }
-    @Test func emptyAndRestOnlyDaysHaveNoMarks() {
-        #expect(WeekStripLogic.marks(workouts: [], extras: []) == .none)
-        #expect(WeekStripLogic.marks(workouts: [workout("r", type: "rest")], extras: []) == .none)
+    @Test func timeOnlyWorkoutsUseApostropheMinutes() {
+        let w = workout("c1", type: "cross", dist: nil, estMinutes: 45)
+        #expect(WeekStripLogic.pairs(workouts: [w], extras: [], unit: .mi)
+                == [GlancePair(icon: .type("cross"), text: "45'")])
     }
-    @Test func allDoneCollapsesToCheck() throws {
-        #expect(WeekStripLogic.marks(workouts: [workout("w1", status: "done")], extras: []) == .allDone)
-        // Extras always count as done — an extras-only day is all-done too.
-        #expect(try WeekStripLogic.marks(workouts: [], extras: [extra("x1")]) == .allDone)
+    @Test func phantomDistOnTimeBasedTypesNeverShowsMiles() {
+        // Legacy rows saved dist/pace while the editor hid the fields —
+        // cross/other must STILL read as minutes, never miles.
+        let cross = workout("c1", type: "cross", dist: 10)        // phantom dist
+        let other = workout("o1", type: "other", dist: 4, estMinutes: 40)
+        let bare = workout("o2", type: "other", dist: 4)          // phantom, no est
+        let p = WeekStripLogic.pairs(workouts: [cross, other, bare], extras: [], unit: .mi)
+        #expect(p == [GlancePair(icon: .type("cross"), text: "45'"),   // cross est fallback
+                      GlancePair(icon: .type("other"), text: "40'"),
+                      GlancePair(icon: .type("other"), text: nil)])    // no time known -> icon only
     }
-    @Test func mixedDaysShowPerWorkoutDots() throws {
-        let m = try WeekStripLogic.marks(
-            workouts: [workout("w1", status: "done"), workout("w2")], extras: [extra("x1")])
-        #expect(m == .dots([true, false, true]))
+    @Test func otherTypeShowsApostropheMinutesLikeCross() {
+        // 'Other' (strength/mobility) is time-based — its coach-set Total time
+        // renders under the icon exactly like cross ("40'").
+        let w = workout("o1", type: "other", dist: nil, estMinutes: 40)
+        #expect(WeekStripLogic.pairs(workouts: [w], extras: [], unit: .mi)
+                == [GlancePair(icon: .type("other"), text: "40'")])
     }
-    @Test func dotsCapAtThree() {
-        let ws = [workout("a"), workout("b"), workout("c"), workout("d", status: "done")]
-        #expect(WeekStripLogic.marks(workouts: ws, extras: []) == .dots([false, false, false]))
+    @Test func crossWithoutTargetsUsesTheEstConvention() {
+        // No est/dur set -> cross reads its 45' estimate (same convention the
+        // coach gauges use); a truly unknowable time is icon-only ('other').
+        let w = workout("c1", type: "cross", dist: nil, estMinutes: nil)
+        #expect(WeekStripLogic.pairs(workouts: [w], extras: [], unit: .mi)
+                == [GlancePair(icon: .type("cross"), text: "45'")])
+    }
+    @Test func restWorkoutsAreExcludedFromPairs() {
+        #expect(WeekStripLogic.pairs(workouts: [workout("r", type: "rest")], extras: [], unit: .mi).isEmpty)
+    }
+    @Test func extrasFollowPlannedAndSwimsReadMeters() throws {
+        let p = try WeekStripLogic.pairs(
+            workouts: [workout("w1", dist: 4)],
+            extras: [extra("x1", dist: 12.4, activity: "ride"),
+                     extra("x2", dist: 1500 / 1609.344, activity: "swim")],
+            unit: .mi)
+        #expect(p == [GlancePair(icon: .type("easy"), text: "4.0 mi"),
+                      GlancePair(icon: .sport("ride"), text: "12.4 mi"),
+                      GlancePair(icon: .sport("swim"), text: "1500m")])
+    }
+    @Test func restOnlyFlag() {
+        #expect(WeekStripLogic.isRestOnly(workouts: [workout("r", type: "rest")], extras: []))
+        #expect(!WeekStripLogic.isRestOnly(workouts: [], extras: []))
+        #expect(!WeekStripLogic.isRestOnly(workouts: [workout("r", type: "rest"), workout("w")], extras: []))
+    }
+    @Test func columnsCapAtFourPairsThenOverflow() {
+        let seven = (1...7).map { workout("w\($0)", dist: Double($0)) }
+        let capped = WeekStripLogic.capped(WeekStripLogic.pairs(workouts: seven, extras: [], unit: .mi))
+        #expect(capped.shown.count == 4)
+        #expect(capped.overflow == 3)
+        #expect(capped.shown.first == GlancePair(icon: .type("easy"), text: "1.0 mi"))
+        // At exactly the cap, nothing collapses.
+        let four = (1...4).map { workout("w\($0)", dist: Double($0)) }
+        let atCap = WeekStripLogic.capped(WeekStripLogic.pairs(workouts: four, extras: [], unit: .mi))
+        #expect(atCap.shown.count == 4)
+        #expect(atCap.overflow == 0)
     }
 }

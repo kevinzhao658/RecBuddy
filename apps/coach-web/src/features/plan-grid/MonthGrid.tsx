@@ -7,6 +7,7 @@ import { useUnit } from '../../lib/useUnit'
 import { fmtDist } from '../../lib/units'
 import { fmtDur } from '../../lib/fmtDur'
 import { volumeSplit, type VolumeMode } from '../../lib/volume'
+import { estMinutes } from '../../lib/estMinutes'
 import { swimMeters } from '../../lib/sportMetrics'
 
 const chunk = <T,>(arr: T[], n: number) => Array.from({ length: Math.ceil(arr.length / n) }, (_, i) => arr.slice(i * n, i * n + n))
@@ -50,7 +51,13 @@ function DayCell({ date, ws, inMonth, isToday, isSel, canEdit, onPick }: {
         <span className="m-auto text-xs text-text-faint">Rest</span>
       ) : (
         <div className="mt-auto">
-          {w.dist != null && <div className="font-num text-sm text-text">{fmtDist(w.dist, unit)} <span className="text-xs text-text-faint">{unit}</span></div>}
+          {/* Time-based types (cross/other) read as total time, never a
+              phantom distance. */}
+          {w.type === 'cross' || w.type === 'other' ? (
+            estMinutes(w) > 0 && <div className="font-num text-sm text-text">{fmtDur(estMinutes(w))}</div>
+          ) : (
+            w.dist != null && <div className="font-num text-sm text-text">{fmtDist(w.dist, unit)} <span className="text-xs text-text-faint">{unit}</span></div>
+          )}
           <div className={`text-[11px] ${STATUS[w.status]?.cls ?? 'text-text-faint'}`}>{STATUS[w.status]?.label}</div>
         </div>
       ))}

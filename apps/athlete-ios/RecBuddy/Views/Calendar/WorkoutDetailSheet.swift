@@ -83,7 +83,7 @@ struct WorkoutDetailSheet: View {
                     if live.status == "done" {
                         // Edit in place — no unmark-and-relog needed to fix a note.
                         if actual != nil {
-                            Button("Edit logged run") { logOpen = true }
+                            Button("Edit activity") { logOpen = true }
                                 .buttonStyle(VoltButtonStyle())
                                 .disabled(busy)
                         }
