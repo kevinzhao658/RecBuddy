@@ -448,7 +448,9 @@ struct CalendarView: View {
                     .foregroundStyle(RB.textMute)
             }
         }
-        .fixedSize(horizontal: true, vertical: false)
+        // Fixed width so the bubble centers at the SAME x on every card —
+        // "Completed" is wider than "To Do" and would otherwise shift it.
+        .frame(width: 54)
     }
 
     private func extraRow(_ a: WorkoutActual) -> some View {
