@@ -35,8 +35,9 @@ Canonical legal docs live in three synchronized places — update all together:
 (live pages at recbuddy.app), `apps/athlete-ios/RecBuddy/Views/Account/TermsView.swift`
 (iOS terms). Bump the "Last updated" date on every revision.
 
-A deferred legal-hardening item list (platform/coach-conduct disclaimer, minors
-eligibility, warranty disclaimer + damages cap, governing law, termination
-rights, UGC license) is tracked in the product backlog — deliberately deferred
-by the owner, not forgotten. Do not silently drop these when related features
-land.
+Still-deferred legal items (attorney-level, tracked in the product backlog —
+deliberately deferred by the owner, not forgotten): arbitration/class-waiver
+clause, WA My-Health-My-Data analysis, entity naming (pending LLC formation).
+Do not silently drop these when related features land. The 2026-08-23 legal
+hardening shipped everything else (coach disclaimer, eligibility, warranties,
+damages cap, NY governing law, termination rights, UGC license).
