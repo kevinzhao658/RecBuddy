@@ -4,7 +4,7 @@ const EMAIL = <a href="mailto:support@recbuddy.app" className="font-semibold tex
 
 export default function PrivacyPage() {
   return (
-    <LegalPage title="Privacy Policy" updated="July 31, 2026">
+    <LegalPage title="Privacy Policy" updated="August 23, 2026">
       <p>
         RecBuddy (&ldquo;RecBuddy,&rdquo; &ldquo;we,&rdquo; &ldquo;us,&rdquo; or &ldquo;our&rdquo;) provides a
         running-training app that connects athletes with their coaches. This Privacy Policy explains
@@ -38,6 +38,7 @@ export default function PrivacyPage() {
         <ul>
           <li>Messages and workout cards exchanged between an athlete and their coach</li>
           <li>Coach–athlete connections you create using invite codes</li>
+          <li>Photos and images you choose to share in chat</li>
         </ul>
         <p><strong>Technical information</strong></p>
         <ul>

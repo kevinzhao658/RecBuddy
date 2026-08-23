@@ -134,7 +134,7 @@ export default function SignupPage() {
                 <Button type="submit" disabled={busy || !captcha} className="w-full">{busy ? 'Creating…' : 'Create account'}</Button>
                 <p className="text-center text-xs leading-relaxed text-text-faint">
                   By creating an account you agree to RecBuddy’s{' '}
-                  <Link to="/terms" className="underline hover:text-text-mute">Terms of Service</Link> and{' '}
+                  <Link to="/terms" className="underline hover:text-text-mute">Terms & Conditions</Link> and{' '}
                   <Link to="/privacy" className="underline hover:text-text-mute">Privacy Policy</Link>.
                 </p>
                 <p className="mt-1 text-center text-sm text-text-mute">
