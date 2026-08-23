@@ -35,7 +35,7 @@ struct TermsView: View {
                     )
                     termsSection(
                         title: "5. Account Responsibility",
-                        text: "You are responsible for maintaining the confidentiality of your account credentials. You are responsible for all activity that occurs under your account. Notify us immediately at kevin@recbuddy.app if you believe your account has been compromised."
+                        text: "You are responsible for maintaining the confidentiality of your account credentials. You are responsible for all activity that occurs under your account. Notify us immediately at support@recbuddy.app if you believe your account has been compromised."
                     )
                     termsSection(
                         title: "6. Account Deletion Rights",
@@ -55,7 +55,7 @@ struct TermsView: View {
                     )
                     termsSection(
                         title: "10. Contact",
-                        text: "Questions about these Terms? Contact us at kevin@recbuddy.app."
+                        text: "Questions about these Terms? Contact us at support@recbuddy.app."
                     )
                 }
                 .padding(.horizontal, 20)
