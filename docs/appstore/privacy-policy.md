@@ -1,7 +1,12 @@
 # RecBuddy Privacy Policy
 
+> Canonical copy: https://recbuddy.app/privacy — update this file and
+> `apps/coach-web/src/routes/legal/PrivacyPage.tsx` together.
+> Structural note: the web page renders "Apple Health (HealthKit)" as its own
+> top-level section (12 sections vs this file's 11) — content is identical.
+
 **Effective date:** July 31, 2026
-**Last updated:** July 31, 2026
+**Last updated:** August 23, 2026
 
 RecBuddy ("RecBuddy," "we," "us," or "our") provides a running-training app that
 connects athletes with their coaches. This Privacy Policy explains what we
@@ -59,6 +64,7 @@ your data.
 **Communications**
 - Messages and workout cards exchanged between an athlete and their coach
 - Coach–athlete connections you create using invite codes
+- Photos and images you choose to share in chat
 
 **Technical information**
 - Standard information needed to operate the app securely, such as

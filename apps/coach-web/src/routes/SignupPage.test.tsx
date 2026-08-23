@@ -8,3 +8,9 @@ test('renders signup with coaching title chips', () => {
   expect(screen.getByRole('button', { name: /head coach/i })).toBeInTheDocument()
   expect(screen.getByRole('button', { name: /create account/i })).toBeInTheDocument()
 })
+
+test('legal sentence links to terms and privacy', () => {
+  render(<MemoryRouter><SignupPage /></MemoryRouter>)
+  expect(screen.getByRole('link', { name: 'Terms & Conditions' })).toHaveAttribute('href', '/terms')
+  expect(screen.getByRole('link', { name: 'Privacy Policy' })).toHaveAttribute('href', '/privacy')
+})
