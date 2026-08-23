@@ -11,6 +11,6 @@ test('renders signup with coaching title chips', () => {
 
 test('legal sentence links to terms and privacy', () => {
   render(<MemoryRouter><SignupPage /></MemoryRouter>)
-  expect(screen.getByRole('link', { name: 'Terms of Service' })).toHaveAttribute('href', '/terms')
+  expect(screen.getByRole('link', { name: 'Terms & Conditions' })).toHaveAttribute('href', '/terms')
   expect(screen.getByRole('link', { name: 'Privacy Policy' })).toHaveAttribute('href', '/privacy')
 })
