@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useCooldown } from '../lib/useCooldown'
+import { emailHasAccount } from '../lib/queries/account'
 import { Button } from '../components/ui/Button'
 import { Wordmark } from '../components/ui/Wordmark'
 import { IconField } from '../components/ui/IconField'
@@ -20,6 +21,10 @@ export default function LoginPage() {
   const [err, setErr] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [forgot, setForgot] = useState(false)
+  // The reset screen keeps its own email and in-flight flag, so using it never
+  // changes the sign-in form.
+  const [resetEmail, setResetEmail] = useState('')
+  const [sending, setSending] = useState(false)
   const [resetMsg, setResetMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const cooldown = useCooldown()
 
@@ -32,12 +37,20 @@ export default function LoginPage() {
   }
 
   async function sendReset() {
-    if (!email.trim()) return setResetMsg({ ok: false, text: 'Enter your email first.' })
-    setBusy(true)
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: `${window.location.origin}/reset-password` })
-    setBusy(false)
+    const addr = resetEmail.trim()
+    if (!addr) return setResetMsg({ ok: false, text: 'Enter your email first.' })
+    setSending(true)
+    // Supabase's reset silently succeeds for unknown addresses, so check first. If the
+    // check itself fails, fall through and send rather than block a real reset.
+    const exists = await emailHasAccount(supabase, addr).catch(() => null)
+    if (exists === false) {
+      setSending(false)
+      return setResetMsg({ ok: false, text: 'We couldn’t find an account with that email.' })
+    }
+    const { error } = await supabase.auth.resetPasswordForEmail(addr, { redirectTo: `${window.location.origin}/reset-password` })
+    setSending(false)
     if (!error || error.status === 429) cooldown.start(RESEND_COOLDOWN_S)
-    setResetMsg(error ? { ok: false, text: error.message } : { ok: true, text: `Reset link sent to ${email.trim()}. Check your inbox.` })
+    setResetMsg(error ? { ok: false, text: error.message } : { ok: true, text: `Reset link sent to ${addr}. Check your inbox.` })
   }
 
   return (
@@ -68,10 +81,10 @@ export default function LoginPage() {
               <p className="mt-1 text-[15px] text-text-mute">Enter your email and we’ll send a reset link.</p>
               <div className="mt-8 flex flex-col gap-4">
                 <IconField label="Email" type="email" required icon={<MailIcon />} placeholder="you@email.com"
-                  value={email} onChange={(e) => setEmail(e.target.value)} />
+                  value={resetEmail} onChange={(e) => setResetEmail(e.target.value)} />
                 {resetMsg && <p className={`text-sm ${resetMsg.ok ? 'text-accent' : 'text-missed'}`}>{resetMsg.text}</p>}
-                <Button onClick={sendReset} disabled={busy || !email.trim() || cooldown.remaining > 0} className="w-full">
-                  {busy ? 'Sending…' : cooldown.remaining > 0 ? `Resend in ${cooldown.remaining}s` : 'Send reset link'}
+                <Button onClick={sendReset} disabled={sending || !resetEmail.trim() || cooldown.remaining > 0} className="w-full">
+                  {sending ? 'Sending…' : cooldown.remaining > 0 ? `Resend in ${cooldown.remaining}s` : 'Send reset link'}
                 </Button>
                 <button type="button" onClick={() => { setForgot(false); setResetMsg(null) }} className="text-center text-sm text-text-mute hover:text-text">← Back to sign in</button>
               </div>
@@ -99,7 +112,7 @@ export default function LoginPage() {
                 </button>
 
                 <div className="mt-1 flex items-center justify-between text-sm">
-                  <button type="button" onClick={() => { setForgot(true); setErr(null) }} className="text-text-mute hover:text-text">Forgot password?</button>
+                  <button type="button" onClick={() => { setResetEmail(email); setForgot(true); setErr(null) }} className="text-text-mute hover:text-text">Forgot password?</button>
                   <span className="font-semibold text-accent">Athlete? Open the app →</span>
                 </div>
                 <p className="mt-2 text-center text-sm text-text-mute">

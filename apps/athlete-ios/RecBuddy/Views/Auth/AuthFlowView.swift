@@ -8,8 +8,12 @@ struct AuthFlowView: View {
     @State private var busy = false
     @State private var error: String?
     @State private var resetSent = false
-    @State private var confirmReset = false
-    /// Resends are locked until this time — each new email invalidates the previous link.
+    @State private var showResetPrompt = false
+    // The reset prompt keeps its own email and in-flight flag, so using it never
+    // changes the sign-in form or makes LOG IN look pressed.
+    @State private var resetEmail = ""
+    @State private var sendingReset = false
+    /// Resends are locked until this time, since each new email invalidates the previous link.
     @State private var resendAvailableAt: Date?
 
     private var trimmedEmail: String { email.trimmingCharacters(in: .whitespaces) }
@@ -80,32 +84,40 @@ struct AuthFlowView: View {
                         .accessibilityLabel("Log in")
 
                         if resetSent {
-                            Text("Reset link sent — check your email.")
+                            Text("Reset link sent. Check your email.")
                                 .font(.footnote)
                                 .foregroundStyle(RB.textMute)
                                 .multilineTextAlignment(.center)
                                 .frame(maxWidth: .infinity)
                         }
 
-                        // Confirm before sending, then hold off resends for a minute —
-                        // every new email invalidates the previous link.
+                        // Ask for the email (pre-filled from the form, never written back) before
+                        // sending, then hold off resends for a minute: every new email invalidates the last link.
                         TimelineView(.periodic(from: .now, by: 1)) { context in
                             let wait = resendWait(at: context.date)
-                            Button(wait > 0 ? "Resend link in \(wait)s" : "Forgot password?") {
-                                confirmReset = true
+                            Button(sendingReset ? "Sending link…" : wait > 0 ? "Resend link in \(wait)s" : "Forgot password?") {
+                                resetEmail = trimmedEmail
+                                showResetPrompt = true
                             }
                             .font(.subheadline)
                             .foregroundStyle(RB.textMute)
-                            .disabled(busy || trimmedEmail.isEmpty || wait > 0)
-                            .accessibilityLabel(wait > 0 ? "Resend reset link in \(wait) seconds" : "Forgot password")
+                            .disabled(busy || sendingReset || wait > 0)
+                            .accessibilityLabel(sendingReset ? "Sending reset link"
+                                : wait > 0 ? "Resend reset link in \(wait) seconds" : "Forgot password")
                         }
-                        .alert("Reset your password?", isPresented: $confirmReset) {
+                        .alert("Reset your password", isPresented: $showResetPrompt) {
+                            TextField("Email address", text: $resetEmail)
+                                .textContentType(.emailAddress)
+                                .keyboardType(.emailAddress)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
                             Button("Cancel", role: .cancel) {}
                             Button("Send link") {
                                 Task { await forgot() }
                             }
+                            .disabled(resetEmail.trimmingCharacters(in: .whitespaces).isEmpty)
                         } message: {
-                            Text("We'll email a password reset link to \(trimmedEmail).")
+                            Text("Enter the email you signed up with and we'll send you a link to reset your password.")
                         }
 
                         Divider().overlay(RB.line)
@@ -158,21 +170,42 @@ struct AuthFlowView: View {
     }
 
     private func forgot() async {
-        busy = true; error = nil; resetSent = false
+        let address = resetEmail.trimmingCharacters(in: .whitespaces)
+        guard !address.isEmpty else { return }
+        sendingReset = true; error = nil; resetSent = false
+        defer { sendingReset = false }
+        // Supabase's reset silently succeeds for unknown addresses, so check first.
+        if await emailHasAccount(address) == false {
+            self.error = "We couldn't find an account with that email."
+            return
+        }
         do {
             // Config-driven: dev builds must land on a web app pointed at the SAME
             // Supabase project, or the token won't validate (prod: https://recbuddy.app).
             let redirect = (Bundle.main.object(forInfoDictionaryKey: "ResetPasswordRedirect") as? String)
                 .flatMap(URL.init(string:)) ?? URL(string: "https://recbuddy.app/reset-password")
-            try await Supa.shared.auth.resetPasswordForEmail(trimmedEmail, redirectTo: redirect)
+            try await Supa.shared.auth.resetPasswordForEmail(address, redirectTo: redirect)
             resetSent = true
             resendAvailableAt = .now.addingTimeInterval(60)
         } catch AuthError.api(_, _, _, let response) where response.statusCode == 429 {
-            self.error = "Too many reset requests — wait a minute and try again."
+            self.error = "Too many reset requests. Please wait a minute and try again."
             resendAvailableAt = .now.addingTimeInterval(60)
         } catch {
-            self.error = "Could not send the reset email."
+            self.error = "We couldn't send the reset email. Please try again."
         }
-        busy = false
+    }
+
+    /// nil when the check can't run (offline, backend without the RPC yet), so the
+    /// caller falls back to sending rather than blocking a real reset.
+    private func emailHasAccount(_ address: String) async -> Bool? {
+        do {
+            let exists: Bool = try await Supa.shared
+                .rpc("email_has_account", params: ["p_email": address])
+                .execute()
+                .value
+            return exists
+        } catch {
+            return nil
+        }
     }
 }
