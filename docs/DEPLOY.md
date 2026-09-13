@@ -52,6 +52,12 @@ Apply these on **each** project (dev and prod) — they're per-project. Authenti
 - **Secure email change → OFF.** When ON, Supabase requires confirming from *both* the old and new address, so a single code can't complete the change. Off = only the new address's code is needed.
 - **Email template → "Change Email Address"** must include the code token, e.g. `Your email change code is {{ .Token }}`. The default template sends a `{{ .ConfirmationURL }}` link instead of a code; without `{{ .Token }}` the modal has no code to verify.
 
+**Password reset links carry a token hash** (web `/reset-password` verifies it on submit). For it to work:
+- **Email template → "Reset Password"** must link with the token hash instead of `{{ .ConfirmationURL }}`, e.g.
+  `<a href="{{ .SiteURL }}/reset-password?token_hash={{ .TokenHash }}&type=recovery">Reset your password</a>`.
+  The default `{{ .ConfirmationURL }}` link always fails for resets requested from the iOS app: supabase-swift uses PKCE, so the link returns a `?code=` whose verifier lives on the phone, and the web page shows "Link expired". The token hash also survives email link scanners, since nothing is consumed until the user submits.
+- **Email rate limits** — the apps lock "resend" for 60s after a send (every new email invalidates the previous link); keep Supabase's minimum interval between emails to the same address at ≥ 60s so the server enforces it too.
+
 **Password protection** (Authentication → Sign In / Providers → Email):
 - **Prevent use of leaked passwords** — **Pro-plan only**, so **keep OFF for now**. (When on Pro: turn it ON — it checks new passwords against HaveIBeenPwned via k-anonymity and rejects breached ones; no code change, our UI already surfaces the rejection.)
 - **Secure password change / "Require current password when updating"** — optional, server-side enforcement. The Settings modal already verifies the current password client-side (re-auth before `updateUser`). If you enable the toggle, **smoke-test the change-password flow**: it relies on the fresh re-auth counting as recent; if `updateUser` errors with "reauthentication required", switch the modal to the official `supabase.auth.reauthenticate()` → nonce flow (an emailed code) instead of the current-password field.
@@ -78,6 +84,7 @@ against the always-pass test keys (no real protection) — so set real keys befo
 - [ ] Vercel prod env vars point at prod Supabase
 - [ ] Auth Site URL / redirect URLs set for the prod domain
 - [ ] Secure email change OFF + "Change Email Address" template includes `{{ .Token }}` (in-app code flow)
+- [ ] "Reset Password" template links to `/reset-password?token_hash={{ .TokenHash }}&type=recovery` (dev + prod) — smoke-test a reset requested from the iOS app
 - [ ] Prevent use of leaked passwords ON — **deferred (Pro plan only)**; enable when upgraded
 - [ ] Change-password flow smoke-tested if "secure password change" is on
 
