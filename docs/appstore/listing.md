@@ -135,28 +135,57 @@ HealthKit entitlement during review.
 
 ---
 
-## Reviewer notes (App Review Information → Notes)
+## App Review Information (sign-in + notes)
+
+**Seed the demo account on submission day** — its dates are relative to the run
+date, so re-run it before every resubmission too (a reviewer may also delete it):
+
 ```
-RecBuddy is a two-sided running-coaching app. This build is the athlete app;
-athletes connect to a coach via an invite code.
-
-A demo athlete account is provided below, pre-populated with a coach, an active
-training plan, scheduled + logged workouts, and a chat thread so the full
-experience is visible without needing a second (coach) account.
-
-Login: [demo athlete email]
-Password: [demo password]
-
-Apple Health: RecBuddy asks for read-only HealthKit access (workouts, distance,
-heart rate) to automatically log completed runs/rides against the plan. The demo
-account already contains logged workouts, so the feature's result is visible
-without needing Health data on the review device. Granting Health access is
-optional — the app is fully usable with manual logging if the prompt is declined.
-
-Account deletion: Settings → Account → Delete account (requires password
-re-entry).
+# .env.prod: prod SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY + REVIEW_PASSWORD
+npm run seed:review
 ```
 
-> Fill in the demo credentials once the reviewer-demo account is seeded (next
-> task). App Review **will** reject a login-gated app without working demo
-> credentials and visible content.
+> **This repo is public. The password goes only into App Store Connect — never
+> into this file or any commit.** App Review **will** reject a login-gated app
+> without working credentials and visible content.
+
+**Sign-in required** (App Store Connect → App Review Information):
+
+| Field | Value |
+|---|---|
+| User name | `review-athlete@recbuddy.app` |
+| Password | the `REVIEW_PASSWORD` the seed ran with |
+
+**Notes** (paste as-is):
+```
+RecBuddy is a running-coaching app. This build is the athlete app; coaches
+build training plans and message athletes from the RecBuddy web app.
+
+Please sign in with the demo athlete account provided. It is pre-populated with
+a two-coach team, a 14-week half-marathon plan (completed history, the current
+week in progress, upcoming weeks), logged runs, and a coach chat, so no second
+device or coach account is needed.
+
+Where to look:
+- Calendar tab: today's workouts, weekly mileage, week and month views. Tap a
+  workout to see the coach's structure and notes; completed workouts show the
+  logged results. "Mark as complete" logs a run.
+- Chat tab: conversation with the coaching team (shared workouts, logged-run
+  cards, plan adjustments). You can send messages and photos.
+- Profile icon (top right) opens Settings: race goal, coaches, units, Apple
+  Health, notifications, support, and terms.
+
+Apple Health (optional): Settings > Connected services > Apple Health >
+Connect requests READ-ONLY access to workouts, distance, heart rate, and
+cycling power. Recorded runs and rides are then logged against the plan
+automatically; activities that don't match a planned workout are offered for
+confirmation. Health data is never written, sold, or used for advertising. The
+app is fully usable if the Health prompt is declined.
+
+Sign-up with a coach code: on the sign-in screen tap "Create an account with a
+coach code" and enter APPREVIEW. Email confirmation is required. Athletes
+without a code can use "No code? Sign up solo".
+
+Account deletion: Settings > Account > "Delete account…", enter the password,
+then confirm. You are welcome to test this on the demo account.
+```
