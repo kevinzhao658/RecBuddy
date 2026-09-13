@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useCooldown } from '../lib/useCooldown'
+import { emailHasAccount } from '../lib/queries/account'
 import { Button } from '../components/ui/Button'
 import { Wordmark } from '../components/ui/Wordmark'
 import { IconField } from '../components/ui/IconField'
@@ -32,12 +33,20 @@ export default function LoginPage() {
   }
 
   async function sendReset() {
-    if (!email.trim()) return setResetMsg({ ok: false, text: 'Enter your email first.' })
+    const addr = email.trim()
+    if (!addr) return setResetMsg({ ok: false, text: 'Enter your email first.' })
     setBusy(true)
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: `${window.location.origin}/reset-password` })
+    // Supabase's reset silently succeeds for unknown addresses, so check first. If the
+    // check itself fails, fall through and send rather than block a real reset.
+    const exists = await emailHasAccount(supabase, addr).catch(() => null)
+    if (exists === false) {
+      setBusy(false)
+      return setResetMsg({ ok: false, text: 'We couldn’t find an account with that email.' })
+    }
+    const { error } = await supabase.auth.resetPasswordForEmail(addr, { redirectTo: `${window.location.origin}/reset-password` })
     setBusy(false)
     if (!error || error.status === 429) cooldown.start(RESEND_COOLDOWN_S)
-    setResetMsg(error ? { ok: false, text: error.message } : { ok: true, text: `Reset link sent to ${email.trim()}. Check your inbox.` })
+    setResetMsg(error ? { ok: false, text: error.message } : { ok: true, text: `Reset link sent to ${addr}. Check your inbox.` })
   }
 
   return (
