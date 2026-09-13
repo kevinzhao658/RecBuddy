@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { parseAuthError, recoveryTokenHash } from '../lib/authRedirect'
 import { useAuth } from '../auth/AuthProvider'
@@ -12,8 +12,7 @@ import { Footer } from '../components/ui/Footer'
 const EXPIRED = 'This password-reset link is invalid or has expired.'
 
 export default function ResetPasswordPage() {
-  const { session, loading } = useAuth()
-  const nav = useNavigate()
+  const { session, loading, isCoach } = useAuth()
   // Captured on mount: supabase-js rewrites the URL once it reads a session from it.
   const [tokenHash] = useState(() => recoveryTokenHash(window.location.search))
   const [expired, setExpired] = useState<string | null>(() => {
@@ -42,7 +41,7 @@ export default function ResetPasswordPage() {
     const { error } = await supabase.auth.updateUser({ password })
     setBusy(false)
     if (error) setErr(error.message)
-    else { setDone(true); setTimeout(() => nav('/coach'), 1200) }
+    else setDone(true)
   }
 
   // Token-hash links carry their own credential; legacy links need the session
@@ -54,7 +53,7 @@ export default function ResetPasswordPage() {
       <div className="grid flex-1 place-items-center p-8">
         <div className="w-full max-w-[380px]">
           <Wordmark className="text-3xl" />
-          {expired || (needsSession && !loading && !session) ? (
+          {expired || (needsSession && !loading && !session && !done) ? (
             <>
               <h2 className="mt-8 text-[26px] font-bold tracking-tight">Link expired</h2>
               <p className="mt-1 text-[15px] text-text-mute">{expired ?? EXPIRED}</p>
@@ -64,9 +63,22 @@ export default function ResetPasswordPage() {
           ) : needsSession && loading ? (
             <p className="mt-8 text-text-mute">Loading…</p>
           ) : done ? (
+            /* Most resets come from the athlete app, so send people back there instead
+               of into the coach dashboard. On a phone the link opens the app. */
             <>
-              <h2 className="mt-8 text-[26px] font-bold tracking-tight">Password updated</h2>
-              <p className="mt-1 text-[15px] text-text-mute">Taking you to your dashboard…</p>
+              <h2 className="mt-8 text-[26px] font-bold tracking-tight">You’re all set</h2>
+              <p className="mt-1 text-[15px] text-text-mute">
+                Your password has been updated. Head back to the RecBuddy app and sign in with your new password. You can close this window now.
+              </p>
+              <a href="recbuddy://" className="mt-6 block">
+                <Button className="w-full">Open the RecBuddy app</Button>
+              </a>
+              <p className="mt-3 text-center text-sm text-text-faint">On your phone, this opens the app directly.</p>
+              {isCoach && (
+                <Link to="/coach" className="mt-4 block text-center text-sm font-semibold text-accent hover:brightness-110">
+                  Go to your coach dashboard
+                </Link>
+              )}
             </>
           ) : (
             <form onSubmit={submit}>
