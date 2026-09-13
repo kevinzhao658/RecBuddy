@@ -1,4 +1,5 @@
 import SwiftUI
+import Supabase
 
 struct AuthFlowView: View {
     @Environment(SessionStore.self) private var session
@@ -7,6 +8,17 @@ struct AuthFlowView: View {
     @State private var busy = false
     @State private var error: String?
     @State private var resetSent = false
+    @State private var confirmReset = false
+    /// Resends are locked until this time — each new email invalidates the previous link.
+    @State private var resendAvailableAt: Date?
+
+    private var trimmedEmail: String { email.trimmingCharacters(in: .whitespaces) }
+
+    /// Whole seconds until another reset email may be requested (0 = allowed).
+    private func resendWait(at now: Date) -> Int {
+        guard let resendAvailableAt else { return 0 }
+        return max(0, Int(resendAvailableAt.timeIntervalSince(now).rounded(.up)))
+    }
 
     var body: some View {
         NavigationStack {
@@ -75,13 +87,26 @@ struct AuthFlowView: View {
                                 .frame(maxWidth: .infinity)
                         }
 
-                        Button("Forgot password?") {
-                            Task { await forgot() }
+                        // Confirm before sending, then hold off resends for a minute —
+                        // every new email invalidates the previous link.
+                        TimelineView(.periodic(from: .now, by: 1)) { context in
+                            let wait = resendWait(at: context.date)
+                            Button(wait > 0 ? "Resend link in \(wait)s" : "Forgot password?") {
+                                confirmReset = true
+                            }
+                            .font(.subheadline)
+                            .foregroundStyle(RB.textMute)
+                            .disabled(busy || trimmedEmail.isEmpty || wait > 0)
+                            .accessibilityLabel(wait > 0 ? "Resend reset link in \(wait) seconds" : "Forgot password")
                         }
-                        .font(.subheadline)
-                        .foregroundStyle(RB.textMute)
-                        .disabled(busy || email.isEmpty)
-                        .accessibilityLabel("Forgot password")
+                        .alert("Reset your password?", isPresented: $confirmReset) {
+                            Button("Cancel", role: .cancel) {}
+                            Button("Send link") {
+                                Task { await forgot() }
+                            }
+                        } message: {
+                            Text("We'll email a password reset link to \(trimmedEmail).")
+                        }
 
                         Divider().overlay(RB.line)
 
@@ -139,10 +164,12 @@ struct AuthFlowView: View {
             // Supabase project, or the token won't validate (prod: https://recbuddy.app).
             let redirect = (Bundle.main.object(forInfoDictionaryKey: "ResetPasswordRedirect") as? String)
                 .flatMap(URL.init(string:)) ?? URL(string: "https://recbuddy.app/reset-password")
-            try await Supa.shared.auth.resetPasswordForEmail(
-                email.trimmingCharacters(in: .whitespaces),
-                redirectTo: redirect)
+            try await Supa.shared.auth.resetPasswordForEmail(trimmedEmail, redirectTo: redirect)
             resetSent = true
+            resendAvailableAt = .now.addingTimeInterval(60)
+        } catch AuthError.api(_, _, _, let response) where response.statusCode == 429 {
+            self.error = "Too many reset requests — wait a minute and try again."
+            resendAvailableAt = .now.addingTimeInterval(60)
         } catch {
             self.error = "Could not send the reset email."
         }

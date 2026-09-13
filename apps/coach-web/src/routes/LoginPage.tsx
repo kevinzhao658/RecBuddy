@@ -1,11 +1,16 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { useCooldown } from '../lib/useCooldown'
 import { Button } from '../components/ui/Button'
 import { Wordmark } from '../components/ui/Wordmark'
 import { IconField } from '../components/ui/IconField'
 import { MailIcon, LockIcon, GoogleIcon, EyeIcon, EyeOffIcon } from '../components/ui/FormIcons'
 import { Footer } from '../components/ui/Footer'
+
+// Matches Supabase's default per-address email interval. Every new reset email also
+// invalidates the previous link, so rapid resends only produce dead links.
+const RESEND_COOLDOWN_S = 60
 
 export default function LoginPage() {
   const nav = useNavigate()
@@ -16,6 +21,7 @@ export default function LoginPage() {
   const [busy, setBusy] = useState(false)
   const [forgot, setForgot] = useState(false)
   const [resetMsg, setResetMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const cooldown = useCooldown()
 
   async function submit(e: React.FormEvent) {
     e.preventDefault(); setErr(null); setBusy(true)
@@ -30,6 +36,7 @@ export default function LoginPage() {
     setBusy(true)
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: `${window.location.origin}/reset-password` })
     setBusy(false)
+    if (!error || error.status === 429) cooldown.start(RESEND_COOLDOWN_S)
     setResetMsg(error ? { ok: false, text: error.message } : { ok: true, text: `Reset link sent to ${email.trim()}. Check your inbox.` })
   }
 
@@ -63,7 +70,9 @@ export default function LoginPage() {
                 <IconField label="Email" type="email" required icon={<MailIcon />} placeholder="you@email.com"
                   value={email} onChange={(e) => setEmail(e.target.value)} />
                 {resetMsg && <p className={`text-sm ${resetMsg.ok ? 'text-accent' : 'text-missed'}`}>{resetMsg.text}</p>}
-                <Button onClick={sendReset} disabled={busy || !email.trim()} className="w-full">{busy ? 'Sending…' : 'Send reset link'}</Button>
+                <Button onClick={sendReset} disabled={busy || !email.trim() || cooldown.remaining > 0} className="w-full">
+                  {busy ? 'Sending…' : cooldown.remaining > 0 ? `Resend in ${cooldown.remaining}s` : 'Send reset link'}
+                </Button>
                 <button type="button" onClick={() => { setForgot(false); setResetMsg(null) }} className="text-center text-sm text-text-mute hover:text-text">← Back to sign in</button>
               </div>
             </div>

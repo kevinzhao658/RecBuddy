@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { parseAuthError, recoveryTokenHash } from '../lib/authRedirect'
 import { useAuth } from '../auth/AuthProvider'
 import { Button } from '../components/ui/Button'
 import { Wordmark } from '../components/ui/Wordmark'
@@ -8,9 +9,18 @@ import { IconField } from '../components/ui/IconField'
 import { LockIcon, EyeIcon, EyeOffIcon } from '../components/ui/FormIcons'
 import { Footer } from '../components/ui/Footer'
 
+const EXPIRED = 'This password-reset link is invalid or has expired.'
+
 export default function ResetPasswordPage() {
   const { session, loading } = useAuth()
   const nav = useNavigate()
+  // Captured on mount: supabase-js rewrites the URL once it reads a session from it.
+  const [tokenHash] = useState(() => recoveryTokenHash(window.location.search))
+  const [expired, setExpired] = useState<string | null>(() => {
+    const linkErr = parseAuthError(window.location.hash)
+    return linkErr ? linkErr.description || EXPIRED : null
+  })
+  const [verified, setVerified] = useState(false)
   const [password, setPassword] = useState('')
   const [show, setShow] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -21,25 +31,38 @@ export default function ResetPasswordPage() {
     e.preventDefault(); setErr(null)
     if (password.length < 6) return setErr('Password must be at least 6 characters.')
     setBusy(true)
+    // Verify the one-time token only on submit, so an email scanner opening the link
+    // can't use it up first. Always verify when present — never reuse whatever
+    // session this browser already holds, which could be a different account.
+    if (tokenHash && !verified) {
+      const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'recovery' })
+      if (error) { setBusy(false); return setExpired(error.message || EXPIRED) }
+      setVerified(true)
+    }
     const { error } = await supabase.auth.updateUser({ password })
     setBusy(false)
     if (error) setErr(error.message)
     else { setDone(true); setTimeout(() => nav('/coach'), 1200) }
   }
 
+  // Token-hash links carry their own credential; legacy links need the session
+  // supabase-js restores from the URL.
+  const needsSession = !tokenHash
+
   return (
     <div className="flex min-h-screen flex-col">
       <div className="grid flex-1 place-items-center p-8">
         <div className="w-full max-w-[380px]">
           <Wordmark className="text-3xl" />
-          {loading ? (
-            <p className="mt-8 text-text-mute">Loading…</p>
-          ) : !session ? (
+          {expired || (needsSession && !loading && !session) ? (
             <>
               <h2 className="mt-8 text-[26px] font-bold tracking-tight">Link expired</h2>
-              <p className="mt-1 text-[15px] text-text-mute">This password-reset link is invalid or has expired.</p>
+              <p className="mt-1 text-[15px] text-text-mute">{expired ?? EXPIRED}</p>
+              <p className="mt-2 text-[15px] text-text-mute">Request a new link from the sign-in page or the RecBuddy app.</p>
               <Link to="/login" className="mt-6 block"><Button className="w-full">Back to sign in</Button></Link>
             </>
+          ) : needsSession && loading ? (
+            <p className="mt-8 text-text-mute">Loading…</p>
           ) : done ? (
             <>
               <h2 className="mt-8 text-[26px] font-bold tracking-tight">Password updated</h2>
