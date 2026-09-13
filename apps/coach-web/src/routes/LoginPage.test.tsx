@@ -61,6 +61,36 @@ test('tells the user when no account uses that email, without sending', async ()
   expect(screen.getByRole('button', { name: /send reset link/i })).toBeEnabled()
 })
 
+test('the reset screen pre-fills from, but never changes, the sign-in email', async () => {
+  vi.spyOn(accountMod, 'emailHasAccount').mockResolvedValue(true)
+  vi.spyOn(supabase.auth, 'resetPasswordForEmail').mockResolvedValue({ data: {}, error: null } as never)
+  const user = userEvent.setup()
+  render(<MemoryRouter><LoginPage /></MemoryRouter>)
+
+  await user.type(screen.getByLabelText(/email/i), 'typed@example.com')
+  await user.click(screen.getByRole('button', { name: /forgot password/i }))
+  const resetField = screen.getByLabelText(/email/i)
+  expect(resetField).toHaveValue('typed@example.com')
+  await user.clear(resetField)
+  await user.type(resetField, 'someone@example.com')
+  await user.click(screen.getByRole('button', { name: /send reset link/i }))
+  await screen.findByText(/reset link sent to someone@example.com/i)
+
+  await user.click(screen.getByRole('button', { name: /back to sign in/i }))
+  expect(screen.getByLabelText(/email/i)).toHaveValue('typed@example.com')
+})
+
+test('a blank sign-in email stays blank after sending a reset', async () => {
+  vi.spyOn(accountMod, 'emailHasAccount').mockResolvedValue(true)
+  vi.spyOn(supabase.auth, 'resetPasswordForEmail').mockResolvedValue({ data: {}, error: null } as never)
+  const user = await requestReset('someone@example.com')
+  await screen.findByText(/reset link sent to someone@example.com/i)
+
+  await user.click(screen.getByRole('button', { name: /back to sign in/i }))
+  expect(screen.getByLabelText(/email/i)).toHaveValue('')
+  expect(screen.getByRole('button', { name: /log in/i })).toBeEnabled()
+})
+
 test('still sends when the account check is unavailable', async () => {
   vi.spyOn(accountMod, 'emailHasAccount').mockRejectedValue(new Error('function not found'))
   const send = vi.spyOn(supabase.auth, 'resetPasswordForEmail').mockResolvedValue({ data: {}, error: null } as never)
