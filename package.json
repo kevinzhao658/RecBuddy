@@ -14,6 +14,7 @@
     "seed": "tsx supabase/scripts/seed.ts",
     "seed:cloud": "dotenv -e .env.cloud -- tsx supabase/scripts/seed.ts",
     "seed:review": "dotenv -e .env.prod -- tsx supabase/scripts/seed-review.ts",
+    "seed:screenshots": "dotenv -e .env.cloud -- tsx supabase/scripts/seed-screenshots.ts",
     "set-email": "dotenv -e .env.cloud -- tsx supabase/scripts/set-email.ts",
     "dev:coach": "npm --prefix apps/coach-web run dev",
     "test": "vitest run"
