@@ -9,7 +9,10 @@ struct AuthFlowView: View {
     @State private var error: String?
     @State private var resetSent = false
     @State private var showResetPrompt = false
+    // The reset prompt keeps its own email and in-flight flag, so using it never
+    // changes the sign-in form or makes LOG IN look pressed.
     @State private var resetEmail = ""
+    @State private var sendingReset = false
     /// Resends are locked until this time, since each new email invalidates the previous link.
     @State private var resendAvailableAt: Date?
 
@@ -88,18 +91,19 @@ struct AuthFlowView: View {
                                 .frame(maxWidth: .infinity)
                         }
 
-                        // Ask for the email (pre-filled from the form) before sending, then
-                        // hold off resends for a minute: every new email invalidates the last link.
+                        // Ask for the email (pre-filled from the form, never written back) before
+                        // sending, then hold off resends for a minute: every new email invalidates the last link.
                         TimelineView(.periodic(from: .now, by: 1)) { context in
                             let wait = resendWait(at: context.date)
-                            Button(wait > 0 ? "Resend link in \(wait)s" : "Forgot password?") {
+                            Button(sendingReset ? "Sending link…" : wait > 0 ? "Resend link in \(wait)s" : "Forgot password?") {
                                 resetEmail = trimmedEmail
                                 showResetPrompt = true
                             }
                             .font(.subheadline)
                             .foregroundStyle(RB.textMute)
-                            .disabled(busy || wait > 0)
-                            .accessibilityLabel(wait > 0 ? "Resend reset link in \(wait) seconds" : "Forgot password")
+                            .disabled(busy || sendingReset || wait > 0)
+                            .accessibilityLabel(sendingReset ? "Sending reset link"
+                                : wait > 0 ? "Resend reset link in \(wait) seconds" : "Forgot password")
                         }
                         .alert("Reset your password", isPresented: $showResetPrompt) {
                             TextField("Email address", text: $resetEmail)
@@ -168,12 +172,11 @@ struct AuthFlowView: View {
     private func forgot() async {
         let address = resetEmail.trimmingCharacters(in: .whitespaces)
         guard !address.isEmpty else { return }
-        email = address // keep the sign-in form in sync with what was sent
-        busy = true; error = nil; resetSent = false
+        sendingReset = true; error = nil; resetSent = false
+        defer { sendingReset = false }
         // Supabase's reset silently succeeds for unknown addresses, so check first.
         if await emailHasAccount(address) == false {
             self.error = "We couldn't find an account with that email."
-            busy = false
             return
         }
         do {
@@ -190,7 +193,6 @@ struct AuthFlowView: View {
         } catch {
             self.error = "We couldn't send the reset email. Please try again."
         }
-        busy = false
     }
 
     /// nil when the check can't run (offline, backend without the RPC yet), so the
