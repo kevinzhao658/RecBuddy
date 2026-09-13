@@ -34,6 +34,9 @@ targets:
         ResetPasswordRedirect: $(RESET_PASSWORD_REDIRECT)
         EmailConfirmRedirect: $(EMAIL_CONFIRM_REDIRECT)
         NSHealthShareUsageDescription: RecBuddy reads your recorded runs and rides to automatically log completed workouts against your training plan.
+        # Required by App Store validation whenever the HealthKit entitlement is
+        # present, even though RecBuddy only reads (toShare: []) — never shown.
+        NSHealthUpdateUsageDescription: RecBuddy does not write data to Apple Health. It only reads your recorded runs and rides to log completed workouts against your training plan.
         CFBundleURLTypes:
           - CFBundleURLName: app.recbuddy.athlete
             CFBundleURLSchemes: [recbuddy]
