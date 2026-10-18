@@ -10,6 +10,9 @@ enum InviteErrors {
         if msg.contains("already connected to this coach") {
             return "You're already connected to this coach."
         }
+        if msg.contains("connection is blocked") {
+            return "You've blocked this coach. Unblock them in Settings → Coaches, then try the code again."
+        }
         if msg.contains("already used") {
             return "That code has already been used — ask your coach for a new one."
         }

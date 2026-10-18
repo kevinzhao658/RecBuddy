@@ -23,6 +23,10 @@ struct ChatView: View {
     @State private var traceWorkout: Workout?
     @State private var traceActual: WorkoutActual?
     @State private var tracePlanStore = PlanStore()
+
+    // Report / block (App Store guideline 1.2) — long-press a coach's message.
+    @State private var reportTarget: ReportSheet.Target?
+    @State private var pendingBlock: ReportSheet.Target?
     @AppStorage("unit") private var unitRaw = "mi"
     private var unit: Unit { Unit(rawValue: unitRaw) ?? .mi }
 
@@ -233,6 +237,21 @@ struct ChatView: View {
                                         },
                                         onOpenWorkout: { id in Task { await openTrace(id) } }
                                     )
+                                    .contextMenu {
+                                        if m.fromUserId != profile.id {
+                                            let name = store.senders[m.fromUserId]?.name ?? "this coach"
+                                            Button {
+                                                reportTarget = .init(userId: m.fromUserId, userName: name, messageId: m.id)
+                                            } label: {
+                                                Label("Report message", systemImage: "exclamationmark.bubble")
+                                            }
+                                            Button(role: .destructive) {
+                                                pendingBlock = .init(userId: m.fromUserId, userName: name)
+                                            } label: {
+                                                Label("Block \(name)", systemImage: "hand.raised")
+                                            }
+                                        }
+                                    }
                                     .id(m.id)
                                 }
                             }
@@ -264,6 +283,8 @@ struct ChatView: View {
                     Text(sendError)
                         .font(.footnote)
                         .foregroundStyle(.red)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 16)
                         .padding(.bottom, 2)
                 }
 
@@ -282,6 +303,20 @@ struct ChatView: View {
         // no-coach empty state and a fresh thread appear without a relaunch.
         .task(id: session.hasCoach) { await store.open(athleteId: profile.id) }
         .onDisappear { Task { await store.close() } }
+        .sheet(item: $reportTarget) { target in
+            ReportSheet(target: target) { await afterBlock() }
+        }
+        .confirmationDialog(
+            pendingBlock.map { "Block \($0.userName)?" } ?? "",
+            isPresented: Binding(get: { pendingBlock != nil }, set: { if !$0 { pendingBlock = nil } }),
+            titleVisibility: .visible,
+            presenting: pendingBlock
+        ) { target in
+            Button("Block", role: .destructive) { Task { await block(target) } }
+            Button("Cancel", role: .cancel) {}
+        } message: { target in
+            Text("\(target.userName) will be removed from your team, can't message you or see your chat, and can't reconnect unless you unblock them in Settings → Coaches. Their messages are hidden.")
+        }
         .sheet(item: $traceWorkout) { w in
             WorkoutDetailSheet(workout: w, store: tracePlanStore, unit: unit,
                                fetchedActual: traceActual)
@@ -461,8 +496,25 @@ struct ChatView: View {
                 draft = ""  // clear only on success — a failed send keeps the text
             }
         } catch {
-            sendError = "Couldn't send — try again."
+            sendError = Moderation.filterMessage(error) ?? "Couldn't send — try again."
         }
+    }
+
+    private func block(_ target: ReportSheet.Target) async {
+        sendError = nil
+        do {
+            try await Moderation.block(userId: target.userId)
+            await afterBlock()
+        } catch {
+            sendError = "Couldn't block \(target.userName) — try again."
+        }
+    }
+
+    /// The team changed and the blocked user's messages are now hidden: refresh
+    /// the profile (hasCoach may flip to the no-coach state) and the thread.
+    private func afterBlock() async {
+        await session.refreshProfile()
+        await store.open(athleteId: profile.id)
     }
 
     /// Fetch the referenced workout (and its logged actual, if any) and open
