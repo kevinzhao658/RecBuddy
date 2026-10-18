@@ -1,3 +1,4 @@
+import type React from 'react'
 /** Small inline form glyphs (stroke, currentColor) used in labeled inputs. */
 type P = { className?: string }
 const base = 'h-4 w-4'
@@ -71,4 +72,40 @@ export function GearIcon({ className = '' }: P) {
       <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V15z" />
     </svg>
   )
+}
+function Glyph({ className = '', children, filled = false }: P & { children: React.ReactNode; filled?: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={`${base} ${className}`} fill={filled ? 'currentColor' : 'none'}
+      stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">{children}</svg>
+  )
+}
+export function StarIcon({ className = '', filled = false }: P & { filled?: boolean }) {
+  return <Glyph className={className} filled={filled}><path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z" /></Glyph>
+}
+export function DownloadIcon({ className = '' }: P) {
+  return <Glyph className={className}><path d="M12 4v11m-4.5-4.5L12 15l4.5-4.5M5 19.5h14" /></Glyph>
+}
+export function UploadIcon({ className = '' }: P) {
+  return <Glyph className={className}><path d="M12 15.5V4.5M7.5 9 12 4.5 16.5 9M5 19.5h14" /></Glyph>
+}
+export function SearchIcon({ className = '' }: P) {
+  return <Glyph className={className}><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4 4" /></Glyph>
+}
+export function ChevronDownIcon({ className = '' }: P) {
+  return <Glyph className={className}><path d="m7 10 5 5 5-5" /></Glyph>
+}
+export function ArrowLeftIcon({ className = '' }: P) {
+  return <Glyph className={className}><path d="M19 12H5m6-6-6 6 6 6" /></Glyph>
+}
+export function SortIcon({ className = '' }: P) {
+  return <Glyph className={className}><path d="M7 4v16m0 0-3-3m3 3 3-3M17 20V4m0 0-3 3m3-3 3 3" /></Glyph>
+}
+export function FunnelIcon({ className = '' }: P) {
+  return <Glyph className={className}><path d="M4 5h16l-6 7.5V19l-4-2v-4.5z" /></Glyph>
+}
+export function CloseIcon({ className = '' }: P) {
+  return <Glyph className={className}><path d="m6 6 12 12M18 6 6 18" /></Glyph>
+}
+export function CheckIcon({ className = '' }: P) {
+  return <Glyph className={className}><path d="m5 12.5 4.5 4.5L19 7.5" /></Glyph>
 }

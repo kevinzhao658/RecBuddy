@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import LoginPage from './routes/LoginPage'
 import SignupPage from './routes/SignupPage'
@@ -8,6 +9,10 @@ import PrivacyPage from './routes/legal/PrivacyPage'
 import TermsPage from './routes/legal/TermsPage'
 import SupportPage from './routes/legal/SupportPage'
 import { RequireCoach, RedirectIfCoach } from './auth/RequireCoach'
+import { RequireAdmin } from './auth/RequireAdmin'
+
+// Admin console is code-split: coaches never download it.
+const AdminPage = lazy(() => import('./routes/admin/AdminPage'))
 
 export default function App() {
   return (
@@ -20,6 +25,11 @@ export default function App() {
       <Route path="/terms" element={<TermsPage />} />
       <Route path="/support" element={<SupportPage />} />
       <Route path="/coach" element={<RequireCoach><CoachPage /></RequireCoach>} />
+      <Route path="/admin/*" element={
+        <RequireAdmin>
+          <Suspense fallback={<div className="p-8 text-text-mute">Loading…</div>}><AdminPage /></Suspense>
+        </RequireAdmin>
+      } />
       <Route path="*" element={<Navigate to="/coach" replace />} />
     </Routes>
   )
