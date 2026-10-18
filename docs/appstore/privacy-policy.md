@@ -6,7 +6,7 @@
 > top-level section (12 sections vs this file's 11) — content is identical.
 
 **Effective date:** July 31, 2026
-**Last updated:** August 23, 2026
+**Last updated:** October 18, 2026
 
 RecBuddy ("RecBuddy," "we," "us," or "our") provides a running-training app that
 connects athletes with their coaches. This Privacy Policy explains what we
@@ -66,6 +66,12 @@ your data.
 - Coach–athlete connections you create using invite codes
 - Photos and images you choose to share in chat
 
+**Safety and moderation**
+- Reports you submit about a message or user: the reason, any details you add,
+  and a copy of the reported message
+- Users you block
+- The date you accepted our Terms & Conditions
+
 **Technical information**
 - Standard information needed to operate the app securely, such as
   authentication tokens and timestamps. We do not maintain advertising
@@ -79,6 +85,8 @@ your data.
 - Send transactional emails you request or that are required for your account,
   such as email confirmation and password reset
 - Respond to your support requests
+- Keep RecBuddy safe: review reports, enforce our Terms, block messages that
+  contain prohibited language, and honor blocks between users
 - Maintain, debug, and improve the service
 - Comply with legal obligations
 
@@ -89,10 +97,13 @@ We do not use your information for advertising, and we do not sell or rent it.
 - **With your coach or athlete.** RecBuddy is a two-sided coaching tool. When you
   connect with a coach (or an athlete connects with you), training data and
   messages relevant to that relationship are visible to the connected person.
-  This is the core purpose of the app.
+  This is the core purpose of the app. Reports are private: we never tell the
+  reported user who reported them. A user you block can no longer see your chat.
 - **Service providers.** We use Supabase as our hosting and backend provider to
-  store data and handle authentication and email delivery on our behalf. They
-  process data only to provide these services to us.
+  store data and handle authentication and email delivery on our behalf, and
+  Resend to deliver safety-report notifications to our support team (these
+  include the reported content and the names and emails of the users involved).
+  They process data only to provide these services to us.
 - **Legal reasons.** We may disclose information if required by law or to protect
   the rights, safety, or security of users or the public.
 - **Business transfers.** If ownership of RecBuddy changes, information may be
@@ -105,7 +116,8 @@ We do not otherwise share your personal information with third parties.
 We keep your information for as long as your account is active or as needed to
 provide the service. When you delete your account (see below), we delete your
 personal data, except where we are required to retain limited information for
-legal or security reasons.
+legal or security reasons. Reports about abusive content are kept after either
+account is deleted, so we can act on them and protect other users.
 
 ## Your choices and rights
 
@@ -115,6 +127,8 @@ legal or security reasons.
   removes your personal data from our systems. This action cannot be undone.
 - **Disconnect a coach.** You can remove a coach connection in the app at any
   time.
+- **Report and block.** You can report any message or user and block any user
+  from the app; unblock anytime in Settings → Coaches.
 - **Regional rights.** Depending on where you live, you may have additional
   rights (such as access, correction, deletion, or portability). Contact us at
   the email above to exercise them.
