@@ -50,3 +50,39 @@ describe('message replies', () => {
     expect(after!.reply_to_id).toBeNull()
   })
 })
+
+describe('message immutability', () => {
+  it('a participant cannot rewrite reply_to_id or workout_id; marking read still works', async () => {
+    const coach = await createAndSignIn({ role: 'coach', name: `Coach ${randomUUID()}`, title: 'Head Coach' })
+    const athlete = await createAndSignIn({ role: 'athlete', name: 'Immutable Athlete' })
+    const sql = admin()
+    await sql.from('coach_athlete').insert({ coach_id: coach.id, athlete_id: athlete.id, relationship: 'head' })
+    const { data: t } = await sql.from('message_threads').insert({ athlete_id: athlete.id, coach_id: coach.id }).select().single()
+    const { data: a } = await sql.from('messages').insert({ thread_id: t!.id, from_user_id: coach.id, kind: 'text', body: 'a' }).select().single()
+    const { data: b } = await sql.from('messages').insert({ thread_id: t!.id, from_user_id: coach.id, kind: 'text', body: 'b' }).select().single()
+
+    const rewrite = await athlete.client.from('messages').update({ reply_to_id: a!.id }).eq('id', b!.id)
+    expect(rewrite.error?.message).toMatch(/only the read flag/)
+    const read = await athlete.client.from('messages').update({ read: true }).eq('id', b!.id)
+    expect(read.error).toBeNull()
+  })
+})
+
+describe('message immutability vs. deletes', () => {
+  it('deleting a workout still clears workout_id on messages that referenced it', async () => {
+    const coach = await createAndSignIn({ role: 'coach', name: `Coach ${randomUUID()}`, title: 'Head Coach' })
+    const athlete = await createAndSignIn({ role: 'athlete', name: 'Workout Ref Athlete' })
+    const sql = admin()
+    await sql.from('coach_athlete').insert({ coach_id: coach.id, athlete_id: athlete.id, relationship: 'head' })
+    const { data: plan } = await sql.from('plans').insert({ athlete_id: athlete.id, plan_week: 1, plan_weeks: 12 }).select().single()
+    const { data: w } = await sql.from('workouts').insert({ plan_id: plan!.id, athlete_id: athlete.id, date: '2026-10-18', type: 'easy', title: 'Easy', status: 'planned' }).select().single()
+    const { data: t } = await sql.from('message_threads').insert({ athlete_id: athlete.id, coach_id: coach.id }).select().single()
+    const { data: m } = await sql.from('messages').insert({ thread_id: t!.id, from_user_id: coach.id, kind: 'workout', workout_id: w!.id, payload: { title: 'Easy' } }).select().single()
+    // The FK clean-up runs as the table owner (not service_role) whoever
+    // deletes, so this exercises the guard's set-null allowance.
+    const del = await sql.from('workouts').delete().eq('id', w!.id)
+    expect(del.error).toBeNull()
+    const { data: after } = await sql.from('messages').select('workout_id').eq('id', m!.id).single()
+    expect(after!.workout_id).toBeNull()
+  })
+})

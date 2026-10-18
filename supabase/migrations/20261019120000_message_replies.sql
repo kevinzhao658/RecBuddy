@@ -21,3 +21,28 @@ $$;
 drop trigger if exists messages_reply_same_thread on messages;
 create trigger messages_reply_same_thread before insert or update of reply_to_id, thread_id on messages
   for each row execute function messages_reply_same_thread();
+
+-- Messages are immutable except for the `read` flag (participants may UPDATE
+-- to mark read). The original guard listed columns explicitly, so new ones
+-- (workout_id, reply_to_id) were editable. Compare every column but `read`
+-- instead, so future columns are covered automatically. Service role exempt.
+create or replace function guard_message_immutable_content() returns trigger as $$
+declare
+  ignored text[] := array['read'];
+begin
+  -- `on delete set null` clean-ups are allowed: the referenced row is gone.
+  if new.reply_to_id is null and old.reply_to_id is not null
+     and not exists (select 1 from messages where id = old.reply_to_id) then
+    ignored := array_append(ignored, 'reply_to_id');
+  end if;
+  if new.workout_id is null and old.workout_id is not null
+     and not exists (select 1 from workouts where id = old.workout_id) then
+    ignored := array_append(ignored, 'workout_id');
+  end if;
+  if (to_jsonb(new) - ignored) is distinct from (to_jsonb(old) - ignored)
+     and current_user <> 'service_role' then
+    raise exception 'only the read flag may be updated on a message';
+  end if;
+  return new;
+end;
+$$ language plpgsql set search_path = public, pg_temp;
