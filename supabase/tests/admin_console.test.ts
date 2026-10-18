@@ -43,7 +43,8 @@ describe('admin console', () => {
     expect(a.error?.message).toMatch(/service role/)
     await admin().from('profiles').update({ suspended_at: new Date().toISOString() }).eq('id', outsider.id)
     const s = await outsider.client.from('profiles').update({ suspended_at: null }).eq('id', outsider.id)
-    expect(s.error?.message).toMatch(/service role/)
+    // Refused either way: the suspension write-block fires before the field guard.
+    expect(s.error?.message).toMatch(/account suspended|service role/)
     await admin().from('profiles').update({ suspended_at: null }).eq('id', outsider.id)
   })
 
@@ -99,6 +100,28 @@ describe('admin console', () => {
     expect(after.starred).toBe(true)
     expect(after.read_at).toBeNull()
     expect((await outsider.client.rpc('admin_mark_report', { p_report_id: reportId, p_starred: true })).error?.message).toMatch(/admin only/)
+  })
+
+  it('a suspended account cannot write anywhere, even with a live token', async () => {
+    await admin().from('profiles').update({ suspended_at: new Date().toISOString() }).eq('id', outsider.id)
+    const p = await outsider.client.from('profiles').update({ name: 'renamed' }).eq('id', outsider.id)
+    expect(p.error?.message).toMatch(/account suspended/)
+    const d = await outsider.client.from('device_tokens').insert({ user_id: outsider.id, token: 'x' })
+    expect(d.error?.message).toMatch(/account suspended/)
+    await admin().from('profiles').update({ suspended_at: null }).eq('id', outsider.id)
+    const ok = await outsider.client.from('profiles').update({ name: 'Outsider' }).eq('id', outsider.id)
+    expect(ok.error).toBeNull()
+  })
+
+  it('suspension reasons are admin-only (not on profiles)', async () => {
+    await admin().from('suspension_reasons').upsert({ user_id: athlete.id, reason: 'secret' })
+    const { data } = await coach.client.from('suspension_reasons').select('*')
+    expect(data ?? []).toEqual([])
+    const prof = await coach.client.from('profiles').select('*').eq('id', athlete.id).single()
+    expect(prof.data).not.toHaveProperty('suspended_reason')
+    const { data: d } = await boss.client.rpc('admin_user_detail', { p_user_id: athlete.id })
+    expect(d.profile.suspended_reason).toBe('secret')
+    await admin().from('suspension_reasons').delete().eq('user_id', athlete.id)
   })
 
   it('user search and detail show teams and reports', async () => {

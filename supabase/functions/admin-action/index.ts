@@ -48,16 +48,20 @@ Deno.serve(async (req) => {
     case 'delete_message': {
       if (!body.message_id) return json({ error: 'message_id required' }, 400)
       const { data: m } = await admin.from('messages')
-        .select('id, from_user_id, kind, payload').eq('id', body.message_id).maybeSingle()
+        .select('id, thread_id, from_user_id, kind, payload').eq('id', body.message_id).maybeSingle()
       if (!m) return json({ error: 'message not found (already deleted?)' }, 404)
+      // payload.path is written by the sender: only delete a file inside this
+      // message's own thread folder, never one it merely points at.
       const path = (m.payload as { path?: string } | null)?.path
-      if (m.kind === 'image' && path) {
+      const ownFile = typeof path === 'string' && path.startsWith(`${m.thread_id}/`) && !path.includes('..')
+      if (m.kind === 'image' && path && !ownFile) console.error('refusing to delete foreign storage path', path)
+      if (m.kind === 'image' && path && ownFile) {
         const { error } = await admin.storage.from('chat-images').remove([path])
         if (error) console.error('storage remove', error)
       }
       const { error } = await admin.from('messages').delete().eq('id', m.id)
       if (error) return json({ error: error.message }, 500)
-      await log('delete_message', m.from_user_id, { kind: m.kind, photo_removed: Boolean(path) })
+      await log('delete_message', m.from_user_id, { kind: m.kind, photo_removed: Boolean(path && ownFile) })
       return json({ ok: true })
     }
 
@@ -68,11 +72,14 @@ Deno.serve(async (req) => {
       const suspend = body.action === 'suspend'
       const { error: banErr } = await admin.auth.admin.updateUserById(body.user_id, { ban_duration: suspend ? BAN : 'none' })
       if (banErr) return json({ error: banErr.message }, 500)
-      const { error } = await admin.from('profiles').update({
-        suspended_at: suspend ? new Date().toISOString() : null,
-        suspended_reason: suspend ? note : null,
-      }).eq('id', body.user_id)
+      const { error } = await admin.from('profiles')
+        .update({ suspended_at: suspend ? new Date().toISOString() : null }).eq('id', body.user_id)
       if (error) return json({ error: error.message }, 500)
+      // The reason lives in an admin-only table, not on the profile.
+      const { error: rErr } = suspend
+        ? await admin.from('suspension_reasons').upsert({ user_id: body.user_id, reason: note, updated_at: new Date().toISOString() })
+        : await admin.from('suspension_reasons').delete().eq('user_id', body.user_id)
+      if (rErr) console.error('suspension reason', rErr)
       await log(body.action, body.user_id)
       return json({ ok: true })
     }

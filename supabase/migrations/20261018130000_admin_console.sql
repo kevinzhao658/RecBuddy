@@ -15,7 +15,14 @@
 -- ============================================================
 alter table profiles add column if not exists is_admin boolean not null default false;
 alter table profiles add column if not exists suspended_at timestamptz;
-alter table profiles add column if not exists suspended_reason text;
+-- The reason is moderation data: keep it off profiles (which teammates can
+-- read) in an admin-only table.
+create table suspension_reasons (
+  user_id    uuid primary key references profiles(id) on delete cascade,
+  reason     text,
+  updated_at timestamptz not null default now()
+);
+alter table suspension_reasons enable row level security; -- no client policies
 
 -- Same guard as 20260706190000, extended: users can't make themselves admin
 -- or lift their own suspension.
@@ -26,8 +33,7 @@ begin
       or new.is_coach is distinct from old.is_coach
       or new.is_athlete is distinct from old.is_athlete
       or new.is_admin is distinct from old.is_admin
-      or new.suspended_at is distinct from old.suspended_at
-      or new.suspended_reason is distinct from old.suspended_reason)
+      or new.suspended_at is distinct from old.suspended_at)
      and current_user not in ('service_role', 'postgres') then
     raise exception 'role fields may only be changed by the service role';
   end if;
@@ -41,7 +47,8 @@ language sql stable security definer set search_path = public, pg_temp as $$
 $$;
 
 -- Suspended users can't post (Auth also bans them; this closes the window
--- until their current access token expires).
+-- until their current access token expires). block_suspended_writes below
+-- covers every other table.
 create or replace function messages_language_filter() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
 begin
@@ -56,6 +63,29 @@ begin
   return new;
 end;
 $$;
+
+-- A suspended account's still-valid access token (up to an hour after the
+-- ban) must not write anywhere. Keyed on the REQUESTER (auth.uid()), so the
+-- service role and admin actions on a suspended user's rows are unaffected.
+create or replace function block_suspended_writes() returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  if auth.uid() is not null
+     and exists (select 1 from profiles where id = auth.uid() and suspended_at is not null) then
+    raise exception 'account suspended';
+  end if;
+  return coalesce(new, old);
+end;
+$$;
+do $$
+declare t text;
+begin
+  foreach t in array array['coach_athlete', 'device_tokens', 'invites', 'library_workouts', 'message_threads',
+                           'messages', 'plans', 'profiles', 'user_blocks', 'workout_actuals', 'workouts'] loop
+    execute format('create trigger block_suspended_writes before insert or update or delete on %I
+                    for each row execute function block_suspended_writes()', t);
+  end loop;
+end $$;
 
 -- ============================================================
 -- 2. Report resolution + audit log
@@ -135,7 +165,7 @@ begin
   left join profiles tp on tp.id = r.reported_user_id
   where p_status is null or r.status = p_status
   order by r.created_at desc
-  -- A status tab shows the latest 200; p_status = null is the full export.
+  -- A status tab shows the latest 200; p_status = null returns every report.
   limit case when p_status is null then null else 200 end;
 end;
 $$;
@@ -238,7 +268,8 @@ begin
   select jsonb_build_object(
     'profile', (select jsonb_build_object('id', p.id, 'name', p.name, 'email', p.email,
                   'is_coach', p.is_coach, 'is_athlete', p.is_athlete, 'is_admin', p.is_admin,
-                  'suspended_at', p.suspended_at, 'suspended_reason', p.suspended_reason)
+                  'suspended_at', p.suspended_at,
+                  'suspended_reason', (select sr.reason from suspension_reasons sr where sr.user_id = p.id))
                 from profiles p where p.id = p_user_id),
     'coaches', coalesce((select jsonb_agg(jsonb_build_object('id', c.id, 'name', c.name, 'email', c.email,
                   'relationship', ca.relationship, 'permission', ca.permission) order by ca.relationship, c.name)
