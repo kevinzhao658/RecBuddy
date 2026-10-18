@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import type { Role } from '../lib/types'
@@ -14,9 +14,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // UI hint only — every admin RPC re-checks is_admin server-side.
   const [isAdmin, setIsAdmin] = useState(false)
   const [loading, setLoading] = useState(true)
+  const userId = useRef<string | null>(null)
 
   useEffect(() => {
     const apply = async (s: Session | null) => {
+      // A different user (sign-in / switch): hold gates until their flags load.
+      if (s && s.user.id !== userId.current) setLoading(true)
+      userId.current = s?.user.id ?? null
       setSession(s)
       if (s) {
         const { data } = await supabase.from('profiles').select('role, is_coach, is_admin, suspended_at').eq('id', s.user.id).single()

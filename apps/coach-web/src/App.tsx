@@ -13,6 +13,7 @@ import { RequireAdmin } from './auth/RequireAdmin'
 
 // Admin console is code-split: coaches never download it.
 const AdminPage = lazy(() => import('./routes/admin/AdminPage'))
+const AdminLoginPage = lazy(() => import('./routes/admin/AdminLoginPage'))
 
 export default function App() {
   return (
@@ -25,6 +26,9 @@ export default function App() {
       <Route path="/terms" element={<TermsPage />} />
       <Route path="/support" element={<SupportPage />} />
       <Route path="/coach" element={<RequireCoach><CoachPage /></RequireCoach>} />
+      <Route path="/admin/login" element={
+        <Suspense fallback={<div className="p-8 text-text-mute">Loading…</div>}><AdminLoginPage /></Suspense>
+      } />
       <Route path="/admin/*" element={
         <RequireAdmin>
           <Suspense fallback={<div className="p-8 text-text-mute">Loading…</div>}><AdminPage /></Suspense>

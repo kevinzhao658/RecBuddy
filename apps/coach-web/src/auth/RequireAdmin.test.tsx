@@ -8,7 +8,7 @@ function renderAt(state: Partial<ReturnType<typeof auth.useAuth>>) {
   return render(
     <MemoryRouter initialEntries={['/admin']}>
       <Routes>
-        <Route path="/login" element={<div>login</div>} />
+        <Route path="/admin/login" element={<div>admin login</div>} />
         <Route path="/coach" element={<div>coach</div>} />
         <Route path="/admin" element={<RequireAdmin><div>console</div></RequireAdmin>} />
       </Routes>
@@ -24,7 +24,7 @@ test('signed-in non-admin goes to the coach app', () => {
   renderAt({ session: {} as any, isCoach: true })
   expect(screen.getByText('coach')).toBeInTheDocument()
 })
-test('signed-out visitor goes to login', () => {
+test('signed-out visitor goes to the admin sign-in', () => {
   renderAt({})
-  expect(screen.getByText('login')).toBeInTheDocument()
+  expect(screen.getByText('admin login')).toBeInTheDocument()
 })

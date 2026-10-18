@@ -47,14 +47,6 @@ function loginAt(state: any, from?: string) {
   )
 }
 
-test('admin signing in from an admin link returns to it', () => {
-  loginAt({ session: {}, isCoach: true, isAdmin: true }, '/admin/reports?id=r1')
-  expect(screen.getByText('admin console')).toBeInTheDocument()
-})
-test('coach without admin rights ignores an admin return path', () => {
-  loginAt({ session: {}, isCoach: true, isAdmin: false }, '/admin/reports')
-  expect(screen.getByText('dashboard')).toBeInTheDocument()
-})
 test('admin-only account lands in the console, not stuck on login', () => {
   loginAt({ session: {}, isCoach: false, isAdmin: true })
   expect(screen.getByText('admin console')).toBeInTheDocument()

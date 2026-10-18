@@ -80,12 +80,54 @@ $$;
 do $$
 declare t text;
 begin
-  foreach t in array array['coach_athlete', 'device_tokens', 'invites', 'library_workouts', 'message_threads',
-                           'messages', 'plans', 'profiles', 'user_blocks', 'workout_actuals', 'workouts'] loop
+  foreach t in array array['coach_athlete', 'content_reports', 'device_tokens', 'invites', 'library_workouts',
+                           'message_threads', 'messages', 'plans', 'profiles', 'user_blocks', 'workout_actuals', 'workouts'] loop
     execute format('create trigger block_suspended_writes before insert or update or delete on %I
                     for each row execute function block_suspended_writes()', t);
   end loop;
 end $$;
+
+-- ...and can't upload chat photos.
+drop policy if exists "chat_images_insert" on storage.objects;
+create policy "chat_images_insert" on storage.objects
+  for insert to authenticated
+  with check (
+    bucket_id = 'chat-images'
+    and not exists (select 1 from public.profiles where id = auth.uid() and suspended_at is not null)
+    and exists (
+      select 1 from public.message_threads t
+      where t.id::text = (storage.foldername(name))[1]
+        and public.can_access_thread(t.athlete_id, t.coach_id)
+    )
+  );
+
+-- Message integrity: the update policy exists so participants can mark
+-- messages read, but it let anyone in the thread rewrite anyone's message
+-- (including reported evidence). Non-senders may change only `read`.
+create or replace function guard_message_edits() returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  if auth.uid() is not null and auth.uid() <> old.from_user_id
+     and (new.body is distinct from old.body or new.payload is distinct from old.payload
+          or new.kind is distinct from old.kind or new.workout_id is distinct from old.workout_id
+          or new.thread_id is distinct from old.thread_id or new.from_user_id is distinct from old.from_user_id
+          or new.created_at is distinct from old.created_at) then
+    raise exception 'you can only mark other people''s messages read';
+  end if;
+  return new;
+end;
+$$;
+create trigger guard_message_edits before update on messages
+  for each row execute function guard_message_edits();
+
+-- Who uploaded a chat photo — admin-action deletes a reported photo only if
+-- the message's sender uploaded it (payload.path is sender-written).
+create or replace function chat_image_owner(p_path text) returns uuid
+language sql stable security definer set search_path = public, storage, pg_temp as $$
+  select o.owner from storage.objects o where o.bucket_id = 'chat-images' and o.name = p_path;
+$$;
+revoke all on function chat_image_owner(text) from public, anon, authenticated;
+grant execute on function chat_image_owner(text) to service_role;
 
 -- ============================================================
 -- 2. Report resolution + audit log

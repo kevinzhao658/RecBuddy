@@ -50,10 +50,15 @@ Deno.serve(async (req) => {
       const { data: m } = await admin.from('messages')
         .select('id, thread_id, from_user_id, kind, payload').eq('id', body.message_id).maybeSingle()
       if (!m) return json({ error: 'message not found (already deleted?)' }, 404)
-      // payload.path is written by the sender: only delete a file inside this
-      // message's own thread folder, never one it merely points at.
+      // payload.path is written by the sender: only delete a file in this
+      // message's own thread folder that the sender themselves uploaded —
+      // never one the message merely points at.
       const path = (m.payload as { path?: string } | null)?.path
-      const ownFile = typeof path === 'string' && path.startsWith(`${m.thread_id}/`) && !path.includes('..')
+      let ownFile = typeof path === 'string' && path.startsWith(`${m.thread_id}/`) && !path.includes('..')
+      if (ownFile) {
+        const { data: owner } = await admin.rpc('chat_image_owner', { p_path: path })
+        ownFile = owner === m.from_user_id
+      }
       if (m.kind === 'image' && path && !ownFile) console.error('refusing to delete foreign storage path', path)
       if (m.kind === 'image' && path && ownFile) {
         const { error } = await admin.storage.from('chat-images').remove([path])

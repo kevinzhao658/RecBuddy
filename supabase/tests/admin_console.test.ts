@@ -124,6 +124,24 @@ describe('admin console', () => {
     await admin().from('suspension_reasons').delete().eq('user_id', athlete.id)
   })
 
+  it('a suspended account cannot upload chat photos or file reports', async () => {
+    await admin().from('profiles').update({ suspended_at: new Date().toISOString() }).eq('id', athlete.id)
+    const up = await athlete.client.storage.from('chat-images').upload(`${threadId}/${randomUUID()}.jpg`, new Uint8Array([1]), { contentType: 'image/jpeg' })
+    expect(up.error).not.toBeNull()
+    const rep = await athlete.client.rpc('report_content', { p_reason: 'spam', p_message_id: msgId })
+    expect(rep.error?.message).toMatch(/account suspended/)
+    await admin().from('profiles').update({ suspended_at: null }).eq('id', athlete.id)
+  })
+
+  it('participants can mark others\' messages read but not rewrite them', async () => {
+    const edit = await athlete.client.from('messages').update({ body: 'forged' }).eq('id', msgId).select()
+    expect(edit.error?.message).toMatch(/only mark other people/)
+    const read = await athlete.client.from('messages').update({ read: true }).eq('id', msgId).select()
+    expect(read.error).toBeNull()
+    const { data: m } = await admin().from('messages').select('body').eq('id', msgId).single()
+    expect(m!.body).toBe('rude thing')
+  })
+
   it('user search and detail show teams and reports', async () => {
     const { data: found } = await boss.client.rpc('admin_search_users', { p_query: coach.email })
     expect((found as any[])[0].id).toBe(coach.id)

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
-import { Link, NavLink, Navigate, Route, Routes } from 'react-router-dom'
+import { Link, NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
+import { supabase } from '../../lib/supabase'
 import { Wordmark } from '../../components/ui/Wordmark'
 import { ArrowLeftIcon } from '../../components/ui/FormIcons'
 import { ReportsQueue } from '../../features/admin/ReportsQueue'
@@ -16,6 +17,8 @@ const SECTIONS = [
  *  Desktop is a fixed-height shell: one slim bar on top, and each section
  *  owns its scrolling below it. */
 export default function AdminPage() {
+  const nav = useNavigate()
+  const signOut = async () => { await supabase.auth.signOut(); nav('/admin/login', { replace: true }) }
   return (
     <div className="flex min-h-screen flex-col bg-bg text-text md:h-screen md:overflow-hidden">
       <header className="shrink-0 border-b border-hairline">
@@ -33,6 +36,7 @@ export default function AdminPage() {
           <Link to="/coach" className="ml-auto flex items-center gap-1.5 text-xs text-text-mute hover:text-text">
             <ArrowLeftIcon className="h-3.5 w-3.5" /> Coach app
           </Link>
+          <button type="button" onClick={signOut} className="text-xs text-text-mute hover:text-text">Sign out</button>
         </div>
       </header>
       <main className="mx-auto flex w-full max-w-[1400px] flex-1 flex-col px-6 pt-4 md:min-h-0">
