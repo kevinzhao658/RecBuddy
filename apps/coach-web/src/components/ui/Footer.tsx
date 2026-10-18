@@ -12,6 +12,9 @@ export function Footer({ className = '' }: { className?: string }) {
       <Link to="/terms" className={link}>Terms</Link>
       <span aria-hidden="true">·</span>
       <Link to="/support" className={link}>Support</Link>
+      <span aria-hidden="true">·</span>
+      {/* The console's own sign-in; non-admins can't get past it. */}
+      <Link to="/admin/login" className={link}>Admin</Link>
     </footer>
   )
 }
