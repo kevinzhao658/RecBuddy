@@ -4,7 +4,7 @@ const EMAIL = <a href="mailto:support@recbuddy.app" className="font-semibold tex
 
 export default function PrivacyPage() {
   return (
-    <LegalPage title="Privacy Policy" updated="August 23, 2026">
+    <LegalPage title="Privacy Policy" updated="October 18, 2026">
       <p>
         RecBuddy (&ldquo;RecBuddy,&rdquo; &ldquo;we,&rdquo; &ldquo;us,&rdquo; or &ldquo;our&rdquo;) provides a
         running-training app that connects athletes with their coaches. This Privacy Policy explains
@@ -40,6 +40,12 @@ export default function PrivacyPage() {
           <li>Coach–athlete connections you create using invite codes</li>
           <li>Photos and images you choose to share in chat</li>
         </ul>
+        <p><strong>Safety and moderation</strong></p>
+        <ul>
+          <li>Reports you submit about a message or user: the reason, any details you add, and a copy of the reported message</li>
+          <li>Users you block</li>
+          <li>The date you accepted our Terms &amp; Conditions</li>
+        </ul>
         <p><strong>Technical information</strong></p>
         <ul>
           <li>Standard information needed to operate the app securely, such as authentication tokens and timestamps. We do not maintain advertising identifiers or a behavioral tracking profile.</li>
@@ -64,6 +70,7 @@ export default function PrivacyPage() {
           <li>Authenticate you and keep your account secure</li>
           <li>Send transactional emails you request or that are required for your account, such as email confirmation and password reset</li>
           <li>Respond to your support requests</li>
+          <li>Keep RecBuddy safe: review reports, enforce our Terms, block messages that contain prohibited language, and honor blocks between users</li>
           <li>Maintain, debug, and improve the service</li>
           <li>Comply with legal obligations</li>
         </ul>
@@ -72,8 +79,8 @@ export default function PrivacyPage() {
 
       <LegalSection title="How your information is shared">
         <ul>
-          <li><strong>With your coach or athlete.</strong> RecBuddy is a two-sided coaching tool. When you connect with a coach (or an athlete connects with you), training data and messages relevant to that relationship are visible to the connected person. This is the core purpose of the app.</li>
-          <li><strong>Service providers.</strong> We use Supabase as our hosting and backend provider to store data and handle authentication and email delivery on our behalf. They process data only to provide these services to us.</li>
+          <li><strong>With your coach or athlete.</strong> RecBuddy is a two-sided coaching tool. When you connect with a coach (or an athlete connects with you), training data and messages relevant to that relationship are visible to the connected person. This is the core purpose of the app. Reports are private: we never tell the reported user who reported them. A user you block can no longer see your chat.</li>
+          <li><strong>Service providers.</strong> We use Supabase as our hosting and backend provider to store data and handle authentication and email delivery on our behalf, and Resend to deliver safety-report notifications to our support team (these include the reported content and the names and emails of the users involved). They process data only to provide these services to us.</li>
           <li><strong>Legal reasons.</strong> We may disclose information if required by law or to protect the rights, safety, or security of users or the public.</li>
           <li><strong>Business transfers.</strong> If ownership of RecBuddy changes, information may be transferred as part of that transaction, subject to this policy.</li>
         </ul>
@@ -81,7 +88,7 @@ export default function PrivacyPage() {
       </LegalSection>
 
       <LegalSection title="Data retention">
-        <p>We keep your information for as long as your account is active or as needed to provide the service. When you delete your account (see below), we delete your personal data, except where we are required to retain limited information for legal or security reasons.</p>
+        <p>We keep your information for as long as your account is active or as needed to provide the service. When you delete your account (see below), we delete your personal data, except where we are required to retain limited information for legal or security reasons. Reports about abusive content are kept after either account is deleted, so we can act on them and protect other users.</p>
       </LegalSection>
 
       <LegalSection title="Your choices and rights">
@@ -89,6 +96,7 @@ export default function PrivacyPage() {
           <li><strong>Access and update.</strong> You can view and edit your profile in the app.</li>
           <li><strong>Delete your account.</strong> RecBuddy includes in-app account deletion (Settings → Account → Delete account). Deleting your account permanently removes your personal data from our systems. This action cannot be undone.</li>
           <li><strong>Disconnect a coach.</strong> You can remove a coach connection in the app at any time.</li>
+          <li><strong>Report and block.</strong> You can report any message or user and block any user from the app; unblock anytime in Settings → Coaches.</li>
           <li><strong>Regional rights.</strong> Depending on where you live, you may have additional rights (such as access, correction, deletion, or portability). Contact us at the email above to exercise them.</li>
         </ul>
       </LegalSection>

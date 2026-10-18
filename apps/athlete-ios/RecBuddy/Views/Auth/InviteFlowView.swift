@@ -123,6 +123,10 @@ struct InviteFlowView: View {
     @State private var name = ""
     @State private var email = ""
     @State private var password = ""
+    // Terms acceptance (App Store 1.2: users agree to terms with zero
+    // tolerance for objectionable content before they can post anything).
+    @State private var agreedToTerms = false
+    @State private var showTerms = false
 
     // Running step — profile
     // DB enum: athlete_level = 'new'|'returning'|'experienced'|'competitive'
@@ -152,7 +156,8 @@ struct InviteFlowView: View {
     private var accountValid: Bool {
         !name.trimmingCharacters(in: .whitespaces).isEmpty &&
         !email.trimmingCharacters(in: .whitespaces).isEmpty &&
-        password.count >= 6
+        password.count >= 6 &&
+        agreedToTerms
     }
     private var runningValid: Bool { experienceLevel != nil && primaryGoal != nil }
     private var codeValid: Bool { codeResolved }
@@ -279,8 +284,48 @@ struct InviteFlowView: View {
                     .accessibilityLabel("Password, at least 6 characters")
             }
 
+            termsAgreement
+
             if let error {
                 Text(error).font(.footnote).foregroundStyle(.red)
+            }
+        }
+    }
+
+    /// Required checkbox. Tapping the row toggles it; the links open the docs.
+    private var termsAgreement: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Button { agreedToTerms.toggle() } label: {
+                Image(systemName: agreedToTerms ? "checkmark.square.fill" : "square")
+                    .font(.title3)
+                    .foregroundStyle(agreedToTerms ? RB.accent : RB.textMute)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("I agree to the Terms and Conditions and Privacy Policy")
+            .accessibilityAddTraits(agreedToTerms ? .isSelected : [])
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("I agree to the Terms & Conditions and Privacy Policy. RecBuddy has zero tolerance for abusive or objectionable content — you can report or block anyone from chat.")
+                    .font(.footnote)
+                    .foregroundStyle(RB.textMute)
+                    .onTapGesture { agreedToTerms.toggle() }
+                HStack(spacing: 16) {
+                    Button("Read the Terms") { showTerms = true }
+                    Link("Privacy Policy", destination: URL(string: "https://recbuddy.app/privacy")!)
+                }
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(RB.accent)
+            }
+        }
+        .sheet(isPresented: $showTerms) {
+            NavigationStack {
+                TermsView()
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") { showTerms = false }.foregroundStyle(RB.accent)
+                        }
+                    }
+                    .toolbarColorScheme(.dark, for: .navigationBar)
             }
         }
     }
@@ -613,7 +658,8 @@ struct InviteFlowView: View {
                 data: [
                     "name": .string(name.trimmingCharacters(in: .whitespaces)),
                     "experience_level": .string(experienceLevel ?? "new"),
-                    "primary_goal": .string(primaryGoal ?? "fit")
+                    "primary_goal": .string(primaryGoal ?? "fit"),
+                    "terms_accepted_at": .string(ISO8601DateFormatter().string(from: Date()))
                 ],
                 redirectTo: confirmRedirect)
             // Existing account (e.g. a coach going dual-role): GoTrue returns

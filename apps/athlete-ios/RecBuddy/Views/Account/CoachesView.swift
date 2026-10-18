@@ -14,6 +14,10 @@ struct CoachesView: View {
     @State private var joinBusy = false
     @State private var joinError: String?
     @State private var joinSuccess = false
+    // Report / block (App Store guideline 1.2)
+    @State private var blocked: [BlockedUser] = []
+    @State private var pendingBlock: TeamMember?
+    @State private var reportTarget: ReportSheet.Target?
 
     var body: some View {
         ZStack {
@@ -43,6 +47,19 @@ struct CoachesView: View {
                                 Text(teamError)
                                     .font(.footnote)
                                     .foregroundStyle(.red)
+                            }
+                        }
+                    }
+
+                    // ── Blocked ────────────────────────────────────────────
+                    if !blocked.isEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
+                            RBLabel("BLOCKED")
+                            Text("Blocked users can't message you, see your chat, or rejoin your team.")
+                                .font(.caption)
+                                .foregroundStyle(RB.textFaint)
+                            ForEach(blocked) { user in
+                                blockedRow(user)
                             }
                         }
                     }
@@ -108,6 +125,28 @@ struct CoachesView: View {
             }
             Button("Cancel", role: .cancel) {}
         }
+        .confirmationDialog(
+            pendingBlock.map { "Block \($0.name)?" } ?? "",
+            isPresented: Binding(
+                get: { pendingBlock != nil },
+                set: { if !$0 { pendingBlock = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: pendingBlock
+        ) { member in
+            Button("Block", role: .destructive) {
+                Task { await block(member) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { member in
+            Text("\(member.name) will be removed from your team, can't message you or see your chat, and can't reconnect unless you unblock them.")
+        }
+        .sheet(item: $reportTarget) { target in
+            ReportSheet(target: target) {
+                await loadTeam()
+                await session.refreshProfile()
+            }
+        }
         .task { await loadTeam() }
     }
 
@@ -155,18 +194,31 @@ struct CoachesView: View {
 
                 badge(member.relationship.capitalized)
 
-                Button {
-                    pendingRemove = member
+                Menu {
+                    Button(role: .destructive) {
+                        pendingRemove = member
+                    } label: {
+                        Label("Remove from team", systemImage: "person.badge.minus")
+                    }
+                    Button {
+                        reportTarget = .init(userId: member.coachId, userName: member.name)
+                    } label: {
+                        Label("Report \(member.name)", systemImage: "exclamationmark.bubble")
+                    }
+                    Button(role: .destructive) {
+                        pendingBlock = member
+                    } label: {
+                        Label("Block \(member.name)", systemImage: "hand.raised")
+                    }
                 } label: {
-                    Image(systemName: "trash")
+                    Image(systemName: "ellipsis")
                         .font(.footnote.weight(.semibold))
                         .foregroundStyle(RB.textMute)
                         .frame(width: 32, height: 32)
                         .background(RB.surface2)
                         .clipShape(Circle())
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Remove \(member.name)")
+                .accessibilityLabel("Options for \(member.name)")
             }
 
             // Permission control
@@ -175,6 +227,24 @@ struct CoachesView: View {
                 permissionPill("Edit", value: "edit", member: member)
                 permissionPill("Admin", value: "admin", member: member)
             }
+        }
+        .padding(14)
+        .rbCard()
+    }
+
+    private func blockedRow(_ user: BlockedUser) -> some View {
+        HStack(spacing: 12) {
+            avatar(initials: user.initials, avatarUrl: user.avatarUrl)
+            Text(user.name)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white)
+            Spacer()
+            Button("Unblock") {
+                Task { await unblock(user) }
+            }
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(RB.accent)
+            .accessibilityLabel("Unblock \(user.name)")
         }
         .padding(14)
         .rbCard()
@@ -247,6 +317,29 @@ struct CoachesView: View {
             .rpc("get_team", params: ["p_athlete_id": profile.id])
             .execute().value) ?? []
         team = rows
+        blocked = (try? await Moderation.blockedUsers()) ?? []
+    }
+
+    private func block(_ member: TeamMember) async {
+        teamError = nil
+        do {
+            try await Moderation.block(userId: member.coachId)
+            await loadTeam()
+            await session.refreshProfile()
+        } catch {
+            teamError = "Couldn't block \(member.name). Please try again."
+        }
+    }
+
+    /// Unblocking doesn't re-add them — the athlete reconnects with a new invite code.
+    private func unblock(_ user: BlockedUser) async {
+        teamError = nil
+        do {
+            try await Moderation.unblock(userId: user.userId)
+            await loadTeam()
+        } catch {
+            teamError = "Couldn't unblock \(user.name). Please try again."
+        }
     }
 
     private func setPermission(coachId: String, to permission: String) async {

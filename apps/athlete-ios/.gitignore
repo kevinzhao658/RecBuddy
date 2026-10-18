@@ -6,3 +6,4 @@ DerivedData/
 .DS_Store
 RecBuddy/Info.plist
 test-output.log
+Config.local.xcconfig
