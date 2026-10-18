@@ -52,7 +52,7 @@ export async function createUser(u: NewUser) {
   if (u.role === 'coach') {
     const { error: pErr } = await admin()
       .from('profiles')
-      .update({ role: 'coach', title: u.title ?? null })
+      .update({ role: 'coach', is_coach: true, title: u.title ?? null })
       .eq('id', id)
     if (pErr) throw pErr
   }
