@@ -8,8 +8,9 @@ test('renders the policy with the HealthKit disclosure and contact email', () =>
   expect(screen.getByRole('heading', { level: 2, name: 'Apple Health (HealthKit)' })).toBeInTheDocument()
   expect(screen.getByText(/read-only/)).toBeInTheDocument()
   expect(screen.getAllByText(/support@recbuddy\.app/).length).toBeGreaterThanOrEqual(2)
-  expect(screen.getByText(/last updated august 23, 2026/i)).toBeInTheDocument()
+  expect(screen.getByText(/last updated october 18, 2026/i)).toBeInTheDocument()
   expect(screen.getByText(/photos and images you choose to share in chat/i)).toBeInTheDocument()
+  expect(screen.getByText(/reports you submit about a message or user/i)).toBeInTheDocument()
   // Guards that ALL markdown sections were ported, not just the ones shown in the plan:
   // Who we are, Information we collect, Apple Health, How we use, How shared, Retention,
   // Choices/rights, Security, Children's, International, Changes, Contact = 12 h2s.

@@ -4,7 +4,7 @@
 
 # RecBuddy Terms & Conditions
 
-**Last updated:** August 2026
+**Last updated:** October 2026
 
 ## 1. Acceptance of Terms
 By creating a RecBuddy account and using the app, you agree to these Terms & Conditions and to our Privacy Policy at recbuddy.app/privacy, which is incorporated into these Terms by reference. If you do not agree, please do not use the service.
@@ -27,8 +27,8 @@ RecBuddy is a training management tool and does not provide medical advice, diag
 ## 7. Account Responsibility
 You are responsible for maintaining the confidentiality of your account credentials. You are responsible for all activity that occurs under your account. Notify us immediately at support@recbuddy.app if you believe your account has been compromised.
 
-## 8. Acceptable Use; Suspension
-You agree not to use RecBuddy to harass, abuse, or harm others, to post unlawful or infringing content, or to interfere with or disrupt the service. We may suspend or terminate your account if you violate these Terms. We may modify or discontinue features of the service, with reasonable notice where practicable.
+## 8. Acceptable Use; Reporting & Blocking; Suspension
+RecBuddy has zero tolerance for objectionable content and abusive users. You agree not to use RecBuddy to harass, bully, threaten, or abuse others; to post hate speech, slurs, sexually explicit, violent, or otherwise objectionable content; to post unlawful or infringing content; or to interfere with or disrupt the service. Messages containing prohibited language are blocked automatically. You can report any message or user in the app (press and hold a message, or use Settings → Coaches), and you can block a user, which removes them from your team and stops them from messaging you or seeing your chat. We review reports within 24 hours and will remove offending content and suspend or terminate the accounts of users who violate these Terms. We may modify or discontinue features of the service, with reasonable notice where practicable.
 
 ## 9. Your Content
 You retain ownership of the content you submit to RecBuddy, including messages, notes, photos, and logged workouts. You grant RecBuddy a non-exclusive, worldwide, royalty-free license to host, store, display, and transmit that content as needed to operate the service — for example, showing your logged runs and messages to your connected coach.

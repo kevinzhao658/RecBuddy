@@ -394,6 +394,10 @@ verify_jwt = false
 # Called by the Database Webhook (no user JWT); guarded by x-webhook-secret.
 verify_jwt = false
 
+[functions.notify-report]
+# Database Webhook on content_reports INSERT (no user JWT); guarded by x-webhook-secret.
+verify_jwt = false
+
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
