@@ -9,7 +9,7 @@ struct ChatView: View {
     @State private var draft = ""
     // Keyboard is visible only while composing: scrolling the thread dismisses
     // it interactively, and tapping anywhere in the thread drops focus.
-    @FocusState private var composerFocused: Bool
+    @State private var composerFocused = false
     @State private var busy = false
     @State private var sendError: String?
     @State private var imageItems: [PhotosPickerItem] = []
@@ -27,6 +27,14 @@ struct ChatView: View {
     // Report / block (App Store guideline 1.2) — long-press a coach's message.
     @State private var reportTarget: ReportSheet.Target?
     @State private var pendingBlock: ReportSheet.Target?
+
+    // Replies: the message being answered, a workout attached from the
+    // calendar ("Message coach about this"), and the row briefly highlighted
+    // after jumping to an original from its quote.
+    @State private var replyingTo: Message?
+    @State private var workoutQuote: WorkoutQuote?
+    @State private var highlightedId: String?
+    private let router = AppRouter.shared
     @AppStorage("unit") private var unitRaw = "mi"
     private var unit: Unit { Unit(rawValue: unitRaw) ?? .mi }
 
@@ -140,6 +148,35 @@ struct ChatView: View {
         return out
     }
 
+    private var messagesById: [String: Message] {
+        Dictionary(store.messages.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+    }
+
+    private func authorName(_ m: Message) -> String {
+        m.fromUserId == profile.id ? "You" : (store.senders[m.fromUserId]?.name ?? "Coach")
+    }
+
+    /// Quote shown above a reply; tapping it scrolls to (and flashes) the original.
+    private func quote(for m: Message, proxy: ScrollViewProxy) -> MessageRow.Quote? {
+        guard let id = m.replyToId else { return nil }
+        guard let original = messagesById[id] else {
+            return MessageRow.Quote(author: "", text: "", available: false)
+        }
+        return MessageRow.Quote(
+            author: authorName(original),
+            text: MessageText.quotePreview(original, unit: unit),
+            onTap: { jump(to: id, proxy: proxy) })
+    }
+
+    private func jump(to id: String, proxy: ScrollViewProxy) {
+        withAnimation { proxy.scrollTo(id, anchor: .center) }
+        highlightedId = id
+        Task {
+            try? await Task.sleep(for: .seconds(1.2))
+            if highlightedId == id { highlightedId = nil }
+        }
+    }
+
     private var chatItems: [ChatItem] {
         let msgs = store.messages
         var items: [ChatItem] = []
@@ -235,23 +272,11 @@ struct ChatView: View {
                                                 { withAnimation { proxy.scrollTo(target, anchor: .center) } }
                                             }
                                         },
-                                        onOpenWorkout: { id in Task { await openTrace(id) } }
+                                        onOpenWorkout: { id in Task { await openTrace(id) } },
+                                        quote: quote(for: m, proxy: proxy),
+                                        highlighted: highlightedId == m.id
                                     )
-                                    .contextMenu {
-                                        if m.fromUserId != profile.id {
-                                            let name = store.senders[m.fromUserId]?.name ?? "this coach"
-                                            Button {
-                                                reportTarget = .init(userId: m.fromUserId, userName: name, messageId: m.id)
-                                            } label: {
-                                                Label("Report message", systemImage: "exclamationmark.bubble")
-                                            }
-                                            Button(role: .destructive) {
-                                                pendingBlock = .init(userId: m.fromUserId, userName: name)
-                                            } label: {
-                                                Label("Block \(name)", systemImage: "hand.raised")
-                                            }
-                                        }
-                                    }
+                                    .contextMenu { messageMenu(m) }
                                     .id(m.id)
                                 }
                             }
@@ -320,6 +345,13 @@ struct ChatView: View {
         .sheet(item: $traceWorkout) { w in
             WorkoutDetailSheet(workout: w, store: tracePlanStore, unit: unit,
                                fetchedActual: traceActual)
+        }
+        // "Message coach about this" from a workout sheet.
+        .onChange(of: router.pendingWorkoutQuote, initial: true) { _, q in
+            guard let q else { return }
+            workoutQuote = q
+            router.pendingWorkoutQuote = nil
+            composerFocused = true
         }
         .onChange(of: imageItems) { _, newItems in
             guard !newItems.isEmpty else { return }
@@ -394,6 +426,18 @@ struct ChatView: View {
 
     private var inputBar: some View {
         VStack(alignment: .leading, spacing: 8) {
+            if let replyingTo {
+                composerContext(
+                    title: "Replying to \(authorName(replyingTo))",
+                    detail: MessageText.quotePreview(replyingTo, unit: unit),
+                    clearLabel: "Cancel reply") { self.replyingTo = nil }
+            }
+            if let workoutQuote {
+                composerContext(
+                    title: "About a workout",
+                    detail: "\(workoutQuote.title) · \(Week.fmtDayDate(workoutQuote.date))",
+                    clearLabel: "Remove workout") { self.workoutQuote = nil }
+            }
             // Staged photo previews — remove any, caption once, then send
             if !staged.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -437,12 +481,17 @@ struct ChatView: View {
                 .disabled(busy || staged.count >= Self.maxPhotos)
                 .accessibilityLabel("Attach photos")
 
-                TextField(staged.isEmpty ? "Message your coach…" : "Add a caption…",
-                          text: $draft, axis: .vertical)
-                    .focused($composerFocused)
-                    .lineLimit(1...4)
-                    .foregroundStyle(.white)
-                    .tint(RB.accent)
+                ComposerTextView(text: $draft, isFocused: $composerFocused) { images in
+                    stageImages(images)
+                }
+                    .overlay(alignment: .topLeading) {
+                        if draft.isEmpty {
+                            Text(staged.isEmpty ? "Message your coach…" : "Add a caption…")
+                                .foregroundStyle(RB.textFaint)
+                                .allowsHitTesting(false)
+                                .accessibilityHidden(true)
+                        }
+                    }
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
                     .background(RB.surface2)
@@ -470,6 +519,80 @@ struct ChatView: View {
         }
     }
 
+    // ── Long-press menu ────────────────────────────────────────────────────
+
+    /// Actions for one message. Copy for any message with text; Copy Photo for
+    /// images. (Report / Block for coach messages live here too.)
+    @ViewBuilder
+    private func messageMenu(_ m: Message) -> some View {
+        Button {
+            replyingTo = m
+            composerFocused = true
+        } label: {
+            Label("Reply", systemImage: "arrowshape.turn.up.left")
+        }
+        if let text = MessageText.copyText(m, unit: unit) {
+            Button {
+                UIPasteboard.general.string = text
+            } label: {
+                Label("Copy", systemImage: "doc.on.doc")
+            }
+        }
+        if m.kind == "image" {
+            Button {
+                Task { await copyPhoto(m) }
+            } label: {
+                Label("Copy Photo", systemImage: "photo.on.rectangle")
+            }
+        }
+        // Report / Block (App Store 1.2) for other people's messages.
+        if m.fromUserId != profile.id {
+            let name = store.senders[m.fromUserId]?.name ?? "this coach"
+            Divider()
+            Button {
+                reportTarget = .init(userId: m.fromUserId, userName: name, messageId: m.id)
+            } label: {
+                Label("Report message", systemImage: "exclamationmark.bubble")
+            }
+            Button(role: .destructive) {
+                pendingBlock = .init(userId: m.fromUserId, userName: name)
+            } label: {
+                Label("Block \(name)", systemImage: "hand.raised")
+            }
+        }
+    }
+
+    private func copyPhoto(_ m: Message) async {
+        sendError = nil
+        if let image = await ChatImageLoader.image(for: m) {
+            UIPasteboard.general.image = image
+        } else {
+            sendError = "Couldn't copy that photo — try again."
+        }
+    }
+
+    /// "Replying to …" / "About a workout" bar above the composer.
+    private func composerContext(title: String, detail: String, clearLabel: String,
+                                 clear: @escaping () -> Void) -> some View {
+        HStack(spacing: 10) {
+            RoundedRectangle(cornerRadius: 1.5).fill(RB.accent).frame(width: 3)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title).font(.caption.weight(.bold)).foregroundStyle(RB.accent)
+                Text(detail).font(.caption).foregroundStyle(RB.textMute).lineLimit(1)
+            }
+            Spacer(minLength: 8)
+            Button(action: clear) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 18))
+                    .symbolRenderingMode(.palette)
+                    .foregroundStyle(.white, RB.surface2)
+            }
+            .accessibilityLabel(clearLabel)
+        }
+        .padding(.top, 6)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
     // ── Send action ────────────────────────────────────────────────────────
 
     private func send() async {
@@ -482,18 +605,23 @@ struct ChatView: View {
                 // Photos upload sequentially; the caption rides on the LAST one
                 // so it reads beneath the batch. Sent photos leave the tray as
                 // they go — a mid-batch failure keeps only the unsent ones.
+                // The reply rides on the FIRST photo (it answers the quoted message).
                 let batch = staged
                 for (i, photo) in batch.enumerated() {
                     let caption = i == batch.count - 1 && !body.isEmpty ? body : nil
                     try await store.sendImage(photo.data, width: photo.w, height: photo.h,
-                                              from: profile.id, body: caption)
+                                              from: profile.id, body: caption,
+                                              replyTo: i == 0 ? replyingTo?.id : nil)
                     staged.removeAll { $0.id == photo.id }
+                    if i == 0 { replyingTo = nil }
                 }
                 draft = ""
             } else {
                 guard !body.isEmpty else { return }
-                try await store.send(body, from: profile.id)
+                try await store.send(body, from: profile.id, replyTo: replyingTo?.id, workout: workoutQuote)
                 draft = ""  // clear only on success — a failed send keeps the text
+                replyingTo = nil
+                workoutQuote = nil
             }
         } catch {
             sendError = Moderation.filterMessage(error) ?? "Couldn't send — try again."
@@ -538,12 +666,27 @@ struct ChatView: View {
     private func stageImagesFromPicker(_ items: [PhotosPickerItem]) async {
         sendError = nil
         defer { imageItems = [] }
+        var images: [UIImage] = []
         var failed = 0
         for item in items {
-            guard staged.count < Self.maxPhotos else { break }
-            guard let rawData = try? await item.loadTransferable(type: Data.self),
-                  let uiImage = UIImage(data: rawData),
-                  let (jpegData, w, h) = ImageShrink.jpegForChat(uiImage),
+            if let rawData = try? await item.loadTransferable(type: Data.self),
+               let uiImage = UIImage(data: rawData) {
+                images.append(uiImage)
+            } else {
+                failed += 1
+            }
+        }
+        stageImages(images, alreadyFailed: failed)
+    }
+
+    /// Downscale photos (picked or pasted) into the composer tray, up to maxPhotos.
+    private func stageImages(_ images: [UIImage], alreadyFailed: Int = 0) {
+        if alreadyFailed == 0 { sendError = nil }
+        var failed = alreadyFailed
+        var dropped = 0
+        for uiImage in images {
+            guard staged.count < Self.maxPhotos else { dropped += 1; continue }
+            guard let (jpegData, w, h) = ImageShrink.jpegForChat(uiImage),
                   let preview = UIImage(data: jpegData) else {
                 failed += 1
                 continue
@@ -553,6 +696,8 @@ struct ChatView: View {
         if failed > 0 {
             sendError = failed == 1 ? "Couldn't process one of the images."
                                     : "Couldn't process \(failed) of the images."
+        } else if dropped > 0 {
+            sendError = "You can attach up to \(Self.maxPhotos) photos at a time."
         }
     }
 }

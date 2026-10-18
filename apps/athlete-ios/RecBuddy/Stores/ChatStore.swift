@@ -66,11 +66,24 @@ final class ChatStore {
             .order("created_at").execute().value
     }
 
-    func send(_ body: String, from athleteId: String) async throws {
+    /// Send a text message, optionally quote-replying to `replyTo` (a message id
+    /// in this thread) and/or attaching a workout ("Message coach about this").
+    func send(_ body: String, from athleteId: String, replyTo: String? = nil,
+              workout: WorkoutQuote? = nil) async throws {
         guard let thread else { return }
-        struct NewMsg: Encodable { let thread_id: String; let from_user_id: String; let kind: String; let body: String }
+        struct NewMsg: Encodable {
+            let thread_id: String; let from_user_id: String; let kind: String; let body: String
+            let reply_to_id: String?
+            let workout_id: String?
+            let payload: [String: PayloadValue]?
+        }
+        let payload: [String: PayloadValue]? = workout.map {
+            ["quote": .string("workout"), "title": .string($0.title),
+             "date": .string($0.date), "type": .string($0.type)]
+        }
         try await Supa.shared.from("messages")
-            .insert(NewMsg(thread_id: thread.id, from_user_id: athleteId, kind: "text", body: body))
+            .insert(NewMsg(thread_id: thread.id, from_user_id: athleteId, kind: "text", body: body,
+                           reply_to_id: replyTo, workout_id: workout?.workoutId, payload: payload))
             .execute()
         try await load(threadId: thread.id)
     }
@@ -80,7 +93,8 @@ final class ChatStore {
     /// Path convention: <thread_id>/<UUID>.jpg — the first folder segment is the
     /// thread_id, which the storage participant policy uses to gate access.
     /// Callers exchange the stored path for a signed URL at render time.
-    func sendImage(_ data: Data, width: Int, height: Int, from athleteId: String, body: String? = nil) async throws {
+    func sendImage(_ data: Data, width: Int, height: Int, from athleteId: String, body: String? = nil,
+                   replyTo: String? = nil) async throws {
         guard let thread else { return }
         let path = "\(thread.id)/\(UUID().uuidString).jpg"
         try await Supa.shared.storage
@@ -90,12 +104,14 @@ final class ChatStore {
         struct ImageMsg: Encodable {
             let thread_id: String; let from_user_id: String; let kind: String
             let body: String?
+            let reply_to_id: String?
             let payload: ImagePayload
         }
         try await Supa.shared.from("messages")
             .insert(ImageMsg(
                 thread_id: thread.id, from_user_id: athleteId, kind: "image",
                 body: body,
+                reply_to_id: replyTo,
                 payload: ImagePayload(path: path, w: width, h: height)
             ))
             .execute()

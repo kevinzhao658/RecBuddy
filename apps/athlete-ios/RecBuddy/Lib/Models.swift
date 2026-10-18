@@ -154,6 +154,8 @@ struct Message: Codable, Identifiable, Equatable {
     let body: String?
     let payload: [String: PayloadValue]?
     let workoutId: String?
+    /// The message this one quote-replies to (same thread), if any.
+    var replyToId: String? = nil
     var read: Bool
     let createdAt: String       // ISO timestamp string (compared lexically, like the web)
     enum CodingKeys: String, CodingKey {
@@ -161,6 +163,7 @@ struct Message: Codable, Identifiable, Equatable {
         case threadId = "thread_id"
         case fromUserId = "from_user_id"
         case workoutId = "workout_id"
+        case replyToId = "reply_to_id"
         case createdAt = "created_at"
     }
     func payloadString(_ key: String) -> String? {

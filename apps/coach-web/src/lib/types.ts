@@ -60,9 +60,14 @@ export interface WorkoutCard { date: string; type: WorkoutType; title: string; d
  *  it for a short-lived signed URL via the private bucket.
  *  `url` is legacy-read-only (old public-bucket rows); never written to new rows. */
 export interface ImageCard { path?: string; url?: string; w: number; h: number }
+/** payload for a kind='text' message about a workout ("Message … about this");
+ *  the message's workout_id links the live row. */
+export interface WorkoutQuote { quote: 'workout'; title: string; date: string; type: WorkoutType }
 export interface Thread { id: string; athlete_id: string; coach_id: string }
 export interface Message {
   id: string; thread_id: string; from_user_id: string; kind: MessageKind
-  body: string | null; payload: RunCard | AdjustCard | WorkoutCard | ImageCard | null
+  body: string | null; payload: RunCard | AdjustCard | WorkoutCard | ImageCard | WorkoutQuote | null
   workout_id: string | null; read: boolean; created_at: string
+  /** Quote-reply target (same thread). */
+  reply_to_id?: string | null
 }

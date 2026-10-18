@@ -3,7 +3,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabase } from '../supabase'
 import { compressImage } from '../compressImage'
-import type { Message, Thread, Workout } from '../types'
+import type { Message, Thread, Workout, WorkoutQuote } from '../types'
+
+/** A text send, optionally replying to a message and/or about a workout. */
+export type SendArgs = {
+  body: string
+  replyToId?: string | null
+  workout?: Pick<Workout, 'id' | 'date' | 'type' | 'title'> | null
+}
 
 /** Get (or create) the coach↔athlete thread. RLS surfaces the head coach's
  *  thread to assistants, so we reuse an existing one before creating. */
@@ -31,16 +38,22 @@ export function useMessages(threadId: string | null) {
   return useQuery({ queryKey: ['messages', threadId], queryFn: () => fetchMessages(supabase, threadId!), enabled: !!threadId })
 }
 
-export async function sendMessage(client: SupabaseClient, threadId: string, body: string): Promise<void> {
+export async function sendMessage(client: SupabaseClient, threadId: string, args: SendArgs): Promise<void> {
   const { data: me } = await client.auth.getUser()
-  const { error } = await client.from('messages').insert({ thread_id: threadId, from_user_id: me.user!.id, kind: 'text', body })
+  const { body, replyToId, workout } = args
+  const payload: WorkoutQuote | null = workout
+    ? { quote: 'workout', title: workout.title, date: workout.date, type: workout.type } : null
+  const { error } = await client.from('messages').insert({
+    thread_id: threadId, from_user_id: me.user!.id, kind: 'text', body,
+    reply_to_id: replyToId ?? null, workout_id: workout?.id ?? null, payload,
+  })
   if (error) throw error
   await client.from('message_threads').update({ updated_at: new Date().toISOString() }).eq('id', threadId)
 }
 export function useSendMessage(threadId: string | null) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (body: string) => sendMessage(supabase, threadId!, body),
+    mutationFn: (args: SendArgs) => sendMessage(supabase, threadId!, args),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['messages', threadId] }),
   })
 }
@@ -49,7 +62,7 @@ export function useSendMessage(threadId: string | null) {
  *  <thread_id>/<uuid>.jpg — first segment is the thread_id, which the storage
  *  policy uses to scope access to thread participants.  The path (not a public URL)
  *  is stored in the payload; callers exchange it for a signed URL at render time. */
-export async function sendImageMessages(client: SupabaseClient, threadId: string, files: File[], body?: string): Promise<void> {
+export async function sendImageMessages(client: SupabaseClient, threadId: string, files: File[], body?: string, replyToId?: string | null): Promise<void> {
   const { data: me } = await client.auth.getUser()
   const uid = me.user!.id
   for (let i = 0; i < files.length; i++) {
@@ -62,7 +75,9 @@ export async function sendImageMessages(client: SupabaseClient, threadId: string
     // The caption rides on the LAST image so it reads beneath the batch.
     const caption = i === files.length - 1 ? body || null : null
     const { error } = await client.from('messages')
-      .insert({ thread_id: threadId, from_user_id: uid, kind: 'image', body: caption, payload: { path, w, h } })
+      // The reply rides on the FIRST photo (it answers the quoted message).
+      .insert({ thread_id: threadId, from_user_id: uid, kind: 'image', body: caption, payload: { path, w, h },
+                reply_to_id: i === 0 ? replyToId ?? null : null })
     if (error) throw error
   }
   await client.from('message_threads').update({ updated_at: new Date().toISOString() }).eq('id', threadId)
@@ -70,9 +85,16 @@ export async function sendImageMessages(client: SupabaseClient, threadId: string
 export function useSendImages(threadId: string | null) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (v: { files: File[]; body?: string }) => sendImageMessages(supabase, threadId!, v.files, v.body),
+    mutationFn: (v: { files: File[]; body?: string; replyToId?: string | null }) => sendImageMessages(supabase, threadId!, v.files, v.body, v.replyToId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['messages', threadId] }),
   })
+}
+
+/** One-off signed URL for a chat image (Copy image). */
+export async function signedChatImageUrl(path: string): Promise<string> {
+  const { data, error } = await supabase.storage.from('chat-images').createSignedUrl(path, 300)
+  if (error) throw error
+  return data.signedUrl
 }
 
 /** Fetch a short-lived signed URL for a private chat-image path.

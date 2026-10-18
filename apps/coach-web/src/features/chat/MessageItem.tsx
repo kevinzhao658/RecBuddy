@@ -1,4 +1,6 @@
-import type { Message, RunCard, AdjustCard, WorkoutCard, ImageCard } from '../../lib/types'
+import { useState } from 'react'
+import type { Message, RunCard, AdjustCard, WorkoutCard, ImageCard, WorkoutQuote } from '../../lib/types'
+import { MessageActions, type MessageAction } from './MessageActions'
 import { TypeIcon } from '../../components/ui/Icon'
 import { Avatar } from '../../components/ui/Avatar'
 import { fmtDayDate } from '../../lib/week'
@@ -7,6 +9,35 @@ import { fmtDist, fmtPace } from '../../lib/units'
 import { useSignedImageUrl } from '../../lib/queries/chat'
 
 export type Sender = { name: string; initials: string; avatarUrl?: string | null }
+/** Quote above a reply. available=false: the original was deleted or hidden. */
+export type Quote = { author: string; text: string; available: boolean; onClick?: () => void }
+
+function QuoteView({ q }: { q: Quote }) {
+  return (
+    <button type="button" onClick={q.onClick} disabled={!q.onClick || !q.available}
+      aria-label={q.available ? `Reply to ${q.author}: ${q.text}` : 'Reply to an unavailable message'}
+      className="mb-0.5 flex max-w-[85%] gap-2 rounded-[10px] bg-surface/70 px-2.5 py-1.5 text-left transition enabled:hover:bg-surface">
+      <span className={`w-[3px] shrink-0 rounded-full ${q.available ? 'bg-accent' : 'bg-text-faint'}`} aria-hidden />
+      <span className="min-w-0">
+        {q.available && <span className="block text-[11px] font-bold text-accent">{q.author}</span>}
+        <span className={`line-clamp-2 text-xs text-text-mute ${q.available ? '' : 'italic'}`}>
+          {q.available ? q.text : 'Original message unavailable'}
+        </span>
+      </span>
+    </button>
+  )
+}
+
+function WorkoutChip({ p, onOpen }: { p: WorkoutQuote; onOpen?: () => void }) {
+  return (
+    <button type="button" onClick={onOpen} disabled={!onOpen}
+      className="mb-0.5 flex max-w-[85%] items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 text-xs font-semibold text-text transition enabled:hover:border-text-mute">
+      <TypeIcon type={p.type} className="shrink-0 text-accent" />
+      <span className="truncate">{p.title} · {fmtDayDate(p.date)}</span>
+      {onOpen && <span className="text-text-faint" aria-hidden>›</span>}
+    </button>
+  )
+}
 
 function WorkoutCardView({ p, onOpen }: { p: WorkoutCard; onOpen?: () => void }) {
   const { unit } = useUnit()
@@ -107,11 +138,17 @@ function AdjustCardView({ p }: { p: AdjustCard }) {
  *    (on the first), so co-coaches and the athlete are distinguishable.
  *  `grouped` tightens same-sender stacking. Timestamps live in the centered
  *  session separators rendered by ChatPanel, not per message. */
-export function MessageItem({ m, mine, sender, showName, showAvatar, grouped, superseded, domId, onJumpToLatest, onOpenWorkout }: {
+export function MessageItem({ m, mine, sender, showName, showAvatar, grouped, superseded, domId, onJumpToLatest, onOpenWorkout, actions = [], quote, highlighted }: {
   m: Message; mine: boolean; sender?: Sender; showName?: boolean; showAvatar?: boolean
   grouped?: boolean; superseded?: boolean; domId?: string
   onJumpToLatest?: () => void; onOpenWorkout?: (date: string, workoutId?: string) => void
+  /** Copy / Reply / … — shown in a hover bar, or on right-click / long-press. */
+  actions?: MessageAction[]
+  quote?: Quote
+  /** Briefly true after jumping here from a reply quote. */
+  highlighted?: boolean
 }) {
+  const [menuOpen, setMenuOpen] = useState(false)
   // A newer card for the same workout exists below — roll this one up into a
   // compact placeholder that jumps the chat to that newest card.
   const body = superseded ? (
@@ -121,7 +158,13 @@ export function MessageItem({ m, mine, sender, showName, showAvatar, grouped, su
       {(m.payload as RunCard | WorkoutCard)?.title ?? 'Workout'} · {m.kind === 'runcard' ? 'log updated below' : 're-shared below'}
     </button>
   ) : m.kind === 'text' ? (
-    <div className={`max-w-[85%] rounded-[14px] px-3 py-2 text-sm ${mine ? 'bg-accent text-on-accent' : 'bg-surface2 text-text'}`}>{m.body}</div>
+    <>
+      {(m.payload as WorkoutQuote | null)?.quote === 'workout' && (
+        <WorkoutChip p={m.payload as WorkoutQuote}
+          onOpen={onOpenWorkout ? () => onOpenWorkout((m.payload as WorkoutQuote).date, m.workout_id ?? undefined) : undefined} />
+      )}
+      <div className={`max-w-[85%] rounded-[14px] px-3 py-2 text-sm ${mine ? 'bg-accent text-on-accent' : 'bg-surface2 text-text'}`}>{m.body}</div>
+    </>
   ) : m.kind === 'runcard' ? (
     <RunCardView p={m.payload as RunCard}
       onOpen={onOpenWorkout && (m.payload as RunCard).date ? () => onOpenWorkout((m.payload as RunCard).date!, m.workout_id ?? undefined) : undefined} />
@@ -136,17 +179,36 @@ export function MessageItem({ m, mine, sender, showName, showAvatar, grouped, su
     <AdjustCardView p={m.payload as AdjustCard} />
   )
 
+  // Bubble + its action bar. Right-click (desktop) or long-press (touch fires
+  // contextmenu) pins the bar open; leaving the message closes it.
+  const withActions = actions.length && !superseded ? (
+    <div className={`group/msg relative flex w-full flex-col ${mine ? 'items-end' : 'items-start'}`}
+      onContextMenu={(e) => { e.preventDefault(); setMenuOpen(true) }}
+      onMouseLeave={() => setMenuOpen(false)}
+      onKeyDown={(e) => { if (e.key === 'Escape') setMenuOpen(false) }}>
+      <MessageActions actions={actions} mine={mine} open={menuOpen} />
+      {quote && !superseded && <QuoteView q={quote} />}
+      {body}
+    </div>
+  ) : (
+    <>
+      {quote && !superseded && <QuoteView q={quote} />}
+      {body}
+    </>
+  )
+  const flash = highlighted ? 'rounded-[12px] bg-accent/15' : 'bg-transparent'
+
   if (mine) {
-    return <div id={domId} className={`flex flex-col items-end ${grouped ? 'mt-0.5' : 'mt-3'}`}>{body}</div>
+    return <div id={domId} className={`flex flex-col items-end transition-colors duration-300 ${flash} ${grouped ? 'mt-0.5' : 'mt-3'}`}>{withActions}</div>
   }
   return (
-    <div id={domId} className={`flex items-end gap-2 ${grouped ? 'mt-0.5' : 'mt-3'}`}>
+    <div id={domId} className={`flex items-end gap-2 transition-colors duration-300 ${flash} ${grouped ? 'mt-0.5' : 'mt-3'}`}>
       <div className="w-5 shrink-0">{showAvatar && sender && <Avatar initials={sender.initials} url={sender.avatarUrl} size="sm" />}</div>
       {/* flex-1 so bubbles wrap at 85% of the panel — without it the column
           shrink-wraps and short multi-word messages break one word per line */}
       <div className="flex min-w-0 flex-1 flex-col items-start">
         {showName && sender && <span className="mb-0.5 px-0.5 text-[11px] font-semibold text-text-mute">{sender.name}</span>}
-        {body}
+        {withActions}
       </div>
     </div>
   )

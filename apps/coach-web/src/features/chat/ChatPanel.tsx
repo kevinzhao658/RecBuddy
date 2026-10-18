@@ -1,6 +1,11 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../../auth/AuthProvider'
-import { useThread, useMessages, useSendMessage, useSendImages, useMarkThreadRead, useRealtimeThread } from '../../lib/queries/chat'
+import { useThread, useMessages, useSendMessage, useSendImages, useMarkThreadRead, useRealtimeThread, signedChatImageUrl } from '../../lib/queries/chat'
+import { copyText, quotePreview } from '../../lib/messageText'
+import { copyTextToClipboard, copyImageToClipboard, imageFilesFromClipboard } from '../../lib/clipboard'
+import { useUnit } from '../../lib/useUnit'
+import type { Message, ImageCard, Workout } from '../../lib/types'
+import type { MessageAction } from './MessageActions'
 import { latestCardIds, supersededCardIds } from '../../lib/runcardRollup'
 import { useTeam } from '../../lib/queries/team'
 import { MessageItem, type Sender } from './MessageItem'
@@ -24,9 +29,11 @@ function sessionLabel(iso: string): string {
   return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} · ${time}`
 }
 
-export function ChatPanel({ athleteId, athleteName, athleteAvatarUrl, onClose, onOpenDay }: {
+export function ChatPanel({ athleteId, athleteName, athleteAvatarUrl, onClose, onOpenDay, initialWorkout }: {
   athleteId: string; athleteName: string; athleteAvatarUrl?: string | null
   onClose: () => void; onOpenDay?: (date: string, workoutId?: string) => void
+  /** "Message athlete about this" — attach this workout to the composer. */
+  initialWorkout?: Pick<Workout, 'id' | 'date' | 'type' | 'title'> | null
 }) {
   const { session } = useAuth()
   const meId = session!.user.id
@@ -41,6 +48,25 @@ export function ChatPanel({ athleteId, athleteName, athleteAvatarUrl, onClose, o
   useRealtimeThread(threadId)
 
   const team = useTeam(athleteId)
+  const { unit } = useUnit()
+  // Replies: the message being answered; a workout attached from the results
+  // view; the row flashed after jumping to an original from its quote.
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null)
+  const [workoutQuote, setWorkoutQuote] = useState(initialWorkout ?? null)
+  const [highlightId, setHighlightId] = useState<string | null>(null)
+
+  /** Per-message actions (hover bar / right-click / long-press). */
+  const actionsFor = (m: Message): MessageAction[] => {
+    const out: MessageAction[] = [{ key: 'reply', label: 'Reply', onClick: () => startReply(m) }]
+    const text = copyText(m, unit)
+    if (text) out.push({ key: 'copy', label: 'Copy', doneLabel: 'Copied', onClick: () => copyTextToClipboard(text) })
+    const img = m.kind === 'image' ? (m.payload as ImageCard | null) : null
+    if (img?.path || (img?.url && /^https:\/\//i.test(img.url))) {
+      out.push({ key: 'copy-image', label: 'Copy image', doneLabel: 'Copied', onClick: async () =>
+        copyImageToClipboard(img.path ? await signedChatImageUrl(img.path) : img.url!) })
+    }
+    return out
+  }
   const [text, setText] = useState('')
   // Picked photos are STAGED here (with previews) so a caption can be added
   // before sending — nothing uploads until Send. Capped at MAX_PHOTOS.
@@ -54,7 +80,8 @@ export function ChatPanel({ athleteId, athleteName, athleteAvatarUrl, onClose, o
   const superseded = useMemo(() => supersededCardIds(messages), [messages])
   const latestCards = useMemo(() => latestCardIds(messages), [messages])
   const jumpToMessage = (id: string) =>
-    document.getElementById(`msg-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    document.getElementById(`msg-${id}`)?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
+  const byId = useMemo(() => new Map((messagesQ.data ?? []).map((m) => [m.id, m])), [messagesQ.data])
 
   // Resolve each from_user_id → name/initials: every coach on the team + the athlete.
   const senders: Record<string, Sender> = { [athleteId]: { name: athleteName, initials: initialsOf(athleteName), avatarUrl: athleteAvatarUrl } }
@@ -72,18 +99,40 @@ export function ChatPanel({ athleteId, athleteName, athleteAvatarUrl, onClose, o
     el.style.height = `${Math.min(el.scrollHeight, 112)}px`
   }, [text])
 
+  function startReply(m: Message) {
+    setReplyingTo(m)
+    taRef.current?.focus()
+  }
+  const authorOf = (m: Message) => m.from_user_id === meId ? 'You' : senders[m.from_user_id]?.name ?? 'Coach'
+  const quoteFor = (m: Message) => {
+    if (!m.reply_to_id) return undefined
+    const original = byId.get(m.reply_to_id)
+    if (!original) return { author: '', text: '', available: false }
+    return {
+      author: authorOf(original), text: quotePreview(original), available: true,
+      onClick: () => {
+        jumpToMessage(original.id)
+        setHighlightId(original.id)
+        setTimeout(() => setHighlightId((h) => (h === original.id ? null : h)), 1200)
+      },
+    }
+  }
+
   const submit = () => {
     const body = text.trim()
     if (!threadId) return
     if (staged.length) {
-      sendImages.mutate({ files: staged, body: body || undefined })
+      sendImages.mutate({ files: staged, body: body || undefined, replyToId: replyingTo?.id ?? null })
       setStaged([])
       setText('')
+      setReplyingTo(null)
       return
     }
     if (!body) return
-    send.mutate(body)
+    send.mutate({ body, replyToId: replyingTo?.id ?? null, workout: workoutQuote })
     setText('')
+    setReplyingTo(null)
+    setWorkoutQuote(null)
   }
 
   return (
@@ -125,11 +174,26 @@ export function ChatPanel({ athleteId, athleteName, athleteAvatarUrl, onClose, o
                   onJumpToLatest={m.workout_id && latestCards.has(`${m.kind}:${m.workout_id}`)
                     ? () => jumpToMessage(latestCards.get(`${m.kind}:${m.workout_id}`)!)
                     : undefined}
-                  onOpenWorkout={onOpenDay} />
+                  onOpenWorkout={onOpenDay} actions={actionsFor(m)}
+                  quote={quoteFor(m)} highlighted={highlightId === m.id} />
               </Fragment>
             )
           })}
         </div>
+
+        {/* Reply / workout context — shown above the composer until sent or cleared */}
+        {(replyingTo || workoutQuote) && (
+          <div className="space-y-2 border-t border-line px-3 pt-3">
+            {replyingTo && (
+              <ComposerContext title={`Replying to ${authorOf(replyingTo)}`} detail={quotePreview(replyingTo)}
+                clearLabel="Cancel reply" onClear={() => setReplyingTo(null)} />
+            )}
+            {workoutQuote && (
+              <ComposerContext title="About a workout" detail={workoutQuote.title}
+                clearLabel="Remove workout" onClear={() => setWorkoutQuote(null)} />
+            )}
+          </div>
+        )}
 
         {/* Staged attachment previews — shown above the composer until sent/removed */}
         {staged.length > 0 && (
@@ -173,15 +237,37 @@ export function ChatPanel({ athleteId, athleteName, athleteAvatarUrl, onClose, o
               <path d="M21 19V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
             </svg>
           </button>
-          <textarea ref={taRef} aria-label="Message" value={text} rows={1}
+          <textarea ref={taRef} aria-label="Message" value={text} rows={1} autoFocus={!!initialWorkout}
             placeholder={staged.length ? 'Add a caption…' : `Message ${athleteName.split(' ')[0]}…`}
             onChange={(e) => setText(e.target.value)}
+            onPaste={(e) => {
+              // Pasted screenshots / copied photos stage as attachments; text pastes normally.
+              const files = imageFilesFromClipboard(e.clipboardData)
+              if (!files.length) return
+              e.preventDefault()
+              setStaged((prev) => [...prev, ...files].slice(0, MAX_PHOTOS))
+            }}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit() } }}
             className="max-h-28 flex-1 resize-none overflow-y-auto rounded-[12px] border border-line bg-surface2 px-3 py-2 text-sm text-text placeholder:text-text-faint focus:border-text-mute focus:outline-none" />
           <button aria-label="Send message" onClick={submit} disabled={(!text.trim() && !staged.length) || send.isPending || sendImages.isPending}
             className="rb-glow rounded-[12px] bg-accent px-4 py-2 text-sm font-semibold text-on-accent disabled:opacity-50">Send</button>
         </div>
       </aside>
+    </div>
+  )
+}
+
+/** "Replying to …" / "About a workout" bar above the composer. */
+function ComposerContext({ title, detail, clearLabel, onClear }: { title: string; detail: string; clearLabel: string; onClear: () => void }) {
+  return (
+    <div className="flex items-center gap-2.5">
+      <span className="w-[3px] self-stretch rounded-full bg-accent" aria-hidden />
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-bold text-accent">{title}</p>
+        <p className="truncate text-xs text-text-mute">{detail}</p>
+      </div>
+      <button aria-label={clearLabel} onClick={onClear}
+        className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-surface2 text-xs text-text ring-1 ring-line hover:text-missed">✕</button>
     </div>
   )
 }

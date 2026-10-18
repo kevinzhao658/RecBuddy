@@ -8,6 +8,7 @@ struct WorkoutDetailSheet: View {
     /// the chat trace passes it so the logged-run section still renders.
     var fetchedActual: WorkoutActual? = nil
     @Environment(\.dismiss) private var dismiss
+    @Environment(SessionStore.self) private var session
     @State private var logOpen = false
     @State private var busy = false
     @State private var error: String?
@@ -28,6 +29,7 @@ struct WorkoutDetailSheet: View {
                     HStack {
                         typeChip
                         Spacer()
+                        if session.hasCoach == true { messageCoachButton }
                         closeButton
                     }
 
@@ -115,6 +117,27 @@ struct WorkoutDetailSheet: View {
             LogRunSheet(workout: live, store: store, unit: unit,
                         existing: live.status == "done" ? actual : nil)
         }
+    }
+
+    // MARK: - Message coach about this
+
+    /// Opens chat with this workout attached to the composer.
+    private var messageCoachButton: some View {
+        Button {
+            AppRouter.shared.pendingWorkoutQuote = WorkoutQuote(
+                workoutId: live.id, date: live.date, type: live.type, title: live.title)
+            AppRouter.shared.openChat = true
+            dismiss()
+        } label: {
+            Image(systemName: "bubble.left.and.text.bubble.right")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 36, height: 36)
+                .background(RB.surface2)
+                .clipShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Message coach about this workout")
     }
 
     // MARK: - Type Chip

@@ -7,6 +7,15 @@ import SwiftUI
 /// - Timestamps live only in the centered session-separator headers rendered by
 ///   ChatView; there are no per-bubble time labels here.
 struct MessageRow: View {
+    /// What a reply shows above its bubble. `available == false` when the
+    /// original was deleted or is hidden (e.g. from a blocked user).
+    struct Quote {
+        let author: String
+        let text: String
+        var available: Bool = true
+        var onTap: (() -> Void)? = nil
+    }
+
     let message: Message
     let mine: Bool
     let senderName: String?
@@ -22,6 +31,10 @@ struct MessageRow: View {
     /// so the chat can open results-vs-prescribed. Cards without a workout_id
     /// (legacy shares) stay static.
     var onOpenWorkout: ((String) -> Void)? = nil
+    /// Quote of the message this one replies to (resolved by ChatView).
+    var quote: Quote? = nil
+    /// Briefly true after jumping here from a reply quote.
+    var highlighted: Bool = false
     @AppStorage("unit") private var unitRaw = "mi"
     private var unit: Unit { Unit(rawValue: unitRaw) ?? .mi }
 
@@ -52,6 +65,7 @@ struct MessageRow: View {
             if mine {
                 Spacer(minLength: 52)
                 VStack(alignment: .trailing, spacing: 2) {
+                    quoteView
                     content
                 }
             } else {
@@ -62,12 +76,80 @@ struct MessageRow: View {
                             .font(.caption2.weight(.semibold))
                             .foregroundStyle(RB.textMute)
                     }
+                    quoteView
                     content
                 }
                 Spacer(minLength: 52)
             }
         }
         .padding(.top, grouped ? 0 : 6)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(RB.accent.opacity(highlighted ? 0.14 : 0))
+                .padding(.horizontal, -6)
+                .animation(.easeOut(duration: 0.35), value: highlighted)
+        )
+    }
+
+    // ── Reply quote (above the bubble) ─────────────────────────────────────
+
+    @ViewBuilder private var quoteView: some View {
+        if let quote, !superseded {
+            Button { quote.onTap?() } label: {
+                HStack(alignment: .top, spacing: 8) {
+                    RoundedRectangle(cornerRadius: 1.5)
+                        .fill(quote.available ? RB.accent : RB.textFaint)
+                        .frame(width: 3)
+                    VStack(alignment: .leading, spacing: 1) {
+                        if quote.available {
+                            Text(quote.author)
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(RB.accent)
+                        }
+                        Text(quote.available ? quote.text : "Original message unavailable")
+                            .font(.caption)
+                            .italic(!quote.available)
+                            .foregroundStyle(RB.textMute)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                    }
+                }
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(RB.surface.opacity(0.7))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+            }
+            .buttonStyle(.plain)
+            .disabled(quote.onTap == nil || !quote.available)
+            .accessibilityLabel(quote.available ? "Reply to \(quote.author): \(quote.text)" : "Reply to an unavailable message")
+            .accessibilityHint(quote.available ? "Shows the original message" : "")
+        }
+    }
+
+    /// A workout attached to a text message ("Message coach about this").
+    @ViewBuilder private var workoutChip: some View {
+        if message.payloadString("quote") == "workout" {
+            openable {
+                HStack(spacing: 6) {
+                    Image(systemName: TypeBadge.symbol(for: message.payloadString("type") ?? "easy"))
+                        .foregroundStyle(TypeBadge.tint(for: message.payloadString("type") ?? "easy"))
+                    Text((message.payloadString("title") ?? "Workout")
+                         + (message.payloadString("date").map { " · " + Week.fmtDayDate($0) } ?? ""))
+                        .lineLimit(1)
+                        .foregroundStyle(.white)
+                    if canOpen {
+                        Image(systemName: "chevron.right").foregroundStyle(RB.textFaint)
+                    }
+                }
+                .font(.caption.weight(.semibold))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(RB.surface)
+                .clipShape(Capsule())
+                .overlay(Capsule().stroke(RB.line, lineWidth: 1))
+            }
+        }
     }
 
     // ── Avatar column (24 pt wide; empty spacer when not the last of a run) ──
@@ -139,6 +221,7 @@ struct MessageRow: View {
         switch message.kind {
 
         case "text":
+            workoutChip
             Text(message.body ?? "")
                 .foregroundStyle(mine ? RB.onAccent : .white)
                 .padding(.horizontal, 14)
@@ -373,5 +456,23 @@ struct ChatImageView: View {
                     .frame(maxWidth: 220, minHeight: 120)
             }
         }
+    }
+}
+
+// ── ChatImageLoader ───────────────────────────────────────────────────────────
+/// Downloads a chat photo as a UIImage (for Copy Photo). Private-bucket images
+/// go through a short-lived signed URL; legacy https URLs load directly.
+enum ChatImageLoader {
+    static func image(for m: Message) async -> UIImage? {
+        let url: URL?
+        if let path = m.payloadString("path") {
+            url = try? await Supa.shared.storage.from("chat-images").createSignedURL(path: path, expiresIn: 300)
+        } else if let s = m.payloadString("url"), s.hasPrefix("https://") {
+            url = URL(string: s)
+        } else {
+            url = nil
+        }
+        guard let url, let (data, _) = try? await URLSession.shared.data(from: url) else { return nil }
+        return UIImage(data: data)
     }
 }

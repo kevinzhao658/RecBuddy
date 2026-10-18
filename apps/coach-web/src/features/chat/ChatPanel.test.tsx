@@ -33,7 +33,7 @@ test('renders the conversation and sends a typed message', () => {
   expect(markRead.mutate).toHaveBeenCalledWith('coach1') // marks athlete msgs read on open
   fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'great run' } })
   fireEvent.click(screen.getByRole('button', { name: /send message/i }))
-  expect(send.mutate).toHaveBeenCalledWith('great run')
+  expect(send.mutate).toHaveBeenCalledWith({ body: 'great run', replyToId: null, workout: null })
 })
 
 test('close button calls onClose', () => {
@@ -42,4 +42,51 @@ test('close button calls onClose', () => {
   wrap(<ChatPanel athleteId="a1" athleteName="Jordan Lee" onClose={onClose} />)
   fireEvent.click(screen.getByRole('button', { name: /close chat/i }))
   expect(onClose).toHaveBeenCalled()
+})
+
+test('pasting an image stages it as an attachment; pasting text does not', () => {
+  setup()
+  vi.spyOn(chat, 'useSendImages').mockReturnValue({ mutate: vi.fn(), isPending: false } as any)
+  const created = vi.fn(() => 'blob:preview')
+  Object.assign(URL, { createObjectURL: created, revokeObjectURL: vi.fn() })
+  wrap(<ChatPanel athleteId="a1" athleteName="Jordan Lee" onClose={() => {}} />)
+  const box = screen.getByLabelText('Message')
+  fireEvent.paste(box, { clipboardData: { files: [], getData: () => 'hello' } })
+  expect(screen.queryByAltText('Attached photo 1')).toBeNull()
+  const shot = new File(['x'], 'shot.png', { type: 'image/png' })
+  fireEvent.paste(box, { clipboardData: { files: [shot], getData: () => '' } })
+  expect(screen.getByAltText('Attached photo 1')).toBeInTheDocument()
+  expect(screen.getByText(/Photo attached/)).toBeInTheDocument()
+})
+
+test('messages get a Copy action that writes the text to the clipboard', async () => {
+  setup()
+  const writeText = vi.fn().mockResolvedValue(undefined)
+  Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+  wrap(<ChatPanel athleteId="a1" athleteName="Jordan Lee" onClose={() => {}} />)
+  fireEvent.contextMenu(screen.getByText('hey coach'))
+  fireEvent.click(screen.getAllByRole('button', { name: 'Copy' })[0])
+  expect(writeText).toHaveBeenCalledWith('hey coach')
+})
+
+test('Reply: shows the reply bar and sends with reply_to_id, then clears', () => {
+  const { send } = setup()
+  wrap(<ChatPanel athleteId="a1" athleteName="Jordan Lee" onClose={() => {}} />)
+  fireEvent.contextMenu(screen.getByText('hey coach'))
+  fireEvent.click(screen.getAllByRole('button', { name: 'Reply' })[0])
+  expect(screen.getByText('Replying to Jordan Lee')).toBeInTheDocument()
+  fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'on it' } })
+  fireEvent.click(screen.getByRole('button', { name: /send message/i }))
+  expect(send.mutate).toHaveBeenCalledWith({ body: 'on it', replyToId: 'm1', workout: null })
+  expect(screen.queryByText('Replying to Jordan Lee')).toBeNull()
+})
+
+test('initialWorkout attaches the workout to the next message', () => {
+  const { send } = setup()
+  const w = { id: 'w9', date: '2026-10-18', type: 'long', title: 'Long Run 14 mi' } as any
+  wrap(<ChatPanel athleteId="a1" athleteName="Jordan Lee" onClose={() => {}} initialWorkout={w} />)
+  expect(screen.getByText('About a workout')).toBeInTheDocument()
+  fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'How did this feel?' } })
+  fireEvent.click(screen.getByRole('button', { name: /send message/i }))
+  expect(send.mutate).toHaveBeenCalledWith({ body: 'How did this feel?', replyToId: null, workout: w })
 })

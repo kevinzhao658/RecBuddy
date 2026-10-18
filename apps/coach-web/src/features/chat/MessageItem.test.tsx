@@ -93,3 +93,45 @@ test('renders nothing for a legacy javascript: url (XSS guard)', () => {
   expect(screen.queryByRole('img')).toBeNull()
   expect(screen.queryByRole('link')).toBeNull()
 })
+
+test('action bar: right-click pins it open and Copy runs the action', async () => {
+  const onClick = vi.fn()
+  render(<MessageItem mine={false} actions={[{ key: 'copy', label: 'Copy', doneLabel: 'Copied', onClick }]}
+    m={{ ...base, kind: 'text', body: 'copy me', payload: null } as any} />)
+  const bar = screen.getByRole('toolbar', { name: 'Message actions' })
+  expect(bar.className).toMatch(/opacity-0/)
+  fireEvent.contextMenu(screen.getByText('copy me'))
+  expect(bar.className).toMatch(/opacity-100/)
+  fireEvent.click(screen.getByRole('button', { name: 'Copy' }))
+  expect(onClick).toHaveBeenCalled()
+  expect(await screen.findByRole('button', { name: 'Copied' })).toBeInTheDocument()
+})
+
+test('no action bar on rolled-up placeholders or when there are no actions', () => {
+  render(<MessageItem mine={false} m={{ ...base, kind: 'text', body: 'plain', payload: null } as any} />)
+  expect(screen.queryByRole('toolbar')).toBeNull()
+})
+
+test('a reply shows its quote; clicking it jumps to the original', () => {
+  const onClick = vi.fn()
+  render(<MessageItem mine={false} quote={{ author: 'Jordan', text: 'How was the tempo?', available: true, onClick }}
+    m={{ ...base, kind: 'text', body: 'Strong!', payload: null, reply_to_id: 'm0' } as any} />)
+  fireEvent.click(screen.getByRole('button', { name: /Reply to Jordan: How was the tempo\?/ }))
+  expect(onClick).toHaveBeenCalled()
+})
+
+test('a reply to a deleted message says the original is unavailable', () => {
+  render(<MessageItem mine quote={{ author: '', text: '', available: false }}
+    m={{ ...base, kind: 'text', body: 'ok', payload: null, reply_to_id: 'gone' } as any} />)
+  expect(screen.getByText('Original message unavailable')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: /unavailable message/ })).toBeDisabled()
+})
+
+test('a message about a workout shows a workout chip that opens the day', () => {
+  const onOpenWorkout = vi.fn()
+  render(<MessageItem mine={false} onOpenWorkout={onOpenWorkout}
+    m={{ ...base, kind: 'text', body: 'Legs ok after this?', workout_id: 'w9',
+      payload: { quote: 'workout', title: 'Long Run 14 mi', date: '2026-10-18', type: 'long' } } as any} />)
+  fireEvent.click(screen.getByRole('button', { name: /Long Run 14 mi/ }))
+  expect(onOpenWorkout).toHaveBeenCalledWith('2026-10-18', 'w9')
+})

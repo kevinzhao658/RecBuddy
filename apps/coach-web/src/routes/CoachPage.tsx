@@ -189,6 +189,8 @@ function AthleteDashboard({ athleteId, monday, setMonday, monthAnchor, setMonthA
   })
 
   const [chatOpen, setChatOpen] = useState(false)
+  // Workout attached to the chat composer by "Message athlete about this".
+  const [chatWorkout, setChatWorkout] = useState<Workout | null>(null)
   const [libraryOpen, setLibraryOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   // Month day with 2+ workouts opens this read-only picker instead of jumping.
@@ -233,7 +235,8 @@ function AthleteDashboard({ athleteId, monday, setMonday, monthAnchor, setMonthA
         ? <aside className="rb-surface flex h-full w-80 shrink-0 items-center justify-center border-l border-line text-sm text-text-mute">Loading…</aside>
         : null)
     : selectedWorkout?.status === 'done'
-      ? <WorkoutResults key={selectedWorkoutId ?? selectedDate} workout={selectedWorkout} onClose={clearSelection} />
+      ? <WorkoutResults key={selectedWorkoutId ?? selectedDate} workout={selectedWorkout} onClose={clearSelection}
+          onMessage={() => { setChatWorkout(selectedWorkout); setChatOpen(true) }} />
       : <WorkoutEditor key={`${selectedDate}:${selectedWorkoutId ?? 'new'}`} date={selectedDate} workout={selectedWorkout}
           canDelete={!!selectedWorkoutId} readOnly={!canEdit}
           onSave={(draft) => { upsert.mutate({ date: selectedDate, draft, id: selectedWorkoutId }, { onSuccess: clearSelection, onError }) }}
@@ -334,7 +337,8 @@ function AthleteDashboard({ athleteId, monday, setMonday, monthAnchor, setMonthA
 
       <DragOverlay dropAnimation={null}><DragGhost workout={dnd.activeGhost} /></DragOverlay>
 
-      {chatOpen && <ChatPanel athleteId={athleteId} athleteName={entry.athlete.name} athleteAvatarUrl={entry.athlete.avatar_url} onClose={() => setChatOpen(false)}
+      {chatOpen && <ChatPanel athleteId={athleteId} athleteName={entry.athlete.name} athleteAvatarUrl={entry.athlete.avatar_url}
+        initialWorkout={chatWorkout} onClose={() => { setChatOpen(false); setChatWorkout(null) }}
         onOpenDay={(date, workoutId) => {
           // No id on the card -> fall back to the day's first workout if that
           // week is already loaded, else open the day fresh.
