@@ -82,12 +82,6 @@ function Glyph({ className = '', children, filled = false }: P & { children: Rea
 export function StarIcon({ className = '', filled = false }: P & { filled?: boolean }) {
   return <Glyph className={className} filled={filled}><path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z" /></Glyph>
 }
-export function DownloadIcon({ className = '' }: P) {
-  return <Glyph className={className}><path d="M12 4v11m-4.5-4.5L12 15l4.5-4.5M5 19.5h14" /></Glyph>
-}
-export function UploadIcon({ className = '' }: P) {
-  return <Glyph className={className}><path d="M12 15.5V4.5M7.5 9 12 4.5 16.5 9M5 19.5h14" /></Glyph>
-}
 export function SearchIcon({ className = '' }: P) {
   return <Glyph className={className}><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4 4" /></Glyph>
 }

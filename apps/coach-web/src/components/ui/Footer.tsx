@@ -12,6 +12,9 @@ export function Footer({ className = '' }: { className?: string }) {
       <Link to="/terms" className={link}>Terms</Link>
       <span aria-hidden="true">·</span>
       <Link to="/support" className={link}>Support</Link>
+      <span aria-hidden="true">·</span>
+      {/* Admins only — /admin sends anyone else to sign-in or the coach app. */}
+      <Link to="/admin" className={link}>Admin</Link>
     </footer>
   )
 }

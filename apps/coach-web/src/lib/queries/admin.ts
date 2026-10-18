@@ -193,32 +193,3 @@ export async function adminAction(body: AdminFnAction): Promise<void> {
   if (data?.error) throw new Error(data.error)
 }
 export const useAdminAction = () => useAdminMutation(adminAction)
-
-// ── CSV export / import ──────────────────────────────────────────────────
-
-/** Every report, all statuses (p_status = null is the uncapped export). */
-export const fetchAllReports = () => rpc<AdminReport[]>('admin_list_reports', { p_status: null })
-
-/** Apply one validated CSV row: the enforcement action first, then the status.
- *  Both re-check admin rights server-side and write the audit log. */
-export async function applyReportChange(c: {
-  reportId: string
-  action?: 'delete_message' | 'suspend' | 'unsuspend' | 'delete_user'
-  newStatus?: ReportStatus
-  note: string
-  messageId?: string | null
-  userId?: string | null
-}): Promise<void> {
-  if (c.action === 'delete_message') {
-    await adminAction({ action: 'delete_message', message_id: c.messageId!, report_id: c.reportId, note: c.note })
-  } else if (c.action) {
-    await adminAction({ action: c.action, user_id: c.userId!, report_id: c.reportId, note: c.note })
-  }
-  if (c.newStatus) await rpc('admin_resolve_report', { p_report_id: c.reportId, p_status: c.newStatus, p_note: c.note })
-}
-
-/** Refresh every admin view after a bulk import. */
-export function useInvalidateAdmin() {
-  const qc = useQueryClient()
-  return () => qc.invalidateQueries({ queryKey: ['admin'] })
-}

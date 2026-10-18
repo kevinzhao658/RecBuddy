@@ -1,23 +1,21 @@
 import type { ReactNode } from 'react'
-import { Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { Link, NavLink, Navigate, Route, Routes } from 'react-router-dom'
 import { Wordmark } from '../../components/ui/Wordmark'
 import { ArrowLeftIcon } from '../../components/ui/FormIcons'
 import { ReportsQueue } from '../../features/admin/ReportsQueue'
-import { ReportCsvTools } from '../../features/admin/ReportCsvTools'
 import { UserLookup } from '../../features/admin/UserLookup'
 import { AuditLog } from '../../features/admin/AuditLog'
 
 const SECTIONS = [
-  { to: 'reports', label: 'Reports', hint: 'Content users reported — review and act on it' },
-  { to: 'users', label: 'Users', hint: 'Look up any account: teams, reports, suspend or remove' },
-  { to: 'audit', label: 'Audit log', hint: 'Every admin action: who did what, when, and why' },
+  { to: '/admin/reports', label: 'Reports', hint: 'Content users reported — review and act on it' },
+  { to: '/admin/users', label: 'Users', hint: 'Look up any account: teams, reports, suspend or remove' },
+  { to: '/admin/audit', label: 'Audit log', hint: 'Every admin action: who did what, when, and why' },
 ]
 
 /** /admin — moderation console (gated by RequireAdmin in App.tsx).
  *  Desktop is a fixed-height shell: one slim bar on top, and each section
  *  owns its scrolling below it. */
 export default function AdminPage() {
-  const onReports = useLocation().pathname.startsWith('/admin/reports')
   return (
     <div className="flex min-h-screen flex-col bg-bg text-text md:h-screen md:overflow-hidden">
       <header className="shrink-0 border-b border-hairline">
@@ -32,12 +30,9 @@ export default function AdminPage() {
               </NavLink>
             ))}
           </nav>
-          <div className="ml-auto flex items-center gap-4">
-          {onReports && <ReportCsvTools />}
-          <Link to="/coach" className="flex items-center gap-1.5 text-xs text-text-mute hover:text-text">
+          <Link to="/coach" className="ml-auto flex items-center gap-1.5 text-xs text-text-mute hover:text-text">
             <ArrowLeftIcon className="h-3.5 w-3.5" /> Coach app
           </Link>
-          </div>
         </div>
       </header>
       <main className="mx-auto flex w-full max-w-[1400px] flex-1 flex-col px-6 pt-4 md:min-h-0">
@@ -45,7 +40,8 @@ export default function AdminPage() {
           <Route path="reports" element={<ReportsQueue />} />
           <Route path="users" element={<Scroll><UserLookup /></Scroll>} />
           <Route path="audit" element={<Scroll><AuditLog /></Scroll>} />
-          <Route path="*" element={<Navigate to="reports" replace />} />
+          {/* Absolute: a relative redirect inside this splat route appends forever. */}
+          <Route path="*" element={<Navigate to="/admin/reports" replace />} />
         </Routes>
       </main>
     </div>
