@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import type { Message, RunCard, AdjustCard, WorkoutCard, ImageCard, WorkoutQuote } from '../../lib/types'
 import { MessageActions, type MessageAction } from './MessageActions'
+import { ReactionChips } from './ReactionChips'
+import type { ReactionSummary } from '../../lib/reactions'
+import type { ReactionKind } from '../../lib/types'
 import { TypeIcon } from '../../components/ui/Icon'
 import { Avatar } from '../../components/ui/Avatar'
 import { fmtDayDate } from '../../lib/week'
@@ -138,7 +141,7 @@ function AdjustCardView({ p }: { p: AdjustCard }) {
  *    (on the first), so co-coaches and the athlete are distinguishable.
  *  `grouped` tightens same-sender stacking. Timestamps live in the centered
  *  session separators rendered by ThreadView, not per message. */
-export function MessageItem({ m, mine, sender, showName, showAvatar, grouped, superseded, domId, onJumpToLatest, onOpenWorkout, actions = [], quote, highlighted }: {
+export function MessageItem({ m, mine, sender, showName, showAvatar, grouped, superseded, domId, onJumpToLatest, onOpenWorkout, actions = [], quote, highlighted, reactions = [], onReact }: {
   m: Message; mine: boolean; sender?: Sender; showName?: boolean; showAvatar?: boolean
   grouped?: boolean; superseded?: boolean; domId?: string
   onJumpToLatest?: () => void; onOpenWorkout?: (date: string, workoutId?: string) => void
@@ -147,8 +150,15 @@ export function MessageItem({ m, mine, sender, showName, showAvatar, grouped, su
   quote?: Quote
   /** Briefly true after jumping here from a reply quote. */
   highlighted?: boolean
+  /** Used reactions (summarize output) and the toggle; chips sit under the bubble. */
+  reactions?: ReactionSummary[]
+  onReact?: (kind: ReactionKind) => void
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [hovered, setHovered] = useState(false)
+  const chips = onReact && !superseded
+    ? <ReactionChips items={reactions} onToggle={onReact} showAll={hovered || menuOpen} />
+    : null
   // A newer card for the same workout exists below — roll this one up into a
   // compact placeholder that jumps the chat to that newest card.
   const body = superseded ? (
@@ -184,11 +194,13 @@ export function MessageItem({ m, mine, sender, showName, showAvatar, grouped, su
   const withActions = actions.length && !superseded ? (
     <div className={`group/msg relative flex w-full flex-col ${mine ? 'items-end' : 'items-start'}`}
       onContextMenu={(e) => { e.preventDefault(); setMenuOpen(true) }}
-      onMouseLeave={() => setMenuOpen(false)}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => { setMenuOpen(false); setHovered(false) }}
       onKeyDown={(e) => { if (e.key === 'Escape') setMenuOpen(false) }}>
       <MessageActions actions={actions} mine={mine} open={menuOpen} />
       {quote && !superseded && <QuoteView q={quote} />}
       {body}
+      {chips}
     </div>
   ) : (
     <>

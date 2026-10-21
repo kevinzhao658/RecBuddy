@@ -2,6 +2,8 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../../auth/AuthProvider'
 import { useMessages, useSendMessage, useSendImages, useMarkThreadRead, useRealtimeThread, signedChatImageUrl } from '../../lib/queries/chat'
 import { useThreadPeople } from '../../lib/queries/conversations'
+import { useReactions, useSetReaction } from '../../lib/queries/reactions'
+import { summarize } from '../../lib/reactions'
 import { conversationTitle } from '../../lib/conversations'
 import { copyText, quotePreview } from '../../lib/messageText'
 import { copyTextToClipboard, copyImageToClipboard, imageFilesFromClipboard } from '../../lib/clipboard'
@@ -52,6 +54,8 @@ export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialW
   useRealtimeThread(threadId)
 
   const people = useThreadPeople(threadId)
+  const reactionsQ = useReactions(threadId)
+  const setReaction = useSetReaction(threadId)
   const readOnly = conversation?.read_only ?? false
   const { unit } = useUnit()
   // Replies: the message being answered; a workout attached from the results
@@ -184,7 +188,9 @@ export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialW
                     ? () => jumpToMessage(latestCards.get(`${m.kind}:${m.workout_id}`)!)
                     : undefined}
                   onOpenWorkout={onOpenDay} actions={actionsFor(m)}
-                  quote={quoteFor(m)} highlighted={highlightId === m.id} />
+                  quote={quoteFor(m)} highlighted={highlightId === m.id}
+                  reactions={summarize(reactionsQ.data ?? [], m.id, meId, (uid) => (uid === meId ? 'You' : senders[uid]?.name ?? 'Someone'))}
+                  onReact={readOnly ? undefined : (kind) => setReaction.mutate({ messageId: m.id, kind })} />
               </Fragment>
             )
           })}

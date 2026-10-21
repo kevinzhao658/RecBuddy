@@ -135,3 +135,18 @@ test('a message about a workout shows a workout chip that opens the day', () => 
   fireEvent.click(screen.getByRole('button', { name: /Long Run 14 mi/ }))
   expect(onOpenWorkout).toHaveBeenCalledWith('2026-10-18', 'w9')
 })
+
+test('reactions: used chips show under the bubble; hovering reveals all five; click reacts', () => {
+  const onReact = vi.fn()
+  const reactions = [{ kind: 'like', emoji: '👍', label: 'Like', count: 1, mine: false, names: ['Maya'] }] as any
+  render(<MessageItem mine={false} actions={[{ key: 'copy', label: 'Copy', onClick: () => {} }]}
+    reactions={reactions} onReact={onReact}
+    m={{ ...base, kind: 'text', body: 'tempo felt great', payload: null } as any} />)
+  expect(screen.getByRole('button', { name: 'Like, 1: Maya' })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Laugh' })).toBeNull()
+  fireEvent.mouseEnter(screen.getByText('tempo felt great').closest('.group\\/msg')!)
+  fireEvent.click(screen.getByRole('button', { name: 'Laugh' }))
+  expect(onReact).toHaveBeenCalledWith('laugh')
+  fireEvent.mouseLeave(screen.getByText('tempo felt great').closest('.group\\/msg')!)
+  expect(screen.queryByRole('button', { name: 'Laugh' })).toBeNull()
+})

@@ -3,6 +3,7 @@ import { QueryClientProvider, QueryClient } from '@tanstack/react-query'
 import { ThreadView } from './ThreadView'
 import * as chat from '../../lib/queries/chat'
 import * as convMod from '../../lib/queries/conversations'
+import * as reactMod from '../../lib/queries/reactions'
 import * as authMod from '../../auth/AuthProvider'
 
 function setup() {
@@ -16,11 +17,14 @@ function setup() {
   vi.spyOn(chat, 'useSendMessage').mockReturnValue(send as any)
   vi.spyOn(chat, 'useMarkThreadRead').mockReturnValue(markRead as any)
   vi.spyOn(chat, 'useRealtimeThread').mockReturnValue(undefined as any)
+  vi.spyOn(reactMod, 'useReactions').mockReturnValue({ data: [{ message_id: 'm1', user_id: 'coach1', kind: 'like' }] } as any)
+  const react = { mutate: vi.fn() }
+  vi.spyOn(reactMod, 'useSetReaction').mockReturnValue(react as any)
   vi.spyOn(convMod, 'useThreadPeople').mockReturnValue({ data: [
     { user_id: 'a1', name: 'Jordan Lee', initials: 'JL', avatar_url: null, title: null },
     { user_id: 'coach1', name: 'Mara Whitlock', initials: 'MW', avatar_url: null, title: 'Head Coach' },
   ] } as any)
-  return { send, markRead }
+  return { send, markRead, react }
 }
 
 const team = { thread_id: 'th1', kind: 'team', title: null, team_athlete_id: 'a1',
@@ -96,4 +100,12 @@ test('header shows the conversation title, and a read-only thread has no compose
   expect(screen.getByText('Jordan Lee · Team')).toBeInTheDocument()
   expect(screen.getByText('This conversation is read-only.')).toBeInTheDocument()
   expect(screen.queryByLabelText('Message')).toBeNull()
+})
+
+test('reactions show under messages with names, and clicking a chip reacts', () => {
+  const { react } = setup()
+  wrap(<ThreadView threadId="th1" conversation={team} />)
+  expect(screen.getByRole('button', { name: 'Like, 1: You' })).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Like, 1: You' }))
+  expect(react.mutate).toHaveBeenCalledWith({ messageId: 'm1', kind: 'like' })
 })
