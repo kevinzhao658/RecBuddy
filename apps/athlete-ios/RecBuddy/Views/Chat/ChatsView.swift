@@ -118,9 +118,6 @@ struct ChatsView: View {
         HStack(spacing: 12) {
             avatars(c)
             VStack(alignment: .leading, spacing: 2) {
-                if c.isTeam {
-                    Text("TEAM CHAT").font(.system(size: 9, weight: .bold)).tracking(1).foregroundStyle(RB.accent)
-                }
                 HStack(alignment: .firstTextBaseline) {
                     Text(c.displayTitle)
                         .font(.subheadline.weight(c.unread > 0 ? .bold : .semibold))
@@ -144,6 +141,7 @@ struct ChatsView: View {
         .padding(.vertical, 6)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
+        .accessibilityHint(c.isTeam ? "Team chat" : "")
     }
 
     @ViewBuilder private func avatars(_ c: Conversation) -> some View {
@@ -159,6 +157,18 @@ struct ChatsView: View {
             }
         }
         .frame(width: 44, height: 44)
+        // Team chats carry a small green "Team" pill on the avatar (same as coach web).
+        .overlay(alignment: .bottom) {
+            if c.isTeam {
+                Text("TEAM")
+                    .font(.system(size: 8, weight: .heavy)).tracking(0.5)
+                    .foregroundStyle(RB.onAccent)
+                    .padding(.horizontal, 5).padding(.vertical, 1.5)
+                    .background(RB.accent, in: Capsule())
+                    .overlay(Capsule().stroke(RB.bg, lineWidth: 2))
+                    .offset(y: 5)
+            }
+        }
         .accessibilityHidden(true)
     }
 

@@ -10,7 +10,7 @@ test('titles: group name, one person, two, three, and team chats named after the
   expect(conversationTitle({ ...base, members: [m('a', 'Dani Brooks'), m('b', 'Marcus Hale')] } as any)).toBe('Dani & Marcus')
   expect(conversationTitle({ ...base, members: [m('a', 'Dani Brooks'), m('b', 'Marcus Hale'), m('c', 'Bea Lin')] } as any)).toBe('Dani, Marcus & Bea')
   expect(conversationTitle({ ...base, kind: 'team', team_athlete_id: 'ath', members: [m('ath', 'Maya Chen'), m('b', 'Marcus Hale')] } as any))
-    .toBe('Maya Chen · Team')
+    .toBe('Maya Chen')
 })
 
 test('preview line: You:, group sender prefix, and card kinds', () => {

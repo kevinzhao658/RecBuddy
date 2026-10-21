@@ -35,8 +35,10 @@ function renderAt(path: string) {
 test('lists conversations in inbox order with titles, previews, and unread', () => {
   setup([row('t1', 'team'), row('t2', 'chat', { unread: 2 })])
   renderAt('/coach/messages')
-  const items = screen.getAllByRole('button', { name: /Maya Chen · Team|Marcus Hale/ })
-  expect(items.map((b) => b.getAttribute('aria-label'))).toEqual(['Maya Chen · Team', 'Marcus Hale, 2 unread'])
+  const items = screen.getAllByRole('button', { name: /Maya Chen|Marcus Hale/ })
+  expect(items.map((b) => b.getAttribute('aria-label'))).toEqual(['Maya Chen, team chat', 'Marcus Hale, 2 unread'])
+  // Team chats carry a small "Team" pill on the avatar instead of a title suffix.
+  expect(screen.getAllByText('Team')).toHaveLength(1)
   expect(screen.getByText('Select a conversation')).toBeInTheDocument()
 })
 

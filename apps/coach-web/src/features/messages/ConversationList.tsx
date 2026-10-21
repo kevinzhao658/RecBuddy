@@ -41,10 +41,15 @@ export function ConversationList({ conversations, selectedId, meId, onSelect, on
           const first = c.members[0]
           return (
             <button key={c.thread_id} onClick={() => onSelect(c.thread_id)}
-              aria-label={c.unread > 0 ? `${title}, ${c.unread} unread` : title}
+              aria-label={[title, c.kind === 'team' && 'team chat', c.unread > 0 && `${c.unread} unread`].filter(Boolean).join(', ')}
               aria-current={selectedId === c.thread_id ? 'true' : undefined}
               className={`mb-0.5 flex w-full items-center gap-3 rounded-[12px] px-2.5 py-2 text-left transition ${selectedId === c.thread_id ? 'bg-surface2 ring-1 ring-line' : 'hover:bg-surface2/50'}`}>
-              <Avatar initials={first?.initials ?? '·'} url={first?.avatar_url} />
+              <span className="relative shrink-0">
+                <Avatar initials={first?.initials ?? '·'} url={first?.avatar_url} />
+                {c.kind === 'team' && (
+                  <span aria-hidden className="absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-full bg-accent px-1.5 py-px text-[9px] font-bold uppercase leading-tight tracking-wide text-on-accent ring-2 ring-bg">Team</span>
+                )}
+              </span>
               <span className="min-w-0 flex-1">
                 <span className="flex items-baseline justify-between gap-2">
                   <span className={`truncate text-sm ${c.unread ? 'font-bold text-text' : 'font-semibold text-text'}`}>{title}</span>

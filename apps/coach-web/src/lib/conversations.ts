@@ -2,11 +2,12 @@ import type { ChatPerson, Conversation } from './types'
 
 const first = (name: string) => name.split(' ')[0] || name
 
-/** Inbox / header title. Team chats read "<athlete> · Team" for coaches. */
+/** Inbox / header title. A team chat is named after its athlete; the list
+ *  marks it with a "Team" pill on the avatar. */
 export function conversationTitle(c: Conversation): string {
   if (c.kind === 'team') {
     const athlete = c.members.find((m) => m.user_id === c.team_athlete_id)
-    return athlete ? `${athlete.name} · Team` : 'Team chat'
+    return athlete ? athlete.name : 'Team chat'
   }
   if (c.title) return c.title
   const names = c.members.map((m) => m.name)
