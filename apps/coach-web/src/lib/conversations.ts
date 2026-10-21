@@ -1,4 +1,4 @@
-import type { Conversation } from './types'
+import type { ChatPerson, Conversation } from './types'
 
 const first = (name: string) => name.split(' ')[0] || name
 
@@ -33,4 +33,9 @@ export function previewLine(c: Conversation, meId: string): string {
     if (who) return `${first(who.name)}: ${content}`
   }
   return content
+}
+
+/** Add or remove a person from a To: selection. */
+export function toggleIn(list: ChatPerson[], p: ChatPerson): ChatPerson[] {
+  return list.some((x) => x.user_id === p.user_id) ? list.filter((x) => x.user_id !== p.user_id) : [...list, p]
 }
