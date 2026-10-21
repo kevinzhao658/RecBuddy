@@ -35,6 +35,12 @@ struct MessageRow: View {
     var quote: Quote? = nil
     /// Briefly true after jumping here from a reply quote.
     var highlighted: Bool = false
+    /// Reaction kinds on this message (canonical order), total count, and
+    /// whether one is mine; tapping the badge shows who reacted.
+    var reactionKinds: [ReactionKind] = []
+    var reactionCount: Int = 0
+    var reactedByMe: Bool = false
+    var onTapReactions: (() -> Void)? = nil
     @AppStorage("unit") private var unitRaw = "mi"
     private var unit: Unit { Unit(rawValue: unitRaw) ?? .mi }
 
@@ -66,7 +72,7 @@ struct MessageRow: View {
                 Spacer(minLength: 52)
                 VStack(alignment: .trailing, spacing: 2) {
                     quoteView
-                    content
+                    reactable(content)
                 }
             } else {
                 avatarColumn
@@ -77,7 +83,7 @@ struct MessageRow: View {
                             .foregroundStyle(RB.textMute)
                     }
                     quoteView
-                    content
+                    reactable(content)
                 }
                 Spacer(minLength: 52)
             }
@@ -89,6 +95,23 @@ struct MessageRow: View {
                 .padding(.horizontal, -6)
                 .animation(.easeOut(duration: 0.35), value: highlighted)
         )
+    }
+
+    // ── Reactions: corner badge (top-leading on mine, top-trailing on theirs) ──
+
+    @ViewBuilder private func reactable<C: View>(_ c: C) -> some View {
+        if reactionKinds.isEmpty || superseded {
+            c
+        } else {
+            c.padding(.top, 10)
+                .overlay(alignment: mine ? .topLeading : .topTrailing) {
+                    Button { onTapReactions?() } label: {
+                        ReactionBadge(kinds: reactionKinds, count: reactionCount, mineHighlighted: reactedByMe)
+                    }
+                    .buttonStyle(.plain)
+                    .offset(x: mine ? -10 : 10, y: -2)
+                }
+        }
     }
 
     // ── Reply quote (above the bubble) ─────────────────────────────────────

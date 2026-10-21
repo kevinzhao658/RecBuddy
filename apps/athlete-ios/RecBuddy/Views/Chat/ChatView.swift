@@ -40,6 +40,7 @@ struct ChatView: View {
     @State private var replyingTo: Message?
     @State private var workoutQuote: WorkoutQuote?
     @State private var highlightedId: String?
+    @State private var reactionsFor: String?          // message id whose who-reacted sheet is open
     private let router = AppRouter.shared
     @AppStorage("unit") private var unitRaw = "mi"
     private var unit: Unit { Unit(rawValue: unitRaw) ?? .mi }
@@ -294,7 +295,11 @@ struct ChatView: View {
                                         },
                                         onOpenWorkout: { id in Task { await openTrace(id) } },
                                         quote: quote(for: m, proxy: proxy),
-                                        highlighted: highlightedId == m.id
+                                        highlighted: highlightedId == m.id,
+                                        reactionKinds: ReactionSummary.badges(store.reactions, messageId: m.id),
+                                        reactionCount: ReactionSummary.count(store.reactions, messageId: m.id),
+                                        reactedByMe: ReactionSummary.mine(store.reactions, messageId: m.id, me: profile.id) != nil,
+                                        onTapReactions: { reactionsFor = m.id }
                                     )
                                     .contextMenu { messageMenu(m) }
                                     .id(m.id)
@@ -358,6 +363,13 @@ struct ChatView: View {
         // no-coach empty state and a fresh thread appear without a relaunch.
         .task(id: session.hasCoach) { await reopen() }
         .onDisappear { Task { await store.close() } }
+        .sheet(isPresented: Binding(get: { reactionsFor != nil }, set: { if !$0 { reactionsFor = nil } })) {
+            if let id = reactionsFor {
+                ReactionsDetailSheet(rows: ReactionSummary.names(store.reactions, messageId: id) { uid in
+                    uid == profile.id ? "You" : (store.senders[uid]?.name ?? "Someone")
+                })
+            }
+        }
         .sheet(item: $reportTarget) { target in
             ReportSheet(target: target) { await afterBlock() }
         }
@@ -580,6 +592,21 @@ struct ChatView: View {
     /// images. (Report / Block for coach messages live here too.)
     @ViewBuilder
     private func messageMenu(_ m: Message) -> some View {
+        if !readOnly {
+            ControlGroup {
+                ForEach(ReactionKind.allCases) { k in
+                    Button { react(m, k) } label: { Text(k.emoji) }
+                        .accessibilityLabel(k.label)
+                }
+            }
+            .controlGroupStyle(.palette)
+            .menuActionDismissBehavior(.enabled)   // close the menu after reacting, like Messages
+            if let current = ReactionSummary.mine(store.reactions, messageId: m.id, me: profile.id) {
+                Button { react(m, current) } label: {
+                    Label("Remove \(current.emoji)", systemImage: "xmark.circle")
+                }
+            }
+        }
         Button {
             replyingTo = m
             composerFocused = true
@@ -614,6 +641,13 @@ struct ChatView: View {
             } label: {
                 Label("Block \(name)", systemImage: "hand.raised")
             }
+        }
+    }
+
+    private func react(_ m: Message, _ k: ReactionKind) {
+        Task {
+            do { try await store.react(messageId: m.id, kind: k) }
+            catch { sendError = "Couldn't add that reaction — try again." }
         }
     }
 
