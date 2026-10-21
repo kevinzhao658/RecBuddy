@@ -3,6 +3,23 @@
 -- auth.uid(); membership rows are never written by clients directly.
 
 -- ============================================================
+-- 0. Coaching links are the basis of reach, so only agreed links count
+-- ============================================================
+-- team_write let an athlete INSERT a link to any coach without an invite. That
+-- used to expose only the athlete's own data; with chat reach it would let an
+-- athlete message any coach and find that coach's other athletes. Athletes now
+-- join coaches only through redeem_invite (definer). Admin coaches still add
+-- co-coaches, and athletes can still remove or change their own links.
+drop policy if exists team_write on coach_athlete;
+create policy team_insert on coach_athlete for insert
+  with check (coach_can_admin(athlete_id));
+create policy team_update on coach_athlete for update
+  using (athlete_id = auth.uid() or coach_can_admin(athlete_id))
+  with check (athlete_id = auth.uid() or coach_can_admin(athlete_id));
+create policy team_delete on coach_athlete for delete
+  using (athlete_id = auth.uid() or coach_can_admin(athlete_id));
+
+-- ============================================================
 -- 1. Reach: the people a user may start a chat with or add to one
 -- ============================================================
 -- One row per reachable person, best context first:
@@ -97,7 +114,7 @@ begin
   end if;
   foreach v_target in array v_ids loop
     if not can_add_to_chat(v_me, v_target) then
-      raise exception 'you can''t add % to a chat', coalesce((select name from profiles where id = v_target), 'that person');
+      raise exception 'you can''t add that person to a chat';
     end if;
   end loop;
 
@@ -159,7 +176,7 @@ begin
   if cardinality(v_active) + cardinality(v_new) > 25 then raise exception 'groups are limited to 25 people'; end if;
   foreach v_target in array v_new loop
     if not can_add_to_chat(v_me, v_target) then
-      raise exception 'you can''t add % to a chat', coalesce((select name from profiles where id = v_target), 'that person');
+      raise exception 'you can''t add that person to a chat';
     end if;
   end loop;
   insert into thread_members (thread_id, user_id, status, joined_at)

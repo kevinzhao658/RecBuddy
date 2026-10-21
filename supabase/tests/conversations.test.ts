@@ -400,3 +400,48 @@ describe('conversation lifecycle', () => {
     expect(await status(g, a2.id)).toBe('active')
   })
 })
+
+// ── Security review fixes ────────────────────────────────────────────────
+describe('reach trust boundary', () => {
+  const tag = randomUUID().slice(0, 6)
+
+  it('an athlete cannot link themselves to an arbitrary coach (no reach without an invite)', async () => {
+    const c = await createAndSignIn({ role: 'coach', name: `Far ${tag}`, title: 'Head Coach' })
+    const roster = await createAndSignIn({ role: 'athlete', name: `Roster ${tag}` })
+    await link(c.id, roster.id)
+    const a = await createAndSignIn({ role: 'athlete', name: `Pushy ${tag}` })
+    const ins = await a.client.from('coach_athlete').insert({ coach_id: c.id, athlete_id: a.id, relationship: 'head' })
+    expect(ins.error).not.toBeNull()
+    const found = ((await a.client.rpc('search_chat_people', { p_query: tag })).data ?? []).map((r: any) => r.user_id)
+    expect(found).not.toContain(roster.id)
+    expect(found).not.toContain(c.id)
+  })
+
+  it('athletes can still remove their own coach, and an admin coach can still add a co-coach', async () => {
+    const head = await createAndSignIn({ role: 'coach', name: `Hd ${tag}`, title: 'Head Coach' })
+    const asst = await createAndSignIn({ role: 'coach', name: `As ${tag}`, title: 'Assistant Coach' })
+    const a = await createAndSignIn({ role: 'athlete', name: `Own ${tag}` })
+    await admin().from('coach_athlete').insert({ coach_id: head.id, athlete_id: a.id, relationship: 'head', permission: 'admin' })
+    const add = await head.client.from('coach_athlete').insert({ coach_id: asst.id, athlete_id: a.id, relationship: 'assistant' })
+    expect(add.error).toBeNull()
+    const del = await a.client.from('coach_athlete').delete().eq('coach_id', asst.id).eq('athlete_id', a.id).select()
+    expect(del.data).toHaveLength(1)
+  })
+
+  it('the "can\'t add" error does not reveal the target\'s name', async () => {
+    const hidden = await createAndSignIn({ role: 'athlete', name: `Secret Name ${tag}` })
+    const a = await createAndSignIn({ role: 'athlete', name: `Asker ${tag}` })
+    const r = await a.client.rpc('start_conversation', { p_user_ids: [hidden.id] })
+    expect(r.error?.message).toMatch(/can't add/)
+    expect(r.error?.message).not.toMatch(/Secret Name/)
+  })
+
+  it('a client-created team thread cannot carry a title, creator, or read-only flag', async () => {
+    const c = await createAndSignIn({ role: 'coach', name: `Tt ${tag}`, title: 'Head Coach' })
+    const a = await createAndSignIn({ role: 'athlete', name: `TtA ${tag}` })
+    await link(c.id, a.id)
+    const bad = await a.client.from('message_threads')
+      .insert({ athlete_id: a.id, coach_id: c.id, title: 'pwned', read_only: true, created_by: c.id })
+    expect(bad.error).not.toBeNull()
+  })
+})

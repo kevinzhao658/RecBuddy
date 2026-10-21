@@ -117,7 +117,7 @@ create policy threads_read on message_threads for select
 -- and no client may update or delete a thread (bump_thread runs as definer).
 create policy threads_insert on message_threads for insert
   with check (
-    kind = 'team'
+    kind = 'team' and not read_only and title is null and created_by is null
     and exists (select 1 from coach_athlete ca where ca.athlete_id = message_threads.athlete_id
                                                 and ca.coach_id = message_threads.coach_id)
     and (athlete_id = auth.uid() or is_coach_of(athlete_id))
