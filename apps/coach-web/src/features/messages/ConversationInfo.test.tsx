@@ -33,3 +33,14 @@ test('a read-only conversation says so and offers no edits', () => {
   expect(screen.getByText('This conversation is read-only.')).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Add people' })).toBeNull()
 })
+
+test('a team chat can be renamed by its members, but has no add, leave, or hide', async () => {
+  const { fireEvent } = await import('@testing-library/react')
+  const rename = { mutate: vi.fn(), isPending: false }
+  vi.spyOn(convMod, 'useRenameConversation').mockReturnValue(rename as any)
+  wrap(<ConversationInfo conversation={conv([m('a1', 'Maya Chen')], { kind: 'team', team_athlete_id: 'a1' })} onClose={() => {}} onOpenThread={() => {}} />)
+  fireEvent.change(screen.getByLabelText('Group name'), { target: { value: 'Marathon squad' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(rename.mutate).toHaveBeenCalledWith({ threadId: 't1', title: 'Marathon squad' }, expect.anything())
+  expect(screen.queryByRole('button', { name: /Leave|Hide|Add people/ })).toBeNull()
+})

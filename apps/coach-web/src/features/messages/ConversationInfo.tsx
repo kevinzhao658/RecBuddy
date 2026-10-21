@@ -6,7 +6,7 @@ import type { ChatPerson, Conversation } from '../../lib/types'
 import { PeoplePicker } from './PeoplePicker'
 import { ConfirmDialog } from '../roster/ConfirmDialog'
 
-/** Members, group name, add people, leave (groups) or hide (1:1). */
+/** Members, group name (groups and team chats), add people, leave (groups) or hide (1:1). */
 export function ConversationInfo({ conversation, onClose, onOpenThread, onGone }: {
   conversation: Conversation; onClose: () => void
   /** Adding people to a 1:1 starts a NEW group — open it. */
@@ -36,7 +36,7 @@ export function ConversationInfo({ conversation, onClose, onOpenThread, onGone }
       </header>
       <div className="flex-1 space-y-5 overflow-y-auto p-4">
         {readOnly && <p className="rounded-[10px] bg-surface2 px-3 py-2 text-xs text-text-mute">This conversation is read-only.</p>}
-        {isGroup && !readOnly && (
+        {(isGroup || isTeam) && !readOnly && (
           <div>
             <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-faint">Group name</p>
             <div className="flex gap-2">

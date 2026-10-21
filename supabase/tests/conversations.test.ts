@@ -666,3 +666,22 @@ describe('blocked pairs never share a new group (Kevin, 2026-10-21)', () => {
     expect(r.error).toBeNull()
   })
 })
+
+describe('renaming the team chat (Kevin, 2026-10-21)', () => {
+  const tag = randomUUID().slice(0, 8)
+
+  it('the athlete and their coaches can rename the team chat; others cannot', async () => {
+    const c = await createAndSignIn({ role: 'coach', name: `Tc ${tag}`, title: 'Head Coach' })
+    const a = await createAndSignIn({ role: 'athlete', name: `Ta ${tag}` })
+    const outsider = await createAndSignIn({ role: 'coach', name: `To ${tag}`, title: 'Head Coach' })
+    await link(c.id, a.id)
+    const team = (await a.client.rpc('team_thread_id', { p_athlete: a.id })).data
+    expect((await a.client.rpc('rename_conversation', { p_thread: team, p_title: 'Marathon squad' })).error).toBeNull()
+    const row = (await c.client.rpc('my_conversations')).data.find((r: any) => r.thread_id === team)
+    expect(row.title).toBe('Marathon squad')
+    expect((await c.client.rpc('rename_conversation', { p_thread: team, p_title: 'Fall block' })).error).toBeNull()
+    expect((await outsider.client.rpc('rename_conversation', { p_thread: team, p_title: 'Hijack' })).error).not.toBeNull()
+    const { data } = await admin().from('message_threads').select('title').eq('id', team).single()
+    expect(data!.title).toBe('Fall block')
+  })
+})
