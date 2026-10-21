@@ -89,5 +89,5 @@ export interface ChatPerson {
 /** thread_people row; current = still in the conversation (people who left keep a name on old messages). */
 export interface ThreadPerson { user_id: string; name: string; initials: string; avatar_url: string | null; title: string | null; current?: boolean }
 export type ReactionKind = 'like' | 'emphasize' | 'question' | 'laugh' | 'congrats'
-/** message_reactions row; kind null = removed. */
-export interface Reaction { message_id: string; user_id: string; kind: ReactionKind | null }
+/** message_reactions row: one per person per kind; active false = removed. */
+export interface Reaction { message_id: string; user_id: string; kind: ReactionKind; active?: boolean }

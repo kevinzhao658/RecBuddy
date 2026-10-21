@@ -21,20 +21,26 @@ describe('message reactions', () => {
       .insert({ thread_id: threadId, from_user_id: coach.id, kind: 'text', body: 'Great work today' }).select().single()).data.id
   })
 
-  // A removed reaction is kept as kind = null (so un-reacting is an RLS-filtered UPDATE, not a DELETE).
+  // A removed reaction is kept with active = false (so un-reacting is an RLS-filtered UPDATE, not a DELETE).
   const mine = async (client: any, who: string) =>
-    ((await client.from('message_reactions').select('kind').eq('message_id', msgId).eq('user_id', who)).data ?? [])
-      .map((r: any) => r.kind).filter(Boolean)
+    ((await client.from('message_reactions').select('kind, active').eq('message_id', msgId).eq('user_id', who)).data ?? [])
+      .filter((r: any) => r.active).map((r: any) => r.kind).sort()
 
-  it('one reaction per user: set, switch, and same kind removes', async () => {
+  it('several kinds per user, one of each: add, add another, and the same kind again removes only it', async () => {
     expect((await athlete.client.rpc('set_reaction', { p_message: msgId, p_kind: 'like' })).data).toBe('like')
     expect(await mine(athlete.client, athlete.id)).toEqual(['like'])
     expect((await athlete.client.rpc('set_reaction', { p_message: msgId, p_kind: 'congrats' })).data).toBe('congrats')
-    expect(await mine(athlete.client, athlete.id)).toEqual(['congrats'])
+    expect(await mine(athlete.client, athlete.id)).toEqual(['congrats', 'like'])
     const off = await athlete.client.rpc('set_reaction', { p_message: msgId, p_kind: 'congrats' })
     expect(off.error).toBeNull()
     expect(off.data).toBeNull()
-    expect(await mine(athlete.client, athlete.id)).toEqual([])
+    expect(await mine(athlete.client, athlete.id)).toEqual(['like'])
+    expect((await athlete.client.rpc('set_reaction', { p_message: msgId, p_kind: 'congrats' })).data).toBe('congrats')
+    expect(await mine(athlete.client, athlete.id)).toEqual(['congrats', 'like'])
+    const { data: rows } = await admin().from('message_reactions').select('kind').eq('message_id', msgId).eq('user_id', athlete.id)
+    expect(rows).toHaveLength(2)   // one row per kind, re-used on re-add
+    await athlete.client.rpc('set_reaction', { p_message: msgId, p_kind: 'like' })
+    await athlete.client.rpc('set_reaction', { p_message: msgId, p_kind: 'congrats' })
   })
 
   it('everyone in the conversation sees who reacted; thread_id is filled in', async () => {
@@ -73,11 +79,11 @@ describe('message reactions', () => {
     expect((await other.client.rpc('set_reaction', { p_message: m2.id, p_kind: 'like' })).error).not.toBeNull()
   })
 
-  it('un-reacting updates the row to kind = null instead of deleting it', async () => {
+  it('un-reacting updates the row to active = false instead of deleting it', async () => {
     await coach.client.rpc('set_reaction', { p_message: msgId, p_kind: 'emphasize' })
     await coach.client.rpc('set_reaction', { p_message: msgId, p_kind: 'emphasize' })
-    const { data } = await admin().from('message_reactions').select('kind').eq('message_id', msgId).eq('user_id', coach.id)
-    expect(data).toEqual([{ kind: null }])
+    const { data } = await admin().from('message_reactions').select('kind, active').eq('message_id', msgId).eq('user_id', coach.id)
+    expect(data).toEqual([{ kind: 'emphasize', active: false }])
   })
 
   it('a member who joined later cannot see reactions on earlier messages', async () => {

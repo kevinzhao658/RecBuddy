@@ -142,13 +142,15 @@ enum ReactionKind: String, CaseIterable, Codable, Identifiable {
     }
 }
 
-/// A message_reactions row. kind == nil means the reaction was removed.
+/// A message_reactions row: one per person per kind (a person can hold
+/// several kinds on a message). active == false means it was removed.
 struct Reaction: Decodable, Equatable {
     let messageId: String
     let userId: String
     let kind: ReactionKind?
+    var active: Bool? = nil
     enum CodingKeys: String, CodingKey {
-        case kind
+        case kind, active
         case messageId = "message_id"
         case userId = "user_id"
     }
@@ -158,7 +160,7 @@ struct Reaction: Decodable, Equatable {
 enum ReactionSummary {
     private static func active(_ rs: [Reaction], _ messageId: String) -> [(user: String, kind: ReactionKind)] {
         rs.compactMap { r in
-            guard r.messageId == messageId, let k = r.kind else { return nil }
+            guard r.messageId == messageId, r.active != false, let k = r.kind else { return nil }
             return (r.userId, k)
         }
     }
@@ -173,8 +175,10 @@ enum ReactionSummary {
         active(rs, messageId).count
     }
 
-    static func mine(_ rs: [Reaction], messageId: String, me: String) -> ReactionKind? {
-        active(rs, messageId).first { $0.user == me }?.kind
+    /// The kinds I've added to a message, in canonical order.
+    static func mine(_ rs: [Reaction], messageId: String, me: String) -> [ReactionKind] {
+        let kinds = Set(active(rs, messageId).filter { $0.user == me }.map(\.kind))
+        return ReactionKind.allCases.filter(kinds.contains)
     }
 
     /// (name, kind) for the who-reacted sheet, grouped by kind in canonical order.

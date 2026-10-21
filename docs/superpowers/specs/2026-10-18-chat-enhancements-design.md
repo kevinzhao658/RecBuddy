@@ -37,7 +37,7 @@ RecBuddy chat today is a single team thread per athlete. Kevin wants it to work 
 ## Decisions (Kevin's)
 
 **Reactions**
-- The set is 👍 like, ‼️ emphasize, ❓ question, 😂 laugh, 🎉 congratulate, one reaction per person per message. Tapping your current reaction removes it.
+- The set is 👍 like, ‼️ emphasize, ❓ question, 😂 laugh, 🎉 congratulate, a person can add several kinds to a message, at most one of each (e.g. 😂 and ❓). Tapping a kind you already added removes just that one (changed 2026-10-21 at Kevin's request).
 - Everyone in the conversation sees counts and who reacted.
 - The message's author gets a push, e.g. "Dani 👍 your message".
 - iOS shows an iMessage corner badge on the bubble's top corner, and the long-press menu gets the five emoji as a row above Reply, Copy, Report and Block.

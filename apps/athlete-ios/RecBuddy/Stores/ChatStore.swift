@@ -68,11 +68,11 @@ final class ChatStore {
 
     private func loadReactions(threadId: String) async throws {
         reactions = try await Supa.shared.from("message_reactions")
-            .select("message_id, user_id, kind").eq("thread_id", value: threadId)
+            .select("message_id, user_id, kind, active").eq("thread_id", value: threadId)
             .execute().value
     }
 
-    /// Toggle a reaction (same kind removes it). Optimistic, then reconciled
+    /// Toggle one reaction kind for me (adding it again removes it; other kinds stay). Optimistic, then reconciled
     /// by realtime / reload.
     func react(messageId: String, kind: ReactionKind) async throws {
         guard let thread else { return }

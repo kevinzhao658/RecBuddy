@@ -56,8 +56,8 @@ import Foundation
         let rs = try JSONDecoder().decode([Reaction].self, from: json.data(using: .utf8)!)
         #expect(ReactionSummary.badges(rs, messageId: "m1") == [.like, .congrats])  // canonical order, nulls ignored
         #expect(ReactionSummary.count(rs, messageId: "m1") == 3)
-        #expect(ReactionSummary.mine(rs, messageId: "m1", me: "me") == .congrats)
-        #expect(ReactionSummary.mine(rs, messageId: "m2", me: "me") == nil)
+        #expect(ReactionSummary.mine(rs, messageId: "m1", me: "me") == [.congrats])
+        #expect(ReactionSummary.mine(rs, messageId: "m2", me: "me").isEmpty)
         let names = ReactionSummary.names(rs, messageId: "m1") { $0 == "me" ? "You" : $0 }
         #expect(names.map(\.name) == ["u2", "You", "u3"])  // grouped in canonical kind order
     }
@@ -134,5 +134,20 @@ import Foundation
         let people = try JSONDecoder().decode([ThreadPerson].self, from: json.data(using: .utf8)!)
         #expect(people[1].isMember == false)
         #expect(ChatStore.currentPeople(people, me: "me", headCoach: "c1").map(\.userId) == ["c1", "c2"])
+    }
+}
+
+@Suite struct MultiReactionTests {
+    @Test func aPersonCanHoldSeveralKindsOneOfEach() throws {
+        let json = """
+        [{"message_id":"m1","user_id":"me","kind":"laugh","active":true},
+         {"message_id":"m1","user_id":"me","kind":"question","active":true},
+         {"message_id":"m1","user_id":"me","kind":"like","active":false},
+         {"message_id":"m1","user_id":"u2","kind":"laugh","active":true}]
+        """
+        let rs = try JSONDecoder().decode([Reaction].self, from: json.data(using: .utf8)!)
+        #expect(ReactionSummary.mine(rs, messageId: "m1", me: "me") == [.question, .laugh])   // canonical order
+        #expect(ReactionSummary.badges(rs, messageId: "m1") == [.question, .laugh])
+        #expect(ReactionSummary.count(rs, messageId: "m1") == 3)
     }
 }

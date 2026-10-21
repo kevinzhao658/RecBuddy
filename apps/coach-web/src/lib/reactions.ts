@@ -11,9 +11,10 @@ export const REACTIONS: { kind: ReactionKind; emoji: string; label: string }[] =
 
 export type ReactionSummary = { kind: ReactionKind; emoji: string; label: string; count: number; mine: boolean; names: string[] }
 
-/** Used reactions on one message, grouped by kind in canonical order. */
+/** Used reactions on one message, grouped by kind in canonical order. A person
+ *  can hold several kinds (one of each). */
 export function summarize(rs: Reaction[], messageId: string, meId: string, nameFor: (userId: string) => string): ReactionSummary[] {
-  const live = rs.filter((r) => r.message_id === messageId && r.kind)
+  const live = rs.filter((r) => r.message_id === messageId && r.kind && r.active !== false)
   return REACTIONS.flatMap((def) => {
     const of = live.filter((r) => r.kind === def.kind)
     if (!of.length) return []

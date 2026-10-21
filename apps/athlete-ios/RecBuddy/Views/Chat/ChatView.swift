@@ -298,7 +298,7 @@ struct ChatView: View {
                                         highlighted: highlightedId == m.id,
                                         reactionKinds: ReactionSummary.badges(store.reactions, messageId: m.id),
                                         reactionCount: ReactionSummary.count(store.reactions, messageId: m.id),
-                                        reactedByMe: ReactionSummary.mine(store.reactions, messageId: m.id, me: profile.id) != nil,
+                                        reactedByMe: !ReactionSummary.mine(store.reactions, messageId: m.id, me: profile.id).isEmpty,
                                         onTapReactions: { reactionsFor = m.id }
                                     )
                                     .contextMenu { messageMenu(m) }
@@ -605,9 +605,9 @@ struct ChatView: View {
             }
             .controlGroupStyle(.palette)
             .menuActionDismissBehavior(.enabled)   // close the menu after reacting, like Messages
-            if let current = ReactionSummary.mine(store.reactions, messageId: m.id, me: profile.id) {
-                Button { react(m, current) } label: {
-                    Label("Remove \(current.emoji)", systemImage: "xmark.circle")
+            ForEach(ReactionSummary.mine(store.reactions, messageId: m.id, me: profile.id)) { k in
+                Button { react(m, k) } label: {
+                    Label("Remove \(k.emoji)", systemImage: "xmark.circle")
                 }
             }
         }

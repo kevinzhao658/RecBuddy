@@ -5,11 +5,11 @@ import { supabase, uniqueTopic } from '../supabase'
 import type { Reaction, ReactionKind } from '../types'
 
 export async function fetchReactions(client: SupabaseClient, threadId: string): Promise<Reaction[]> {
-  const { data, error } = await client.from('message_reactions').select('message_id, user_id, kind').eq('thread_id', threadId)
+  const { data, error } = await client.from('message_reactions').select('message_id, user_id, kind, active').eq('thread_id', threadId)
   if (error) throw error
-  return (data as Reaction[]).filter((r) => r.kind)
+  return (data as Reaction[]).filter((r) => r.active !== false)
 }
-/** Toggle: returns the new kind, or null when the same kind removed it. */
+/** Toggles one kind for me: returns it when added, null when removed. */
 export async function setReaction(client: SupabaseClient, messageId: string, kind: ReactionKind): Promise<ReactionKind | null> {
   const { data, error } = await client.rpc('set_reaction', { p_message: messageId, p_kind: kind })
   if (error) throw error
