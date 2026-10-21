@@ -2,59 +2,61 @@ import Foundation
 import Observation
 import Supabase
 
-/// One coaching-team member, resolved via the get_team RPC. The definer RPC
-/// sees the WHOLE team (head + assistants added later); the raw profiles read
-/// it replaces missed co-coaches, leaving their messages nameless.
-struct ChatSender: Decodable, Equatable {
-    let coachId: String
-    let relationship: String   // 'head' | 'assistant'
-    let name: String
-    let title: String?
-    let initials: String
-    let avatarUrl: String?
-    enum CodingKeys: String, CodingKey {
-        case relationship, name, title, initials
-        case coachId = "coach_id"
-        case avatarUrl = "avatar_url"
-    }
-}
-
-/// The athlete's one thread with their coach team: messages, senders,
-/// send, realtime refresh, mark-read. Senders resolve via get_team
-/// (head first — drives the chat title and the avatar stack).
+/// One open conversation (team or chat): messages, the people in it,
+/// reactions, send, realtime refresh, mark-read.
 @Observable @MainActor
 final class ChatStore {
     enum Phase: Equatable { case idle, loading, error(String), noCoach }
     private(set) var phase: Phase = .idle
     private(set) var thread: Thread?
     private(set) var messages: [Message] = []
-    private(set) var team: [ChatSender] = []            // head first
-    private(set) var senders: [String: ChatSender] = [:] // from_user_id -> member
+    private(set) var reactions: [Reaction] = []
+    /// Everyone who can appear in this thread (thread_people), by user id.
+    private(set) var senders: [String: ThreadPerson] = [:]
+    /// The other people, for the header (head coach first on team threads).
+    private(set) var team: [ThreadPerson] = []
+    private var me = ""
     private var channel: RealtimeChannelV2?
     private var subscriptionTask: Task<Void, Never>?
+    private var reactionTask: Task<Void, Never>?
 
-    func open(athleteId: String) async {
-        await close()  // evict any prior channel/task — makes open() idempotent under fast tab flips
+    /// Open the athlete's team thread (Calendar share paths, legacy entry).
+    func openTeam(athleteId: String) async {
+        await close()
         phase = .loading
         do {
-            let t = try await ChatShare.fetchOrCreateThread(athleteId: athleteId)
+            let id = try await ChatShare.teamThreadId(athleteId: athleteId)
+            await open(threadId: id, me: athleteId)
+        } catch is CancellationError {
+        } catch let e as NSError where e.domain == "RecBuddy" && e.code == 1 {
+            phase = .noCoach   // no coach linked: ChatView shows the add-a-coach state
+        } catch {
+            phase = .error("Couldn't load chat. Pull to retry.")
+        }
+    }
+
+    func open(threadId: String, me: String) async {
+        await close()  // evict any prior channel/task — makes open() idempotent under fast flips
+        self.me = me
+        phase = .loading
+        do {
+            let t: Thread = try await Supa.shared.from("message_threads")
+                .select("id, kind, title, read_only, athlete_id, coach_id")
+                .eq("id", value: threadId).single().execute().value
             thread = t
-            let rows: [ChatSender] = try await Supa.shared
-                .rpc("get_team", params: ["p_athlete_id": athleteId])
-                .execute().value
-            team = rows
-            senders = Dictionary(uniqueKeysWithValues: rows.map { ($0.coachId, $0) })
-            try await load(threadId: t.id)
-            await markRead(athleteId: athleteId)
-            await subscribe(threadId: t.id, athleteId: athleteId)
+            let people: [ThreadPerson] = try await Supa.shared
+                .rpc("thread_people", params: ["p_thread": threadId]).execute().value
+            senders = Dictionary(people.map { ($0.userId, $0) }, uniquingKeysWith: { a, _ in a })
+            // Everyone but me, head coach first (team threads' coach_id is the head).
+            team = people.filter { $0.userId != me }
+                .sorted { ($0.userId == t.coachId ? 0 : 1, $0.name) < ($1.userId == t.coachId ? 0 : 1, $1.name) }
+            try await load(threadId: threadId)
+            try await loadReactions(threadId: threadId)
+            await markRead()
+            await subscribe(threadId: threadId)
             phase = .idle
         } catch is CancellationError {
             // view disappeared mid-open — the next .task will re-open
-        } catch let e as NSError where e.domain == "RecBuddy" && e.code == 1 {
-            // No coach linked (and no prior thread) — not an error: the athlete
-            // was removed or hasn't joined a coach yet. ChatView shows the
-            // add-a-coach empty state.
-            phase = .noCoach
         } catch {
             phase = .error("Couldn't load chat. Pull to retry.")
         }
@@ -64,6 +66,22 @@ final class ChatStore {
         messages = try await Supa.shared.from("messages")
             .select().eq("thread_id", value: threadId)
             .order("created_at").execute().value
+    }
+
+    private func loadReactions(threadId: String) async throws {
+        reactions = try await Supa.shared.from("message_reactions")
+            .select("message_id, user_id, kind").eq("thread_id", value: threadId)
+            .execute().value
+    }
+
+    /// Toggle a reaction (same kind removes it). Optimistic, then reconciled
+    /// by realtime / reload.
+    func react(messageId: String, kind: ReactionKind) async throws {
+        guard let thread else { return }
+        struct Params: Encodable { let p_message: String; let p_kind: String }
+        _ = try await Supa.shared.rpc("set_reaction",
+                                      params: Params(p_message: messageId, p_kind: kind.rawValue)).execute()
+        try await loadReactions(threadId: thread.id)
     }
 
     /// Send a text message, optionally quote-replying to `replyTo` (a message id
@@ -118,44 +136,40 @@ final class ChatStore {
         try await load(threadId: thread.id)
     }
 
-    /// Mark coach-authored unread messages read (drives the coach's unread badge).
-    func markRead(athleteId: String) async {
+    /// Mark this thread read for me (chat: last_read_at; team: per-message flag).
+    func markRead() async {
         guard let thread else { return }
-        _ = try? await Supa.shared.from("messages").update(["read": true])
-            .eq("thread_id", value: thread.id).eq("read", value: false)
-            .neq("from_user_id", value: athleteId).execute()
+        _ = try? await Supa.shared.rpc("mark_thread_read", params: ["p_thread": thread.id]).execute()
     }
 
-    /// Realtime: any change to this thread's messages -> reload (coach-web pattern).
-    /// Adaptation from draft: postgresChange now takes RealtimePostgresFilter (.eq typed enum)
-    /// instead of the deprecated String? filter overload; subscribe() is deprecated in 2.48,
-    /// replaced by subscribeWithError() (async throws). Callbacks must be registered BEFORE
-    /// subscribeWithError() — the draft order is preserved.
-    private func subscribe(threadId: String, athleteId: String) async {
-        let ch = Supa.shared.channel("messages:\(threadId)")
-        // Register postgres change listener before subscribing (SDK enforces this order).
-        // Use typed RealtimePostgresFilter.eq instead of deprecated String? filter.
-        let changes = ch.postgresChange(
-            AnyAction.self,
-            schema: "public",
-            table: "messages",
-            filter: .eq("thread_id", value: threadId)
-        )
-        // subscribeWithError() replaces the deprecated @MainActor subscribe() in 2.48.
+    /// Realtime: any change to this thread's messages or reactions -> reload.
+    /// Listeners must be registered before subscribeWithError().
+    private func subscribe(threadId: String) async {
+        let ch = Supa.shared.channel("thread:\(threadId)")
+        let changes = ch.postgresChange(AnyAction.self, schema: "public", table: "messages",
+                                        filter: .eq("thread_id", value: threadId))
+        let reactionChanges = ch.postgresChange(AnyAction.self, schema: "public", table: "message_reactions",
+                                                filter: .eq("thread_id", value: threadId))
         try? await ch.subscribeWithError()
         channel = ch
         subscriptionTask = Task { [weak self] in
             for await _ in changes {
                 guard let self else { break }
                 try? await self.load(threadId: threadId)
-                await self.markRead(athleteId: athleteId)
+                await self.markRead()
+            }
+        }
+        reactionTask = Task { [weak self] in
+            for await _ in reactionChanges {
+                guard let self else { break }
+                try? await self.loadReactions(threadId: threadId)
             }
         }
     }
 
     func close() async {
-        subscriptionTask?.cancel()
-        subscriptionTask = nil
+        subscriptionTask?.cancel(); subscriptionTask = nil
+        reactionTask?.cancel(); reactionTask = nil
         if let channel { await Supa.shared.removeChannel(channel) }
         channel = nil
     }

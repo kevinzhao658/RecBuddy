@@ -135,10 +135,15 @@ struct WorkoutActual: Codable, Identifiable, Equatable {
 /// Shadows Foundation.Thread; qualify as Foundation.Thread if OS thread API is ever needed.
 struct Thread: Codable, Identifiable, Equatable {
     let id: String
-    let athleteId: String
-    let coachId: String
+    var kind: String = "team"           // team | chat
+    var title: String? = nil
+    var readOnly: Bool = false
+    let athleteId: String?              // team threads only
+    let coachId: String?
+    var isTeam: Bool { kind == "team" }
     enum CodingKeys: String, CodingKey {
-        case id
+        case id, kind, title
+        case readOnly = "read_only"
         case athleteId = "athlete_id"
         case coachId = "coach_id"
     }

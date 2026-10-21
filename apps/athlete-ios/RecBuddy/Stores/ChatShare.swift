@@ -2,27 +2,17 @@ import Foundation
 import Supabase
 
 /// Chat plumbing shared by LogRunSheet (share-to-chat) and ChatStore.
-/// Mirrors coach-web's fetchThread: reuse the existing thread, else create one
-/// (threads_write RLS allows the athlete; coach_id = their head coach).
+/// Share-to-chat always targets the athlete's TEAM thread (team_thread_id).
 enum ChatShare {
-    static func fetchOrCreateThread(athleteId: String) async throws -> Thread {
-        let existing: [Thread] = try await Supa.shared.from("message_threads")
-            .select("id, athlete_id, coach_id").eq("athlete_id", value: athleteId)
-            .limit(1).execute().value
-        if let t = existing.first { return t }
-        struct Link: Decodable { let coach_id: String }
-        let head: [Link] = try await Supa.shared.from("coach_athlete")
-            .select("coach_id").eq("athlete_id", value: athleteId)
-            .eq("relationship", value: "head").limit(1).execute().value
-        guard let coachId = head.first?.coach_id else {
+    /// The athlete's team thread id (get-or-create, server-side). Throws
+    /// NSError(domain: "RecBuddy", code: 1) when no coach is linked yet.
+    static func teamThreadId(athleteId: String) async throws -> String {
+        do {
+            return try await Supa.shared.rpc("team_thread_id", params: ["p_athlete": athleteId]).execute().value
+        } catch let e as PostgrestError where e.message.contains("no coach linked yet") {
             throw NSError(domain: "RecBuddy", code: 1,
                           userInfo: [NSLocalizedDescriptionKey: "No coach linked yet."])
         }
-        struct NewThread: Encodable { let athlete_id: String; let coach_id: String }
-        let created: Thread = try await Supa.shared.from("message_threads")
-            .insert(NewThread(athlete_id: athleteId, coach_id: coachId))
-            .select("id, athlete_id, coach_id").single().execute().value
-        return created
     }
 
     /// Post a kind='runcard' message (the shape the coach app already renders).
@@ -31,7 +21,7 @@ enum ChatShare {
     static func shareRunCard(athleteId: String, workoutId: String? = nil, date: String? = nil,
                              type: String? = nil, title: String, dist: String,
                              pace: String, time: String, hr: Int?, note: String? = nil) async throws {
-        let thread = try await fetchOrCreateThread(athleteId: athleteId)
+        let threadId = try await teamThreadId(athleteId: athleteId)
         struct NewMsg: Encodable {
             let thread_id: String
             let from_user_id: String
@@ -48,7 +38,7 @@ enum ChatShare {
         if let hr { payload["hr"] = .int(hr) }
         if let note, !note.isEmpty { payload["note"] = .string(note) }
         try await Supa.shared.from("messages")
-            .insert(NewMsg(thread_id: thread.id, from_user_id: athleteId,
+            .insert(NewMsg(thread_id: threadId, from_user_id: athleteId,
                            kind: "runcard", workout_id: workoutId, payload: payload)).execute()
     }
 }

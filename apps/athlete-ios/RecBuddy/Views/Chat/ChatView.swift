@@ -45,7 +45,7 @@ struct ChatView: View {
 
     // ── Coaching team (head first, via get_team) ───────────────────────────
 
-    private var team: [ChatSender] { store.team }
+    private var team: [ThreadPerson] { store.team }
 
     /// Chat title = the other members' names (never the athlete's own):
     /// "Sarah" / "Sarah & Mike" / "Sarah, Mike & Dana".
@@ -285,7 +285,7 @@ struct ChatView: View {
                         .padding(.top, 8)
                         .padding(.bottom, 12)
                     }
-                    .refreshable { await store.open(athleteId: profile.id) }
+                    .refreshable { await store.openTeam(athleteId: profile.id) }
                     // Drag follows the finger to tuck the keyboard away; a plain
                     // tap on the thread dismisses it too. Buttons inside message
                     // rows still win over the tap gesture.
@@ -326,7 +326,7 @@ struct ChatView: View {
         }
         // Re-opens when a coach is added/removed (hasCoach flips) so the
         // no-coach empty state and a fresh thread appear without a relaunch.
-        .task(id: session.hasCoach) { await store.open(athleteId: profile.id) }
+        .task(id: session.hasCoach) { await store.openTeam(athleteId: profile.id) }
         .onDisappear { Task { await store.close() } }
         .sheet(item: $reportTarget) { target in
             ReportSheet(target: target) { await afterBlock() }
@@ -363,7 +363,7 @@ struct ChatView: View {
 
     /// One member avatar — photo when set (public avatars bucket), else
     /// initials. A bg-colored ring separates avatars in the overlap stack.
-    private func memberAvatar(_ m: ChatSender) -> some View {
+    private func memberAvatar(_ m: ThreadPerson) -> some View {
         ZStack {
             Circle()
                 .fill(RB.surface2)
@@ -393,7 +393,7 @@ struct ChatView: View {
                         Text("?").font(.caption.weight(.bold)).foregroundStyle(.white)
                     }
                 } else {
-                    ForEach(team.prefix(3), id: \.coachId) { m in
+                    ForEach(team.prefix(3), id: \.userId) { m in
                         memberAvatar(m)
                     }
                 }
@@ -642,7 +642,7 @@ struct ChatView: View {
     /// the profile (hasCoach may flip to the no-coach state) and the thread.
     private func afterBlock() async {
         await session.refreshProfile()
-        await store.open(athleteId: profile.id)
+        await store.openTeam(athleteId: profile.id)
     }
 
     /// Fetch the referenced workout (and its logged actual, if any) and open
