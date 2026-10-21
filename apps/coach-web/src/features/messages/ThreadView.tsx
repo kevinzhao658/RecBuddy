@@ -4,6 +4,11 @@ import { useMessages, useSendMessage, useSendImages, useMarkThreadRead, useRealt
 import { useThreadPeople } from '../../lib/queries/conversations'
 import { useReactions, useSetReaction } from '../../lib/queries/reactions'
 import { summarize } from '../../lib/reactions'
+import { blockUser } from '../../lib/queries/moderation'
+import { ReportDialog, type ReportTarget } from '../chat/ReportDialog'
+import { ConfirmDialog } from '../roster/ConfirmDialog'
+import { supabase } from '../../lib/supabase'
+import { useQueryClient } from '@tanstack/react-query'
 import { conversationTitle } from '../../lib/conversations'
 import { copyText, quotePreview } from '../../lib/messageText'
 import { copyTextToClipboard, copyImageToClipboard, imageFilesFromClipboard } from '../../lib/clipboard'
@@ -57,6 +62,19 @@ export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialW
   const reactionsQ = useReactions(threadId)
   const setReaction = useSetReaction(threadId)
   const readOnly = conversation?.read_only ?? false
+  const qc = useQueryClient()
+  const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null)
+  const [blockTarget, setBlockTarget] = useState<ReportTarget | null>(null)
+  const [modError, setModError] = useState<string | null>(null)
+  const doBlock = async (t: ReportTarget) => {
+    setBlockTarget(null)
+    try {
+      await blockUser(supabase, t.userId)
+      qc.invalidateQueries({ queryKey: ['messages', threadId] })
+      qc.invalidateQueries({ queryKey: ['conversations'] })
+      qc.invalidateQueries({ queryKey: ['blocked'] })
+    } catch { setModError(`Couldn't block ${t.userName}. Try again.`) }
+  }
   const { unit } = useUnit()
   // Replies: the message being answered; a workout attached from the results
   // view; the row flashed after jumping to an original from its quote.
@@ -73,6 +91,11 @@ export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialW
     if (img?.path || (img?.url && /^https:\/\//i.test(img.url))) {
       out.push({ key: 'copy-image', label: 'Copy image', doneLabel: 'Copied', onClick: async () =>
         copyImageToClipboard(img.path ? await signedChatImageUrl(img.path) : img.url!) })
+    }
+    if (m.from_user_id !== meId) {
+      const name = senders[m.from_user_id]?.name ?? 'this person'
+      out.push({ key: 'report', label: 'Report', onClick: () => setReportTarget({ userId: m.from_user_id, userName: name, messageId: m.id }) })
+      out.push({ key: 'block', label: `Block ${name}`, onClick: () => setBlockTarget({ userId: m.from_user_id, userName: name }) })
     }
     return out
   }
@@ -271,6 +294,12 @@ export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialW
             className="rb-glow rounded-[12px] bg-accent px-4 py-2 text-sm font-semibold text-on-accent disabled:opacity-50">Send</button>
         </div>
         </>)}
+        {modError && <p className="px-4 pb-2 text-xs text-missed">{modError}</p>}
+        {reportTarget && <ReportDialog open target={reportTarget} onClose={() => setReportTarget(null)}
+          onDone={(blocked) => { if (blocked) { qc.invalidateQueries({ queryKey: ['messages', threadId] }); qc.invalidateQueries({ queryKey: ['conversations'] }) } }} />}
+        <ConfirmDialog open={!!blockTarget} confirmLabel="Block"
+          title={blockTarget ? `Block ${blockTarget.userName}? They can't message you or add you to chats, and their messages are hidden from you.` : ''}
+          onCancel={() => setBlockTarget(null)} onConfirm={() => blockTarget && doBlock(blockTarget)} />
     </section>
   )
 }

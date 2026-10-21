@@ -4,6 +4,7 @@ import { ThreadView } from './ThreadView'
 import * as chat from '../../lib/queries/chat'
 import * as convMod from '../../lib/queries/conversations'
 import * as reactMod from '../../lib/queries/reactions'
+import * as modMod from '../../lib/queries/moderation'
 import * as authMod from '../../auth/AuthProvider'
 
 function setup() {
@@ -108,4 +109,15 @@ test('reactions show under messages with names, and clicking a chip reacts', () 
   expect(screen.getByRole('button', { name: 'Like, 1: You' })).toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: 'Like, 1: You' }))
   expect(react.mutate).toHaveBeenCalledWith({ messageId: 'm1', kind: 'like' })
+})
+
+test("other people's messages offer Report and Block; Block confirms then blocks", async () => {
+  setup()
+  const block = vi.spyOn(modMod, 'blockUser').mockResolvedValue(undefined)
+  wrap(<ThreadView threadId="th1" conversation={team} />)
+  fireEvent.contextMenu(screen.getByText('hey coach'))
+  expect(screen.getAllByRole('button', { name: 'Report' }).length).toBeGreaterThan(0)
+  fireEvent.click(screen.getAllByRole('button', { name: 'Block Jordan Lee' })[0])
+  fireEvent.click(screen.getByRole('button', { name: 'Block' }))
+  await vi.waitFor(() => expect(block).toHaveBeenCalledWith(expect.anything(), 'a1'))
 })

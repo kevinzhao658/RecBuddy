@@ -9,6 +9,7 @@ import { useRoster } from '../../lib/queries/roster'
 import { EyeIcon, EyeOffIcon } from '../../components/ui/FormIcons'
 import { useUnit } from '../../lib/useUnit'
 import type { CoachTitle } from '../../lib/types'
+import { BlockedList } from './BlockedList'
 
 const TITLES: CoachTitle[] = ['Head Coach', 'Assistant Coach', 'Strength Coach', 'Physio']
 const field = 'w-full rounded-[10px] border border-line bg-surface2 px-3 py-2 text-sm text-text placeholder:text-text-faint focus:border-text-mute focus:outline-none'
@@ -206,6 +207,12 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
             {eye}
           </div>
           <Button variant="ghost" onClick={changePassword} disabled={busy || !oldPassword || !password} className="mt-2">Change password</Button>
+        </section>
+
+        {/* Blocked people */}
+        <section>
+          <p className={eyebrow}>Blocked</p>
+          <BlockedList />
         </section>
 
         {/* Danger zone */}
