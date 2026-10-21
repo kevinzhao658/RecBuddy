@@ -52,3 +52,12 @@ describe('reaction push gate', () => {
     expect(notifyReactionAuthor({ kind: 'team', authorStatus: null, author: 'a', reactor: 'b', authorBlockedReactor: false, authorCanRead: false })).toBe(false)
   })
 })
+
+describe('reaction push events', () => {
+  it('only the first reaction (an INSERT) pushes; kind switches and re-reacts (UPDATEs) do not', async () => {
+    const { isPushableReactionEvent } = await import('../functions/notify-message/recipients')
+    expect(isPushableReactionEvent('INSERT', 'like')).toBe(true)
+    expect(isPushableReactionEvent('UPDATE', 'like')).toBe(false)
+    expect(isPushableReactionEvent('INSERT', null)).toBe(false)
+  })
+})

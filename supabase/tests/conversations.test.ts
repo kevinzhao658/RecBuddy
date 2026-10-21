@@ -514,3 +514,67 @@ describe('thread_people', () => {
   })
 
 })
+
+describe('mid-point review fixes', () => {
+  const tag = randomUUID().slice(0, 6)
+
+  it('a removed co-coach who created the team thread loses access to it', async () => {
+    const head = await createAndSignIn({ role: 'coach', name: `H1 ${tag}`, title: 'Head Coach' })
+    const co = await createAndSignIn({ role: 'coach', name: `Co ${tag}`, title: 'Assistant Coach' })
+    const a = await createAndSignIn({ role: 'athlete', name: `TA ${tag}` })
+    await link(head.id, a.id)
+    await link(co.id, a.id, 'assistant')
+    const { data: t } = await admin().from('message_threads').insert({ athlete_id: a.id, coach_id: co.id }).select().single()
+    await a.client.from('coach_athlete').delete().eq('coach_id', co.id).eq('athlete_id', a.id)
+    expect((await co.client.from('message_threads').select('id').eq('id', t!.id)).data ?? []).toEqual([])
+    const post = await co.client.from('messages').insert({ thread_id: t!.id, from_user_id: co.id, kind: 'text', body: 'still here?' })
+    expect(post.error).not.toBeNull()
+    expect((await head.client.from('message_threads').select('id').eq('id', t!.id)).data).toHaveLength(1)
+  })
+
+  it('a self-coached coach cannot link another coach to themselves', async () => {
+    const me = await createAndSignIn({ role: 'coach', name: `Selfie ${tag}`, title: 'Head Coach' })
+    const target = await createAndSignIn({ role: 'coach', name: `Target ${tag}`, title: 'Head Coach' })
+    await admin().from('coach_athlete').insert({ coach_id: me.id, athlete_id: me.id, relationship: 'head', permission: 'admin' })
+    const ins = await me.client.from('coach_athlete').insert({ coach_id: target.id, athlete_id: me.id, relationship: 'assistant' })
+    expect(ins.error).not.toBeNull()
+  })
+
+  it('removing a self-coaching link does not remove the person from their groups', async () => {
+    const x = await createAndSignIn({ role: 'coach', name: `Sx ${tag}`, title: 'Head Coach' })
+    const a = await createAndSignIn({ role: 'athlete', name: `Sa ${tag}` })
+    const b = await createAndSignIn({ role: 'athlete', name: `Sb ${tag}` })
+    await link(x.id, a.id)
+    await link(x.id, b.id)
+    await admin().from('coach_athlete').insert({ coach_id: x.id, athlete_id: x.id, relationship: 'head' })
+    const g = (await x.client.rpc('start_conversation', { p_user_ids: [a.id, b.id], p_title: 'Selfies' })).data
+    await admin().from('coach_athlete').delete().eq('coach_id', x.id).eq('athlete_id', x.id)
+    const { data } = await admin().from('thread_members').select('status').eq('thread_id', g).eq('user_id', x.id).single()
+    expect(data!.status).toBe('active')
+  })
+
+  it('team_thread_id still works when the head coach is gone but an assistant remains', async () => {
+    const head = await createAndSignIn({ role: 'coach', name: `Gone ${tag}`, title: 'Head Coach' })
+    const asst = await createAndSignIn({ role: 'coach', name: `Stay ${tag}`, title: 'Assistant Coach' })
+    const a = await createAndSignIn({ role: 'athlete', name: `Orph ${tag}` })
+    await link(head.id, a.id)
+    await link(asst.id, a.id, 'assistant')
+    await admin().from('coach_athlete').delete().eq('coach_id', head.id).eq('athlete_id', a.id)
+    const r = await asst.client.rpc('team_thread_id', { p_athlete: a.id })
+    expect(r.error).toBeNull()
+    expect(r.data).toBeTruthy()
+  })
+
+  it('adding people to a renamed 1:1 starts a new group instead of growing it', async () => {
+    const c = await createAndSignIn({ role: 'coach', name: `Rn ${tag}`, title: 'Head Coach' })
+    const a = await createAndSignIn({ role: 'athlete', name: `RnA ${tag}` })
+    const b = await createAndSignIn({ role: 'athlete', name: `RnB ${tag}` })
+    await link(c.id, a.id)
+    await link(c.id, b.id)
+    const one = (await a.client.rpc('start_conversation', { p_user_ids: [c.id] })).data
+    await a.client.rpc('rename_conversation', { p_thread: one, p_title: 'Just us' })
+    const grown = await c.client.rpc('add_conversation_members', { p_thread: one, p_user_ids: [b.id] })
+    expect(grown.error).toBeNull()
+    expect(grown.data).not.toBe(one)
+  })
+})

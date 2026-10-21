@@ -23,6 +23,12 @@ export function chatAlert(thread: ThreadInfo, senderName: string, base: Alert): 
   return base
 }
 
+/** Only a brand-new reaction pushes. Kind switches and re-reacts after an
+ *  un-react are UPDATEs, so toggling can't spam the author. */
+export function isPushableReactionEvent(type: string | undefined, kind: string | null | undefined): boolean {
+  return type === 'INSERT' && !!kind
+}
+
 const EMOJI: Record<string, string> = { like: '👍', emphasize: '‼️', question: '❓', laugh: '😂', congrats: '🎉' }
 
 export function reactionAlert(reactorName: string, kind: string): Alert {

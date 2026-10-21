@@ -14,8 +14,11 @@ drop policy if exists team_write on coach_athlete;
 drop policy if exists team_insert on coach_athlete;
 drop policy if exists team_update on coach_athlete;
 drop policy if exists team_delete on coach_athlete;
+-- ...and never onto your own athlete profile: a self-coached coach is admin
+-- over themselves, which would otherwise let them link any coach to
+-- themselves and reach that coach's athletes.
 create policy team_insert on coach_athlete for insert
-  with check (coach_can_admin(athlete_id));
+  with check (coach_can_admin(athlete_id) and athlete_id <> auth.uid());
 create policy team_update on coach_athlete for update
   using (athlete_id = auth.uid() or coach_can_admin(athlete_id))
   with check (athlete_id = auth.uid() or coach_can_admin(athlete_id));
@@ -188,7 +191,9 @@ begin
   select coalesce(array_agg(distinct x), '{}') into v_new from unnest(p_user_ids) x where not (x = any(v_active));
   if cardinality(v_new) = 0 then return p_thread; end if;
 
-  if cardinality(v_active) = 2 and t.title is null then
+  -- A 1:1 (exactly two member rows ever, named or not) stays a 1:1; adding
+  -- people starts a new group. A group that shrank to two still grows in place.
+  if (select count(*) from thread_members where thread_id = p_thread) = 2 then
     return start_conversation(array(select x from unnest(v_active) x where x <> v_me) || v_new, null);
   end if;
 

@@ -64,6 +64,16 @@ alter table profiles add column if not exists discoverable_to_athletes boolean n
 -- ============================================================
 -- 3. The access gate
 -- ============================================================
+-- Team threads: the athlete, or a coach CURRENTLY on their team and not
+-- blocked by them. (Previously the thread's original coach_id kept access
+-- forever, so a removed co-coach who opened the chat first could keep
+-- reading and posting.) _coach is kept for signature compatibility.
+create or replace function can_access_thread(_athlete uuid, _coach uuid) returns boolean
+language sql stable security definer set search_path = public, pg_temp as $$
+  select _athlete = auth.uid()
+      or (is_coach_of(_athlete) and not has_blocked(_athlete, auth.uid()));
+$$;
+
 create or replace function can_read_thread(p_thread uuid) returns boolean
 language sql stable security definer set search_path = public, pg_temp as $$
   select coalesce((
@@ -235,7 +245,9 @@ begin
   end if;
   select id into v_id from message_threads where kind = 'team' and athlete_id = p_athlete;
   if v_id is not null then return v_id; end if;
-  select coach_id into v_head from coach_athlete where athlete_id = p_athlete and relationship = 'head' limit 1;
+  -- Head coach if there is one, else any coach still on the team.
+  select coach_id into v_head from coach_athlete where athlete_id = p_athlete
+  order by (relationship = 'head') desc, created_at limit 1;
   if v_head is null then raise exception 'no coach linked yet'; end if;
   insert into message_threads (kind, athlete_id, coach_id) values ('team', p_athlete, v_head)
   on conflict (athlete_id) where kind = 'team' do nothing

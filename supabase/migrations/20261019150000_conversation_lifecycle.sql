@@ -23,6 +23,7 @@ revoke all on function one_to_one_threads(uuid, uuid) from public, anon, authent
 create or replace function conversations_on_coach_unlink() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
 begin
+  if old.coach_id = old.athlete_id then return old; end if; -- self-coaching link
   update message_threads set read_only = true
   where id in (select one_to_one_threads(old.coach_id, old.athlete_id));
   update thread_members set status = 'readonly'
@@ -46,6 +47,7 @@ create or replace function conversations_on_coach_link() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare v_thread uuid;
 begin
+  if new.coach_id = new.athlete_id then return new; end if; -- self-coaching link
   for v_thread in select one_to_one_threads(new.coach_id, new.athlete_id) loop
     -- Only a 1:1 that the removal made read-only (both members readonly);
     -- a block leaves one member 'removed' and stays closed.

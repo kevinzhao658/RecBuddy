@@ -1,6 +1,6 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { push } from '../notify-message/apns.ts'
-import { reactionAlert, notifyReactionAuthor } from '../notify-message/recipients.ts'
+import { reactionAlert, notifyReactionAuthor, isPushableReactionEvent } from '../notify-message/recipients.ts'
 
 // Database Webhook on message_reactions INSERT/UPDATE (dashboard-configured,
 // same x-webhook-secret as notify-message). Pushes "Dani 👍 your message" to
@@ -11,13 +11,14 @@ Deno.serve(async (req) => {
     return new Response('forbidden', { status: 403 })
   }
   let record: { message_id?: string; user_id?: string; thread_id?: string; kind?: string | null }
+  let type: string | undefined
   try {
-    ;({ record } = await req.json())
+    ;({ record, type } = await req.json())
   } catch {
     return new Response('bad request', { status: 400 })
   }
   if (!record?.message_id || !record.user_id) return new Response('no record', { status: 400 })
-  if (!record.kind) return new Response('skip')
+  if (!isPushableReactionEvent(type, record.kind)) return new Response('skip')
 
   const supa = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
 
