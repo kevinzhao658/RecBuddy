@@ -88,7 +88,7 @@ export function ChatPanel({ athleteId, athleteName, athleteAvatarUrl, onClose, o
   for (const m of team.data ?? []) senders[m.coach_id] = { name: m.coach.name, initials: m.coach.initials, avatarUrl: m.coach.avatar_url }
 
   // Mark the athlete's unread messages read once the thread opens.
-  useEffect(() => { if (threadId) markRead.mutate(meId) }, [threadId]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (threadId) markRead.mutate() }, [threadId]) // eslint-disable-line react-hooks/exhaustive-deps
   // Keep the latest message in view.
   useEffect(() => { scrollRef.current?.scrollTo?.({ top: scrollRef.current.scrollHeight }) }, [messages.length])
   // Auto-grow the composer with line breaks, up to ~7rem (max-h-28), then scroll.

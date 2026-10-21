@@ -12,18 +12,11 @@ export type SendArgs = {
   workout?: Pick<Workout, 'id' | 'date' | 'type' | 'title'> | null
 }
 
-/** Get (or create) the coach↔athlete thread. RLS surfaces the head coach's
- *  thread to assistants, so we reuse an existing one before creating. */
+/** The athlete's TEAM thread (get-or-create server-side via team_thread_id). */
 export async function fetchThread(client: SupabaseClient, athleteId: string): Promise<Thread> {
-  const { data: existing, error } = await client.from('message_threads')
-    .select('id, athlete_id, coach_id').eq('athlete_id', athleteId).limit(1).maybeSingle()
+  const { data: id, error } = await client.rpc('team_thread_id', { p_athlete: athleteId })
   if (error) throw error
-  if (existing) return existing as Thread
-  const { data: me } = await client.auth.getUser()
-  const { data: created, error: insErr } = await client.from('message_threads')
-    .insert({ athlete_id: athleteId, coach_id: me.user!.id }).select('id, athlete_id, coach_id').single()
-  if (insErr) throw insErr
-  return created as Thread
+  return { id: id as string, athlete_id: athleteId, coach_id: '' }
 }
 export function useThread(athleteId: string | null) {
   return useQuery({ queryKey: ['thread', athleteId], queryFn: () => fetchThread(supabase, athleteId!), enabled: !!athleteId })
@@ -149,19 +142,19 @@ export function useShareAdjust(athleteId: string) {
   })
 }
 
-/** Mark the other party's unread messages in this thread as read. */
-export async function markThreadRead(client: SupabaseClient, threadId: string, meId: string): Promise<void> {
-  const { error } = await client.from('messages').update({ read: true })
-    .eq('thread_id', threadId).eq('read', false).neq('from_user_id', meId)
+/** Mark this thread read for me (chat: last_read_at; team: per-message flag). */
+export async function markThreadRead(client: SupabaseClient, threadId: string): Promise<void> {
+  const { error } = await client.rpc('mark_thread_read', { p_thread: threadId })
   if (error) throw error
 }
 export function useMarkThreadRead(threadId: string | null) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (meId: string) => markThreadRead(supabase, threadId!, meId),
+    mutationFn: () => markThreadRead(supabase, threadId!),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['messages', threadId] })
       qc.invalidateQueries({ queryKey: ['unread'] })
+      qc.invalidateQueries({ queryKey: ['conversations'] })
     },
   })
 }

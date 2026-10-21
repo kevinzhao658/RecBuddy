@@ -71,3 +71,22 @@ export interface Message {
   /** Quote-reply target (same thread). */
   reply_to_id?: string | null
 }
+
+// ── Conversations + reactions (mirror iOS Lib/Conversations.swift) ──────────
+export interface ConversationMember { user_id: string; name: string; initials: string; avatar_url: string | null }
+/** One inbox row (my_conversations). */
+export interface Conversation {
+  thread_id: string; kind: 'team' | 'chat'; title: string | null; team_athlete_id: string | null
+  members: ConversationMember[]; last_body: string | null; last_kind: MessageKind | null
+  last_from: string | null; last_at: string | null; unread: number; read_only: boolean
+}
+/** search_chat_people row. */
+export interface ChatPerson {
+  user_id: string; name: string; initials: string; avatar_url: string | null
+  person_kind: 'coach' | 'athlete'; context: string
+}
+/** thread_people row: anyone who can appear as a sender in a thread. */
+export interface ThreadPerson { user_id: string; name: string; initials: string; avatar_url: string | null; title: string | null }
+export type ReactionKind = 'like' | 'emphasize' | 'question' | 'laugh' | 'congrats'
+/** message_reactions row; kind null = removed. */
+export interface Reaction { message_id: string; user_id: string; kind: ReactionKind | null }
