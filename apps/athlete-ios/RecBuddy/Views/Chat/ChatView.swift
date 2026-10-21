@@ -362,7 +362,11 @@ struct ChatView: View {
         // Re-opens when a coach is added/removed (hasCoach flips) so the
         // no-coach empty state and a fresh thread appear without a relaunch.
         .task(id: session.hasCoach) { await reopen() }
-        .onDisappear { Task { await store.close() } }
+        .onChange(of: store.thread?.id, initial: true) { _, id in AppRouter.shared.viewingThreadId = id }
+        .onDisappear {
+            if AppRouter.shared.viewingThreadId == store.thread?.id { AppRouter.shared.viewingThreadId = nil }
+            Task { await store.close() }
+        }
         .sheet(isPresented: Binding(get: { reactionsFor != nil }, set: { if !$0 { reactionsFor = nil } })) {
             if let id = reactionsFor {
                 ReactionsDetailSheet(rows: ReactionSummary.names(store.reactions, messageId: id) { uid in

@@ -108,3 +108,17 @@ import Foundation
         #expect(mine.showsAthleteNote)               // me + one other athlete
     }
 }
+
+@MainActor @Suite struct BannerSuppressionTests {
+    @Test func onlyTheOpenConversationIsSilenced() {
+        let r = AppRouter()
+        r.chatVisible = true
+        #expect(r.showsBanner(forThread: "a"))          // inbox open, no conversation: banners show
+        r.viewingThreadId = "a"
+        #expect(r.showsBanner(forThread: "a") == false) // realtime paints it
+        #expect(r.showsBanner(forThread: "b"))          // another conversation still alerts
+        #expect(r.showsBanner(forThread: nil))
+        r.chatVisible = false                           // switched to another tab
+        #expect(r.showsBanner(forThread: "a"))
+    }
+}
