@@ -151,3 +151,17 @@ import Foundation
         #expect(ReactionSummary.count(rs, messageId: "m1") == 3)
     }
 }
+
+@Suite struct ChatHeaderMenuTests {
+    @Test func renameIsOfferedForTeamChatsAndGroupsNotOneToOnesOrReadOnly() {
+        #expect(ChatHeaderMenu.actions(isTeam: true, otherCount: 1, readOnly: false) == [.rename, .details])
+        #expect(ChatHeaderMenu.actions(isTeam: false, otherCount: 2, readOnly: false) == [.rename, .details])
+        #expect(ChatHeaderMenu.actions(isTeam: false, otherCount: 1, readOnly: false) == [.details])
+        #expect(ChatHeaderMenu.actions(isTeam: false, otherCount: 3, readOnly: true) == [.details])
+    }
+
+    @Test func startedLabelReadsAsADate() {
+        #expect(ChatHeaderMenu.startedLabel("2026-10-18T15:04:05.123+00:00", timeZone: TimeZone(identifier: "UTC")!) == "Oct 18, 2026")
+        #expect(ChatHeaderMenu.startedLabel(nil) == nil)
+    }
+}

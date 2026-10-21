@@ -11,6 +11,10 @@ struct ChatView: View {
     @Environment(SessionStore.self) private var session
     @Environment(\.dismiss) private var dismiss
     @State private var infoOpen = false
+    // Tap the header's photos or names: Rename Chat / Chat Details.
+    @State private var renaming = false
+    @State private var newName = ""
+    @State private var renameError: String?
     @State private var store = ChatStore()
     @State private var draft = ""
     // Keyboard is visible only while composing: scrolling the thread dismisses
@@ -65,8 +69,8 @@ struct ChatView: View {
     }
 
     private var chatTitle: String {
-        if isChat, let conversation { return conversation.displayTitle }
         if let title = store.thread?.title, !title.isEmpty { return title }
+        if isChat, let conversation { return conversation.displayTitle }
         let names = team.map(\.name)
         switch names.count {
         case 0:  return "Coach"
@@ -441,6 +445,68 @@ struct ChatView: View {
                 }
                 .accessibilityLabel("Back to chats")
             }
+            headerMenu
+
+            Spacer()
+        }
+        .sheet(isPresented: $infoOpen, onDismiss: { Task { await store.refreshThread() } }) {
+            if let id = store.thread?.id {
+                ConversationInfoView(threadId: id, title: chatTitle, me: profile.id,
+                                     people: team, readOnly: readOnly,
+                                     isGroup: isChat && (conversation?.members.count ?? team.count) >= 2,
+                                     isTeam: !isChat, startedAt: store.thread?.createdAt) {
+                    infoOpen = false
+                    dismiss()
+                }
+            }
+        }
+        .alert("Rename Chat", isPresented: $renaming) {
+            TextField("Chat name", text: $newName)
+            Button("Save") { Task { await saveName() } }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Everyone in this chat sees the new name. Leave it empty to show members' names.")
+        }
+        .alert("Couldn't rename", isPresented: Binding(get: { renameError != nil }, set: { if !$0 { renameError = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(renameError ?? "")
+        }
+    }
+
+    private var headerActions: [ChatHeaderMenu.Action] {
+        ChatHeaderMenu.actions(isTeam: !isChat, otherCount: conversation?.members.count ?? team.count, readOnly: readOnly)
+    }
+
+    /// Photos + names. Tapping offers Rename Chat (team chats and groups) and
+    /// Chat Details; a 1:1 opens its details directly.
+    @ViewBuilder private var headerMenu: some View {
+        if store.thread == nil {
+            headerIdentity
+        } else if headerActions.contains(.rename) {
+            Menu {
+                Button { newName = store.thread?.title ?? ""; renaming = true } label: {
+                    Label("Rename Chat", systemImage: "pencil")
+                }
+                Button { infoOpen = true } label: {
+                    Label("Chat Details", systemImage: "info.circle")
+                }
+            } label: { headerIdentity }
+            .accessibilityLabel("\(chatTitle), chat options")
+        } else {
+            Button { infoOpen = true } label: { headerIdentity }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(chatTitle), chat details")
+        }
+    }
+
+    private func saveName() async {
+        do { try await store.rename(newName) }
+        catch { renameError = Moderation.filterMessage(error) ?? "Try again." }
+    }
+
+    private var headerIdentity: some View {
+        HStack(spacing: 12) {
             // Overlapping avatar stack — every team member (up to three shown)
             HStack(spacing: -10) {
                 if team.isEmpty {
@@ -466,26 +532,8 @@ struct ChatView: View {
                     .font(.caption)
                     .foregroundStyle(RB.accent)
             }
-
-            Spacer()
-
-            if isChat, let threadId {
-                Button { infoOpen = true } label: {
-                    Image(systemName: "info.circle")
-                        .font(.system(size: 18))
-                        .foregroundStyle(RB.textMute)
-                }
-                .accessibilityLabel("Conversation info")
-                .sheet(isPresented: $infoOpen) {
-                    ConversationInfoView(threadId: threadId, title: chatTitle, me: profile.id,
-                                         people: team, readOnly: readOnly,
-                                         isGroup: (conversation?.members.count ?? team.count) >= 2) {
-                        infoOpen = false
-                        dismiss()
-                    }
-                }
-            }
         }
+        .contentShape(Rectangle())
     }
 
     // ── Input bar ─────────────────────────────────────────────────────────

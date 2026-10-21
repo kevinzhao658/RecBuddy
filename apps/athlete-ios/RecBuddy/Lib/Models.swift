@@ -140,9 +140,11 @@ struct Thread: Codable, Identifiable, Equatable {
     var readOnly: Bool = false
     let athleteId: String?              // team threads only
     let coachId: String?
+    var createdAt: String? = nil
     var isTeam: Bool { kind == "team" }
     enum CodingKeys: String, CodingKey {
         case id, kind, title
+        case createdAt = "created_at"
         case readOnly = "read_only"
         case athleteId = "athlete_id"
         case coachId = "coach_id"

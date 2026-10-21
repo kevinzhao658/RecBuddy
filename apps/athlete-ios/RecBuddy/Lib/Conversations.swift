@@ -206,3 +206,24 @@ struct ComposeSelection: Equatable {
         if let i = people.firstIndex(where: { $0.userId == p.userId }) { people.remove(at: i) } else { people.append(p) }
     }
 }
+
+/// What tapping a conversation's header (photos or names) offers.
+enum ChatHeaderMenu {
+    enum Action: Equatable { case rename, details }
+
+    /// Team chats and groups can be named; a 1:1 just shows its details.
+    static func actions(isTeam: Bool, otherCount: Int, readOnly: Bool) -> [Action] {
+        !readOnly && (isTeam || otherCount >= 2) ? [.rename, .details] : [.details]
+    }
+
+    /// "Oct 18, 2026" from a Postgres timestamp (any fractional precision).
+    static func startedLabel(_ iso: String?, timeZone: TimeZone = .current) -> String? {
+        guard let iso else { return nil }
+        let trimmed = iso.replacingOccurrences(of: #"\.\d+"#, with: "", options: .regularExpression)
+        guard let date = ISO8601DateFormatter().date(from: trimmed) else { return nil }
+        let f = DateFormatter()
+        f.dateFormat = "MMM d, yyyy"
+        f.timeZone = timeZone
+        return f.string(from: date)
+    }
+}

@@ -685,3 +685,17 @@ describe('renaming the team chat (Kevin, 2026-10-21)', () => {
     expect(data!.title).toBe('Fall block')
   })
 })
+
+describe('chat start date', () => {
+  it('a conversation records when it started, readable by its members', async () => {
+    const tag = randomUUID().slice(0, 8)
+    const c = await createAndSignIn({ role: 'coach', name: `Sd ${tag}`, title: 'Head Coach' })
+    const a = await createAndSignIn({ role: 'athlete', name: `Sa ${tag}` })
+    await link(c.id, a.id)
+    const before = Date.now() - 60_000
+    const id = (await a.client.rpc('start_conversation', { p_user_ids: [c.id] })).data
+    const { data, error } = await a.client.from('message_threads').select('created_at').eq('id', id).single()
+    expect(error).toBeNull()
+    expect(new Date(data!.created_at).getTime()).toBeGreaterThan(before)
+  })
+})

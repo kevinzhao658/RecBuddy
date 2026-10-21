@@ -1,6 +1,8 @@
 import SwiftUI
 
-/// Members, group name, add people, leave (groups) or hide (1:1).
+/// Chat Details: members, start date, add people, leave (groups) or hide
+/// (1:1). Renaming lives in the header menu. Team membership follows coaching,
+/// so a team chat has no add / leave / hide.
 struct ConversationInfoView: View {
     let threadId: String
     let title: String
@@ -8,11 +10,13 @@ struct ConversationInfoView: View {
     let people: [ThreadPerson]
     let readOnly: Bool
     var isGroup: Bool = false
+    var isTeam: Bool = false
+    /// message_threads.created_at, shown as "Started".
+    var startedAt: String? = nil
     /// Called after leaving/hiding (pop back to the inbox).
     var onClose: () -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var store = ConversationsStore()
-    @State private var name = ""
     @State private var adding = false
     @State private var addSelection = ComposeSelection(meIsAthlete: true)
     @State private var confirmLeave = false
@@ -21,18 +25,6 @@ struct ConversationInfoView: View {
     var body: some View {
         NavigationStack {
             List {
-                if isGroup && !readOnly {
-                    Section("Group name") {
-                        HStack {
-                            TextField("", text: $name, prompt: Text("Add a name").foregroundStyle(RB.textFaint))
-                                .foregroundStyle(.white)
-                                .accessibilityLabel("Group name")
-                            Button("Save") { Task { await rename() } }
-                                .foregroundStyle(RB.accent)
-                                .disabled(name.trimmingCharacters(in: .whitespaces) == title)
-                        }
-                    }
-                }
                 Section("People") {
                     ForEach(people, id: \.userId) { p in
                         HStack(spacing: 10) {
@@ -41,11 +33,18 @@ struct ConversationInfoView: View {
                             Text(p.name).foregroundStyle(.white)
                         }
                     }
-                    if !readOnly {
+                    if !readOnly && !isTeam {
                         Button { adding = true } label: { Label("Add People", systemImage: "person.badge.plus") }
                             .foregroundStyle(RB.accent)
                     }
                 }
+                if let started = ChatHeaderMenu.startedLabel(startedAt) {
+                    Section("Details") {
+                        LabeledContent("Started", value: started)
+                        LabeledContent("Members", value: "\(people.count + 1)")
+                    }
+                }
+                if !isTeam {
                 Section {
                     if isGroup {
                         Button("Leave Conversation", role: .destructive) { confirmLeave = true }
@@ -55,6 +54,7 @@ struct ConversationInfoView: View {
                     }
                 } footer: {
                     if readOnly { Text("This conversation is read-only.") }
+                }
                 }
                 if let error {
                     Text(error).font(.footnote).foregroundStyle(.red)
@@ -76,7 +76,6 @@ struct ConversationInfoView: View {
             }
             .sheet(isPresented: $adding) { addSheet }
         }
-        .onAppear { name = isGroup ? title : "" }
     }
 
     private var addSheet: some View {
@@ -93,11 +92,6 @@ struct ConversationInfoView: View {
                     }
                 }
         }
-    }
-
-    private func rename() async {
-        do { try await store.rename(threadId: threadId, title: name) }
-        catch { self.error = Moderation.filterMessage(error) ?? "Couldn't rename. Try again." }
     }
 
     private func add() async {

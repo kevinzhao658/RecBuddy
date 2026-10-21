@@ -41,7 +41,7 @@ final class ChatStore {
         phase = .loading
         do {
             let t: Thread = try await Supa.shared.from("message_threads")
-                .select("id, kind, title, read_only, athlete_id, coach_id")
+                .select("id, kind, title, read_only, athlete_id, coach_id, created_at")
                 .eq("id", value: threadId).single().execute().value
             thread = t
             let people: [ThreadPerson] = try await Supa.shared
@@ -70,6 +70,24 @@ final class ChatStore {
         reactions = try await Supa.shared.from("message_reactions")
             .select("message_id, user_id, kind, active").eq("thread_id", value: threadId)
             .execute().value
+    }
+
+    /// Name (or clear the name of) this conversation, then show the new title.
+    func rename(_ title: String) async throws {
+        guard let thread else { return }
+        struct Params: Encodable { let p_thread: String; let p_title: String }
+        try await Supa.shared.rpc("rename_conversation", params: Params(p_thread: thread.id, p_title: title)).execute()
+        await refreshThread()
+    }
+
+    /// Re-read the thread row (title / read-only can change from elsewhere).
+    func refreshThread() async {
+        guard let id = thread?.id else { return }
+        if let t: Thread = try? await Supa.shared.from("message_threads")
+            .select("id, kind, title, read_only, athlete_id, coach_id, created_at")
+            .eq("id", value: id).single().execute().value {
+            thread = t
+        }
     }
 
     /// Toggle one reaction kind for me (adding it again removes it; other kinds stay). Optimistic, then reconciled
