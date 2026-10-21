@@ -109,15 +109,20 @@ drop policy if exists threads_write on message_threads;
 -- so INSERT ... RETURNING works for a team thread created in the same request.
 create policy threads_read on message_threads for select
   using (case kind when 'team' then can_access_thread(athlete_id, coach_id) else can_read_thread(id) end);
--- Clients may still create/touch TEAM threads (legacy share-to-chat paths);
--- chat threads are created only by start_conversation().
+-- Clients may still create a TEAM thread (the shipped 1.0 app finds-or-inserts
+-- one), but only naming a coach actually linked to the athlete, by the athlete
+-- or a coach on their team. Otherwise any coach could claim an athlete's single
+-- team slot with themselves as coach and read the athlete's chat. New clients
+-- call team_thread_id(). Chat threads are created only by start_conversation(),
+-- and no client may update or delete a thread (bump_thread runs as definer).
 create policy threads_insert on message_threads for insert
-  with check (kind = 'team' and can_access_thread(athlete_id, coach_id));
-create policy threads_update on message_threads for update
-  using (kind = 'team' and can_access_thread(athlete_id, coach_id))
-  with check (kind = 'team' and can_access_thread(athlete_id, coach_id));
-create policy threads_delete on message_threads for delete
-  using (kind = 'team' and can_access_thread(athlete_id, coach_id));
+  with check (
+    kind = 'team'
+    and exists (select 1 from coach_athlete ca where ca.athlete_id = message_threads.athlete_id
+                                                and ca.coach_id = message_threads.coach_id)
+    and (athlete_id = auth.uid() or is_coach_of(athlete_id))
+    and not has_blocked(athlete_id, auth.uid())
+  );
 
 drop policy if exists messages_read on messages;
 drop policy if exists messages_send on messages;
@@ -131,12 +136,20 @@ create policy messages_update on messages for update
 
 drop policy if exists "chat_images_select" on storage.objects;
 drop policy if exists "chat_images_insert" on storage.objects;
+-- A photo is readable when the caller can read a message that carries it:
+-- this applies the joined-at cutoff and blocks, not just thread membership.
+-- The uploader can always read their own file (needed between upload and send).
+create index if not exists messages_image_path_idx on messages ((payload->>'path')) where kind = 'image';
 create policy "chat_images_select" on storage.objects
   for select to authenticated
   using (
     bucket_id = 'chat-images'
-    and exists (select 1 from public.message_threads t
-                where t.id::text = (storage.foldername(name))[1] and public.can_read_thread(t.id))
+    and (owner = auth.uid()
+         or exists (select 1 from public.messages m
+                    where m.kind = 'image' and m.payload->>'path' = storage.objects.name
+                      and m.thread_id::text = (storage.foldername(storage.objects.name))[1]
+                      and not public.has_blocked(auth.uid(), m.from_user_id)
+                      and public.can_read_message(m.thread_id, m.created_at)))
   );
 create policy "chat_images_insert" on storage.objects
   for insert to authenticated
