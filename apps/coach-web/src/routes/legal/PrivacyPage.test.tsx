@@ -14,6 +14,10 @@ test('renders the policy with the HealthKit disclosure and contact email', () =>
   expect(screen.getByText(/Let my coach.s other athletes find me/)).toBeInTheDocument()
   expect(screen.getByText(/photos and images you choose to share in chat/i)).toBeInTheDocument()
   expect(screen.getByText(/reports you submit about a message or user/i)).toBeInTheDocument()
+  // Blocking in a shared group hides their messages from you, not yours from them.
+  expect(screen.queryByText(/can no longer see your chat/)).not.toBeInTheDocument()
+  expect(screen.getByText(/they can still see what you post there unless you leave the group/)).toBeInTheDocument()
+  expect(screen.getByText(/Settings → Coaches in the iPhone app, Settings → Blocked on the web/)).toBeInTheDocument()
   // Guards that ALL markdown sections were ported, not just the ones shown in the plan:
   // Who we are, Information we collect, Apple Health, How we use, How shared, Retention,
   // Choices/rights, Security, Children's, International, Changes, Contact = 12 h2s.

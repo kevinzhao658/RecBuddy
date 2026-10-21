@@ -99,7 +99,10 @@ We do not use your information for advertising, and we do not sell or rent it.
   connect with a coach (or an athlete connects with you), training data and
   messages relevant to that relationship are visible to the connected person.
   This is the core purpose of the app. Reports are private: we never tell the
-  reported user who reported them. A user you block can no longer see your chat.
+  reported user who reported them. A user you block can no longer message you
+  directly or see your private conversations with them; in a group chat you both
+  belong to, you stop seeing their messages, but they can still see what you post
+  there unless you leave the group.
 - **With people in your conversations.** Everyone in a conversation sees each
   other's names, photos, messages, and reactions. A conversation is visible only
   to its members. Athletes who share a coach can find each other by name to
@@ -138,7 +141,8 @@ account is deleted, so we can act on them and protect other users.
   Settings to keep other athletes from starting chats with you. You can also
   leave any group chat.
 - **Report and block.** You can report any message or user and block any user
-  from the app; unblock anytime in Settings → Coaches.
+  from the app; unblock anytime in Settings (Settings → Coaches in the iPhone app,
+  Settings → Blocked on the web).
 - **Regional rights.** Depending on where you live, you may have additional
   rights (such as access, correction, deletion, or portability). Contact us at
   the email above to exercise them.
