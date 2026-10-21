@@ -1,164 +1,196 @@
-# Chat enhancements — design
+# Chat enhancements: design
 
-**Date:** 2026-10-18 · **Branch:** `feat/chat-enhancements` (worktree `../RecBuddy-chat`)
-**Surfaces:** athlete iOS, coach-web, supabase (3 migrations), legal docs
-**Depends on:** `feat/ugc-report-block` (migration `20261018120000`) — merges first; this branch rebases onto it.
-**Ships in:** 1.1, after 1.0 is approved. Not part of the 1.0 (3) resubmission build.
+**Revised:** 2026-10-19 · **Branch:** `feat/chat-enhancements` (worktree `../RecBuddy-chat`), rebased on `dev` after report/block and the admin console merged
+**Surfaces:** athlete iOS, coach web, supabase, legal docs · **Ships in:** 1.1, after 1.0 is approved
+
+## Intent
+
+RecBuddy chat today is a single team thread per athlete. Kevin wants it to work like iMessage, so athletes and coaches can react to messages, reply to a specific message, copy and paste freely, and start 1:1 or group conversations with the people they train with. Coaches should be able to coordinate with each other and message groups of athletes, and athletes should be able to talk to their coaches individually or reach other athletes who share a coach.
+
+## Status
+
+| Feature | State |
+|---|---|
+| Copy and paste | Built and verified on iOS and coach web (`dfd45f5`) |
+| Replies, plus "Message coach/athlete about this" | Built and verified (`dfd45f5`, immutability fix `afdc4f0`) |
+| Reactions | Designed below |
+| Conversations (1:1 and group) | Designed below |
 
 ## Goals
 
-1. **Copy & paste** — copy any message; paste text or images into the composer.
-2. **Tapback reactions** — 👍 ‼️ ❓ 😂 🎉 via press-and-hold, visible to everyone in the thread.
-3. **Private chats** — a 1:1 thread between the athlete and one coach, alongside the team chat.
-4. **Replies** — quote-reply to any message (including run/workout cards), and start a chat about a logged workout from the calendar.
+- Five fixed reactions on any message, with counts and who reacted, plus a push to the message's author.
+- iMessage-style conversations, where any set of eligible people can share a 1:1 or group chat alongside each athlete's existing team chat.
+- A Messages inbox on both apps and a "New message → To:" compose screen with search.
+- Moderation (report, block, language filter, admin console) keeps working across every conversation type.
 
-Every feature works in both apps (athlete iOS + coach-web) and respects blocks.
+## Non-goals
 
-## Today (what this builds on)
+- Free-form emoji reactions, message editing or unsending, typing indicators, read receipts per person, muting, and attachments other than photos.
+- Push notifications on coach web (coaches have no device tokens today).
 
-- **One thread per athlete.** `message_threads` is `unique (athlete_id, coach_id)` with `coach_id` = head coach; every coach on the team reads it through `is_coach_of`.
-- **Thread lookup is by athlete only.** Both iOS `ChatShare.fetchOrCreateThread` and coach-web `fetchThread` select the first thread with `athlete_id = X`. This breaks once an athlete has two threads, so it must change to `kind = 'team'`.
-- **Access is defined in one place.** After report-block, `can_access_thread(athlete, coach)` defines thread access for `messages`, `message_threads` and chat-image storage.
-- **`unread_message_counts()` is a definer RPC.** It counts by `t.coach_id = me or is_coach_of(athlete)`, so it would leak other coaches' private threads unless it's updated.
-- **`read` is a single per-message flag.** That stays as it is: accurate in private threads, shared across coaches in the team thread (an existing MVP limitation).
-- **Realtime reloads the whole thread** on any message change, in both apps.
-- **Push.** `notify-message` pushes coach→athlete messages with `thread_id`. The iOS inline reply already posts to that `thread_id`, but `AppRouter.openChat` only switches tabs.
+## Anti-goals
+
+- Anyone seeing a conversation they are not a member of, including that it exists.
+- A blocked person regaining any way to reach or read the person who blocked them.
+- Athletes being findable by other athletes after they turn that off.
+
+## Decisions (Kevin's)
+
+**Reactions**
+- The set is 👍 like, ‼️ emphasize, ❓ question, 😂 laugh, 🎉 congratulate, one reaction per person per message. Tapping your current reaction removes it.
+- Everyone in the conversation sees counts and who reacted.
+- The message's author gets a push, e.g. "Dani 👍 your message".
+- iOS shows an iMessage corner badge on the bubble's top corner, and the long-press menu gets the five emoji as a row above Reply, Copy, Report and Block.
+- Coach web shows Slack-style chips under the message. Used reactions stay visible, the full row of five appears while hovering the message, clicking a chip toggles your reaction, and hovering a chip lists who reacted.
+
+**Conversations**
+- The Chat tab on iOS becomes an inbox list like the Messages app, with the athlete's team chat pinned first and a ✎ compose button.
+- Coach web gets a Messages page in the sidebar with the conversation list on the left and the open chat on the right. An athlete's "Message" button opens their team chat there.
+- Compose is "New message → To:" with search. One person makes a 1:1 and two or more make a group. If a conversation with exactly those members already exists, it opens instead of creating a duplicate.
+- **Who can be added (search scope):**
+  - A coach can add coaches who share an athlete with them, plus their own athletes, and a group can include several athletes.
+  - An athlete can add their own coaches, plus any athlete who shares a coach with them, unless that athlete has turned off discoverability.
+- **Discoverability** is a Settings switch, "Let my coach's other athletes find me", on by default. Turning it off hides the athlete from other athletes' search, while their coaches can still add them.
+- Any member can add people (within the scope that applies to them) and rename a group. New members see history from the moment they join.
+- Any member can leave a group. The team chat can't be left, and a 1:1 can only be hidden from your own list.
+- Conversations are invisible to non-members, so other coaches don't know a private conversation exists.
+- **When a coach is removed from an athlete's team:**
+  - A 1:1 between them becomes read-only for both.
+  - The coach is taken out of every group that includes that athlete, and the group continues for everyone else.
+- **Blocking** cuts the blocked person's access completely. Their 1:1 with the blocker becomes unreadable to them and read-only for the blocker, and they can't add the blocker to anything new. In a shared group the blocker no longer sees their messages, and they stay a member.
+- Coaches can start conversations with other coaches (coach-to-coach), as part of the same compose flow.
 
 ## Design
 
-### 1. Copy & paste (client-only, no backend)
+### Data model
 
-**iOS**
-- Long-press menu → **Copy**.
-  - Text and image captions copy their text.
-  - Workout, run and adjust cards copy a plain-text summary, e.g. `Tempo 6 mi — 6.0 mi · 7:42/mi · 46:12 · HR 158`, built by a pure `MessageText.copyText(_:unit:)` that's unit-tested.
-  - Photos get **Copy Photo**: download the signed URL, then `UIPasteboard.general.image`.
-- **Paste into the composer.**
-  - SwiftUI's `TextField` can't accept image pastes, so the composer becomes a small `UIViewRepresentable` around a `UITextView` subclass.
-  - It overrides `canPerformAction`/`paste(_:)`: when the pasteboard holds images, they go through the existing staging path (`ImageShrink.jpegForChat` → `StagedImage`, max 6); otherwise it pastes text as normal.
-  - It keeps the current behavior: grows to 1–4 lines, focus binding, dismisses on scroll, same styling.
+The existing tables stay, extended so one access check covers both thread types.
 
-**Coach-web**
-- A message action **Copy** uses `navigator.clipboard.writeText`. **Copy image** fetches the signed URL, redraws it as PNG on a canvas (browsers only accept `image/png` in `ClipboardItem`), then calls `clipboard.write`.
-- The textarea gets an `onPaste` handler: image files in the clipboard are added to `staged` (same `MAX_PHOTOS` cap); text pastes normally.
+- **`message_threads`**
+  - Gains `kind text not null default 'team' check (kind in ('team','chat'))`, plus `title text`, `created_by uuid` and `read_only boolean not null default false`.
+  - `athlete_id` and `coach_id` become nullable. A check constraint keeps both required for `team` and both null for `chat`.
+  - The old `unique (athlete_id, coach_id)` becomes a partial unique index, one team thread per athlete.
+- **`thread_members`** (`thread_id, user_id, status, joined_at, last_read_at, hidden_at`) holds membership for `chat` threads.
+  - `status` is `active`, `readonly` (removed-coach 1:1s), `left`, or `removed` (blocked, or a coach taken out of an athlete's group).
+  - Members with `active` or `readonly` can read, and only `active` members of a non-read-only thread can post.
+  - Reads are limited to messages created after `joined_at`.
+- **`message_reactions`** (`message_id, user_id, thread_id, kind, created_at`, primary key `(message_id, user_id)`). `thread_id` is filled by trigger so realtime can filter by thread.
+- **`profiles.discoverable_to_athletes boolean not null default true`.**
 
-### 2. Tapback reactions
+### Access functions
 
-**Schema** (migration B):
+- **`can_read_thread(thread_id)`** replaces `can_access_thread` as the single gate.
+  - For `team` it applies today's rule: the athlete always, and team coaches while they aren't blocked by the athlete.
+  - For `chat` it checks membership status and `joined_at`.
+- **`can_post_thread(thread_id)`** adds the active and not-read-only checks.
+- These policies are rewritten on top of the two functions:
+  - `messages` read, send and mark-read;
+  - `message_threads`;
+  - `thread_members`;
+  - `message_reactions`;
+  - the `chat-images` storage policies;
+  - `report_content`.
 
-```sql
-create table message_reactions (
-  message_id uuid not null references messages(id) on delete cascade,
-  user_id    uuid not null references profiles(id) on delete cascade,
-  thread_id  uuid not null references message_threads(id) on delete cascade, -- denormalized for realtime filtering
-  kind       text not null check (kind in ('like','emphasize','question','laugh','congrats')),
-  created_at timestamptz not null default now(),
-  primary key (message_id, user_id)          -- one reaction per person per message
-);
-```
+  The admin console's `admin_report_context` already works by thread id and needs no change.
+- **`can_add_to_chat(adder, target)`** implements the search scope above, rejecting blocks in either direction and suspended accounts.
 
-- A `before insert` trigger fills `thread_id` from the message. It rejects reactions on messages from someone the reactor blocked, or by a reactor the thread's athlete blocked.
-- **RLS:**
-  - **Read:** `can_access_thread` on the parent thread, and the reactor isn't blocked by the reader.
-  - **Insert, update, delete:** only your own rows (`user_id = auth.uid()`), and only on threads you can access.
-- **Realtime:** add the table to `supabase_realtime`. Clients subscribe with `thread_id=eq.X` and refetch. Supabase can't filter DELETE events, so clients also refetch on an unfiltered delete. Only primary keys are exposed in those events, which is acceptable.
-- **Toggling:** tapping your current reaction deletes it; tapping a different one upserts (replaces it).
+### RPCs (all security definer, signed-in only)
 
-**UI**
-- **iOS:** the long-press `.contextMenu` gets a `ControlGroup { … }.controlGroupStyle(.palette)` row of five emoji at the top (iOS 17+, already our minimum), then Reply, Copy, and for coach messages Report and Block. Your current reaction is shown as selected.
-- **Badges:** an overlapping capsule at the bubble's top corner, iMessage style, showing each emoji with its count. Tapping it opens a small sheet listing who reacted ("Dani 👍, You 🎉").
-- **Coach-web:** a hover action bar on each message (react · reply · copy · ⋯) and long-press on touch devices. The same badge row sits under the bubble.
-- **No push for reactions in v1.** It's quiet by default and easy to add later in `notify-message`.
+| RPC | Purpose |
+|---|---|
+| `search_chat_people(q)` | Returns people in the caller's scope with a context line ("Your athlete", "Coaches Maya with you", "Shares Dani with you") |
+| `start_conversation(user_ids, title)` | Validates scope and returns an existing thread with the identical active member set, or creates one |
+| `add_conversation_members` | Adds members to an existing conversation |
+| `rename_conversation` | Sets the group name |
+| `leave_conversation` | Leaves a group |
+| `hide_conversation` | Hides a 1:1 from your own list |
+| `mark_thread_read(thread_id)` | Sets `last_read_at` for chats; keeps the existing per-message `read` flag for team threads |
+| `my_conversations()` | Feeds both inboxes |
 
-### 3. Private chats
+`my_conversations()` returns each thread with:
+- kind, title, member names and avatars;
+- the last message preview and time;
+- the unread count, read-only flag, and the team chat's athlete.
 
-**Schema** (migration C):
-- `message_threads.kind text not null default 'team' check (kind in ('team','direct'))`.
-- **Replace** `unique (athlete_id, coach_id)` with partial unique indexes:
-  - `unique (athlete_id) where kind = 'team'` — exactly one team chat per athlete;
-  - `unique (athlete_id, coach_id) where kind = 'direct'` — one private chat per coach.
-- **Existing data:** every current thread becomes `team`.
-  - If an athlete already has more than one thread, the migration keeps the oldest as `team` and converts the rest to `direct` between that athlete and that thread's `coach_id`. Those coaches are the original participants, so nobody loses history.
-  - A read-only count on dev and prod comes first, so the number affected is known before shipping.
-- **Access** — `can_access_thread` gains the thread kind (a new 3-argument overload; every policy is recreated to use it):
-  - **team:** unchanged — the athlete, plus team coaches not blocked by the athlete.
-  - **direct:** the athlete, plus that one coach, and only while they are still on the athlete's team (`is_coach_of`) and not blocked. Removing or blocking the coach ends their access to the private chat, the same as the team chat. The athlete keeps the history.
-- **Creating a chat:** `open_direct_thread(p_athlete_id, p_coach_id) returns uuid` (definer) gets or creates the thread.
-  - The caller must be that athlete or that coach.
-  - The coach must be on the team.
-  - Neither may have blocked the other.
-  - The `threads_write` insert policy only allows `kind = 'team'`, so direct threads are created only through this RPC.
-- **Unread counts:**
-  - `unread_message_counts()` is rewritten to use the new access check, so private chats count only for their own coach.
-  - New `unread_by_thread()` returns `(thread_id, athlete_id, kind, coach_id, unread)`. It drives per-chat dots in both apps, including the iOS chat switcher, which has no unread data today.
-- **Push:** `notify-message` already reads `thread_id`. For direct threads the alert title becomes `"Dani · private"`, and the payload adds `thread_kind`.
-- **Things that stay in the team chat:**
-  - Run cards shared from LogRunSheet (`ChatShare.shareRunCard`) and coach-web share-to-chat / adjust cards (`shareWorkoutToChat`, `shareAdjustToChat`). Both lookups change to `kind = 'team'`.
-  - The seed script's chat (`demo-athlete.ts` inserts `kind: 'team'` explicitly), and optionally one short private exchange with Marcus for the demo.
+`unread_message_counts()` keeps working for the coach roster badges and counts only threads the caller can read.
 
-**UI**
-- **iOS ChatView:** the header becomes a switcher.
-  - Tapping the title opens a menu: **Team chat** (all coaches) and **Private · Dani**, **Private · Marcus**, each with an unread dot. Picking a coach without a private chat yet creates it.
-  - A selected private chat shows that coach's avatar and the subtitle "Private — only you and Dani".
-  - `ChatStore.open` takes a thread selection.
-  - `AppRouter` gains `openThreadId`, so tapping a push opens the right chat.
-- **Coach-web ChatPanel:** two tabs, **Team** and **Private** (only your own private chat with this athlete), each with an unread badge. The roster badge sums both.
+### Lifecycle triggers
 
-### 4. Replies
+- **`coach_athlete` delete**
+  - A 1:1 chat between that coach and athlete gets `read_only = true`, and both memberships go to `readonly`.
+  - The coach's membership in any group containing that athlete goes to `removed`.
+- **`block_user`** extends the existing function.
+  - The blocked person's membership in their 1:1 with the blocker goes to `removed` and the thread becomes read-only.
+  - `can_add_to_chat` rejects any future add between them.
 
-**Schema** (migration A): `messages.reply_to_id uuid references messages(id) on delete set null`. A `before insert` trigger rejects a reply that points at a message in a different thread.
+### Push
 
-**Rendering**
-- A compact quote block sits above the bubble: a colored bar, the sender's name, and a one-line preview (text snippet, "📷 Photo", "Logged run · Tempo 6 mi", "Workout · Long Run 14 mi").
-- Tapping the quote scrolls to the original and briefly highlights it.
-- If the original was deleted or is hidden by a block, the quote shows "Original message unavailable".
-- Both apps already load the whole thread, so the quote is resolved client-side and needs no extra fetch.
+`notify-message` keeps the team-chat behavior and sends `chat` messages to every member with an active status except the sender. Only iOS users have tokens, so in practice this reaches athletes. The alert title is the group name or the sender, and `thread_id` routes a tap to that conversation.
 
-**Composer**
-- **Reply** in the long-press menu sets `replyingTo`.
-- A dismissible "Replying to Dani: …" bar appears above the input.
-- The next text or photo send carries `reply_to_id`; for a batch of photos it goes on the first one.
+Reactions get a separate path. A database webhook on `message_reactions` insert calls a small `notify-reaction` function, which pushes "Name 👍 your message" to the author when the author isn't the reactor and hasn't blocked them.
 
-**Replying to a logged workout**
-- **In chat:** run cards and workout cards are messages, so Reply covers them.
-- **From the calendar:** WorkoutDetailSheet (iOS) gets **Message coach about this**.
-  - It opens the team chat with a workout quote attached to the composer. The message is sent as `kind = 'text'` with the existing `workout_id` column set, and renders a tappable workout chip.
-  - The roll-up logic only touches `runcard`/`workout` kinds, so it's unaffected.
-  - Coach-web gets the same action in the day view ("Message athlete about this").
+### iOS
 
-### Blocks and moderation (from report-block)
+- **ChatsView** (new Chat tab root) lists `my_conversations()` with the team chat pinned, unread dots, search, and a ✎ compose button.
+- **ChatView** becomes thread-generic. `ChatStore.open(threadId:)` replaces the athlete-scoped open, and the team chat keeps its share-to-chat entry points.
+- **NewMessageView** has the To: field with pills, results grouped into Coaches and Athletes, and a note shown when two or more athletes are selected.
+- **ConversationInfoView** lists members, lets you rename, add people or leave, and shows the read-only banner.
+- **Reactions** get the corner badge, the palette in the context menu, and a who-reacted sheet.
+- **Settings** gets the discoverability switch on the account screen.
+- **Routing:** `AppRouter` gains `openThreadId` from the push payload, and the report and block name fallbacks change from "this coach" to the sender's name for any member.
 
-- Reactions, replies and private chats all go through `can_access_thread` and `has_blocked`.
-- The language filter already covers `messages.body`, so replies are filtered too. Reactions are a fixed set and need no filtering.
-- Report and Block stay in the same long-press menu, below the new actions.
+### Coach web
 
-### Legal (CLAUDE.md gate, same PR)
+- **A `/coach/messages` route** holds the list and thread panes, plus a sidebar "Messages" item with the unread total. The existing athlete "Message" button navigates there with the team thread selected.
+- **Compose** is a To: field with the same search grouping.
+- **Conversation info** shows members, rename, add people, leave, and the read-only banner.
+- **Reactions** show as Slack chips (used chips always, all five on hover, tooltip with names).
+- **Report and block parity:** "Report message" and "Block" in the message action bar, plus a Blocked list in coach settings with Unblock. This is needed now because coaches can be in conversations with any athlete.
 
-Update all three copies — `docs/appstore/*.md`, `coach-web/src/routes/legal/*.tsx` and `TermsView.swift` — and bump the "Last updated" date:
-- **Privacy Policy, "Communications":** add reactions, replies, and private messages between an athlete and one coach.
-- **Privacy Policy, "How your information is shared":** team chat is visible to the whole coaching team; private chats only to that coach; access ends when a coach is removed or blocked.
-- **Terms, "Your Content":** the license covers reactions and replies. No change to the App Store privacy label, since this is still "Other User Content".
+### Legal (CLAUDE.md gate, same PR, all three copies plus dates)
 
-## Testing
+- **Privacy Policy, Communications:** add reactions, conversations and group chats.
+- **Privacy Policy, How your information is shared:**
+  - members of a conversation see each other's names, photos and messages;
+  - athletes who share a coach can find each other by name unless they turn that off;
+  - conversations are visible only to their members.
+- **Privacy Policy, Your choices:** add the discoverability switch, leaving a group, and blocking.
+- **Terms, Your Content:** covers messages and reactions in group conversations.
+- **App Store privacy label:** no change, since these remain Other User Content and Name, which are already declared.
 
-- **supabase/tests** (vitest, local stack):
-  - an assistant can't read the head coach's private chat;
-  - a removed or blocked coach loses private-chat access;
-  - a third party can't open a private chat;
-  - `unread_message_counts` doesn't leak private chats;
-  - one team thread per athlete is enforced;
-  - a cross-thread reply is rejected;
-  - one reaction per user, changeable;
-  - no reactions or private chats across a block;
-  - reaction RLS hides blocked users' reactions.
-- **coach-web vitest:** MessageItem quote, badges and actions; ChatPanel paste-to-stage, reply bar and tabs; clipboard helpers.
-- **iOS Swift Testing:** `copyText` per message kind, quote preview text, reaction grouping and counts, thread-switcher labels.
-- **Manual:** simulator plus coach-web against the local stack — all four features, both directions, plus push routing to a private chat on a device.
+### Data migration
 
-## Open decisions (recommendations in bold)
+- Every existing thread becomes `kind = 'team'`.
+- Before writing the migration, a read-only check on dev and prod counts athletes with more than one thread. Any extras convert to `chat` threads, with the athlete and that thread's coach as active members, so no history is lost and nothing leaks to other coaches.
 
-1. **Who can start a private chat?** **Both the athlete and the coach.**
-2. **Does a removed coach keep read access to their old private chat?** **No.** Access ends with the coaching link; the athlete keeps the history.
-3. **Push notifications for reactions?** **Not in v1.**
-4. **Where do shared run cards go?** **Always the team chat.**
-5. **Release timing:** **1.1, after 1.0 approval.** It's merged to `dev` behind no flag; the next TestFlight build picks it up.
+### Testing
+
+- **supabase/tests:** `reactions.test.ts`, plus `conversations.test.ts` covering:
+  - each search-scope rule and the discoverability switch;
+  - exact-member-set reuse;
+  - non-member invisibility;
+  - the 1:1 read-only and group removal rules on coach removal;
+  - blocking inside 1:1s and groups;
+  - leave, rename and add;
+  - `joined_at` history cutoff;
+  - storage policies;
+  - `report_content` on a chat message;
+  - unread counts.
+- **Coach web vitest:** messages page, compose, info, reaction chips, and the report and block actions.
+- **iOS Swift Testing:** reaction summarizing, inbox ordering and labels, and compose selection rules.
+- **Manual:** the simulator plus coach web against the local stack. That covers every flow above, with a push check on a device for chat messages and reactions.
+
+## Calls made while writing this (Claude's, not Kevin's)
+
+1. **Re-linking a removed coach** - If a removed coach is linked to the athlete again, their read-only 1:1 becomes active again. They aren't put back into groups automatically.
+2. **Relationships that end elsewhere** - Coach-to-coach and athlete-to-athlete conversations don't change when the people involved stop sharing an athlete or a coach. Only the coach-removal and block rules above change membership.
+3. **Third parties and blocks** - A third member may add someone to a group that contains a person they blocked or were blocked by, the way iMessage allows. The blocker simply doesn't see the blocked person's messages there.
+4. **Group size** - Groups are capped at 25 members.
+5. **Duplicate check** - The "exact member set" check ignores the group name.
+6. **Group names** - Names go through the existing language filter.
+7. **Suspended accounts** - The admin console's write block for suspended accounts extends to `thread_members` and `message_reactions`.
+8. **Leaving history** - A member who leaves or is removed loses access to the conversation's history. Read-only history applies only to removed-coach 1:1s, per Kevin's decision.
+
+## Left to the builder
+
+The exact visual polish within the chosen layouts, the copy for empty states and banners, index choices, and splitting the work into commits.
