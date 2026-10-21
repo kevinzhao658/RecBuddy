@@ -1,6 +1,6 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { push } from '../notify-message/apns.ts'
-import { reactionAlert } from '../notify-message/recipients.ts'
+import { reactionAlert, notifyReactionAuthor } from '../notify-message/recipients.ts'
 
 // Database Webhook on message_reactions INSERT/UPDATE (dashboard-configured,
 // same x-webhook-secret as notify-message). Pushes "Dani 👍 your message" to
@@ -23,12 +23,22 @@ Deno.serve(async (req) => {
 
   const { data: msg, error } = await supa.from('messages').select('from_user_id, thread_id').eq('id', record.message_id).maybeSingle()
   if (error) { console.error('message query', error); return new Response('retry', { status: 500 }) }
-  if (!msg || msg.from_user_id === record.user_id) return new Response('skip')
+  if (!msg) return new Response('skip')
   const author = msg.from_user_id
 
-  const { data: block } = await supa.from('user_blocks').select('blocker_id')
+  // Lookup failures retry (5xx) rather than fail open.
+  const { data: thread, error: tErr } = await supa.from('message_threads').select('kind').eq('id', msg.thread_id).maybeSingle()
+  if (tErr) { console.error('thread query', tErr); return new Response('retry', { status: 500 }) }
+  const { data: member, error: mErr } = await supa.from('thread_members').select('status')
+    .eq('thread_id', msg.thread_id).eq('user_id', author).maybeSingle()
+  if (mErr) { console.error('member query', mErr); return new Response('retry', { status: 500 }) }
+  const { data: block, error: bErr } = await supa.from('user_blocks').select('blocker_id')
     .eq('blocker_id', author).eq('blocked_id', record.user_id).maybeSingle()
-  if (block) return new Response('skip')
+  if (bErr) { console.error('block query', bErr); return new Response('retry', { status: 500 }) }
+  if (!thread || !notifyReactionAuthor({ kind: thread.kind, authorStatus: member?.status ?? null, author,
+                                         reactor: record.user_id, authorBlockedReactor: !!block })) {
+    return new Response('skip')
+  }
 
   const { data: reactor } = await supa.from('profiles').select('name').eq('id', record.user_id).maybeSingle()
   const alert = reactionAlert(reactor?.name ?? 'Someone', record.kind)

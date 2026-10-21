@@ -44,7 +44,8 @@ Deno.serve(async (req) => {
   if (to.length === 0) return new Response('skip')
 
   // Nobody gets pushed a message from someone they blocked.
-  const { data: blockers } = await supa.from('user_blocks').select('blocker_id').eq('blocked_id', from).in('blocker_id', to)
+  const { data: blockers, error: blockErr } = await supa.from('user_blocks').select('blocker_id').eq('blocked_id', from).in('blocker_id', to)
+  if (blockErr) { console.error('block query', blockErr); return new Response('retry', { status: 500 }) }
   const blocked = new Set((blockers ?? []).map((b) => b.blocker_id))
   to = to.filter((id) => !blocked.has(id))
   if (to.length === 0) return new Response('skip')

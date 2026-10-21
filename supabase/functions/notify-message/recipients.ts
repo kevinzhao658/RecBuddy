@@ -28,3 +28,13 @@ const EMOJI: Record<string, string> = { like: '👍', emphasize: '‼️', quest
 export function reactionAlert(reactorName: string, kind: string): Alert {
   return { title: reactorName, body: `${EMOJI[kind] ?? '👍'} your message` }
 }
+
+/** Whether a reaction should push to the message's author: not for their own
+ *  reaction, not from someone they blocked, and in a chat only while the
+ *  author is still an active member (left/removed members can't read it). */
+export function notifyReactionAuthor(p: {
+  kind: string; authorStatus: string | null; author: string; reactor: string; authorBlockedReactor: boolean
+}): boolean {
+  if (p.author === p.reactor || p.authorBlockedReactor) return false
+  return p.kind === 'team' || p.authorStatus === 'active'
+}

@@ -37,3 +37,16 @@ describe('push recipients', () => {
     expect(reactionAlert('Dani Brooks', 'congrats').body).toBe('🎉 your message')
   })
 })
+
+describe('reaction push gate', () => {
+  it('pushes only to an author who can still read the chat, never for self or blocked reactors', async () => {
+    const { notifyReactionAuthor } = await import('../functions/notify-message/recipients')
+    expect(notifyReactionAuthor({ kind: 'team', authorStatus: null, author: 'a', reactor: 'b', authorBlockedReactor: false })).toBe(true)
+    expect(notifyReactionAuthor({ kind: 'chat', authorStatus: 'active', author: 'a', reactor: 'b', authorBlockedReactor: false })).toBe(true)
+    expect(notifyReactionAuthor({ kind: 'chat', authorStatus: 'left', author: 'a', reactor: 'b', authorBlockedReactor: false })).toBe(false)
+    expect(notifyReactionAuthor({ kind: 'chat', authorStatus: 'removed', author: 'a', reactor: 'b', authorBlockedReactor: false })).toBe(false)
+    expect(notifyReactionAuthor({ kind: 'chat', authorStatus: null, author: 'a', reactor: 'b', authorBlockedReactor: false })).toBe(false)
+    expect(notifyReactionAuthor({ kind: 'team', authorStatus: null, author: 'a', reactor: 'a', authorBlockedReactor: false })).toBe(false)
+    expect(notifyReactionAuthor({ kind: 'team', authorStatus: null, author: 'a', reactor: 'b', authorBlockedReactor: true })).toBe(false)
+  })
+})
