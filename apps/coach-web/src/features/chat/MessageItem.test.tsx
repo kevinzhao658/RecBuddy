@@ -107,6 +107,16 @@ test('action bar: right-click pins it open and Copy runs the action', async () =
   expect(await screen.findByRole('button', { name: 'Copied' })).toBeInTheDocument()
 })
 
+test('action bar: hovering places it against the bubble', () => {
+  render(<MessageItem mine={false} actions={[{ key: 'copy', label: 'Copy', onClick: vi.fn() }]}
+    m={{ ...base, kind: 'text', body: 'place me', payload: null } as any} />)
+  const bar = screen.getByRole('toolbar', { name: 'Message actions' })
+  expect(bar.style.top).toBe('')
+  fireEvent.mouseEnter(screen.getByText('place me'))
+  // jsdom lays nothing out, so there's no room beside: it overlaps the top edge.
+  expect(bar.style.top).toBe('-12px')
+})
+
 test('no action bar on rolled-up placeholders or when there are no actions', () => {
   render(<MessageItem mine={false} m={{ ...base, kind: 'text', body: 'plain', payload: null } as any} />)
   expect(screen.queryByRole('toolbar')).toBeNull()

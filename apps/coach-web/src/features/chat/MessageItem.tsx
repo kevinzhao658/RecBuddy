@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import type { Message, RunCard, AdjustCard, WorkoutCard, ImageCard, WorkoutQuote } from '../../lib/types'
-import { MessageActions, type MessageAction } from './MessageActions'
+import { MessageActions, actionBarPosition, type MessageAction } from './MessageActions'
 import { ReactionChips } from './ReactionChips'
 import type { ReactionSummary } from '../../lib/reactions'
 import type { ReactionKind } from '../../lib/types'
@@ -156,6 +156,23 @@ export function MessageItem({ m, mine, sender, showName, showAvatar, grouped, su
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [hovered, setHovered] = useState(false)
+  // The bar is placed against the bubble itself (not the far edge of the
+  // panel), so measure both once it's about to show.
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const bubbleRef = useRef<HTMLDivElement>(null)
+  const barRef = useRef<HTMLDivElement>(null)
+  const [barStyle, setBarStyle] = useState<CSSProperties>()
+  useLayoutEffect(() => {
+    const wrap = wrapRef.current, bubble = bubbleRef.current?.firstElementChild, bar = barRef.current
+    if (!(hovered || menuOpen) || !wrap || !bubble || !bar) return
+    const w = wrap.getBoundingClientRect(), b = bubble.getBoundingClientRect(), r = bar.getBoundingClientRect()
+    setBarStyle(actionBarPosition({
+      wrapperWidth: w.width,
+      bubble: { left: b.left - w.left, right: b.right - w.left, top: b.top - w.top, height: b.height },
+      bar: { width: r.width, height: r.height },
+      mine,
+    }))
+  }, [hovered, menuOpen, mine])
   const chips = onReact && !superseded
     ? <ReactionChips items={reactions} onToggle={onReact} showAll={hovered || menuOpen} />
     : null
@@ -192,14 +209,14 @@ export function MessageItem({ m, mine, sender, showName, showAvatar, grouped, su
   // Bubble + its action bar. Right-click (desktop) or long-press (touch fires
   // contextmenu) pins the bar open; leaving the message closes it.
   const withActions = actions.length && !superseded ? (
-    <div className={`group/msg relative flex w-full flex-col ${mine ? 'items-end' : 'items-start'}`}
+    <div ref={wrapRef} className={`group/msg relative flex w-full flex-col ${mine ? 'items-end' : 'items-start'}`}
       onContextMenu={(e) => { e.preventDefault(); setMenuOpen(true) }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => { setMenuOpen(false); setHovered(false) }}
       onKeyDown={(e) => { if (e.key === 'Escape') setMenuOpen(false) }}>
-      <MessageActions actions={actions} mine={mine} open={menuOpen} />
+      <MessageActions ref={barRef} actions={actions} open={menuOpen} style={barStyle} />
       {quote && !superseded && <QuoteView q={quote} />}
-      {body}
+      <div ref={bubbleRef} className={`flex w-full flex-col ${mine ? 'items-end' : 'items-start'}`}>{body}</div>
       {chips}
     </div>
   ) : (
