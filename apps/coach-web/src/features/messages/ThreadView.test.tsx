@@ -44,7 +44,7 @@ test('renders the conversation and sends a typed message', () => {
   expect(markRead.mutate).toHaveBeenCalled() // marks the thread read on open
   fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'great run' } })
   fireEvent.click(screen.getByRole('button', { name: /send message/i }))
-  expect(send.mutate).toHaveBeenCalledWith({ body: 'great run', replyToId: null, workout: null })
+  expect(send.mutate).toHaveBeenCalledWith({ body: 'great run', replyToId: null, workout: null }, expect.anything())
 })
 
 
@@ -81,7 +81,7 @@ test('Reply: shows the reply bar and sends with reply_to_id, then clears', () =>
   expect(screen.getByText('Replying to Jordan Lee')).toBeInTheDocument()
   fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'on it' } })
   fireEvent.click(screen.getByRole('button', { name: /send message/i }))
-  expect(send.mutate).toHaveBeenCalledWith({ body: 'on it', replyToId: 'm1', workout: null })
+  expect(send.mutate).toHaveBeenCalledWith({ body: 'on it', replyToId: 'm1', workout: null }, expect.anything())
   expect(screen.queryByText('Replying to Jordan Lee')).toBeNull()
 })
 
@@ -92,7 +92,7 @@ test('initialWorkout attaches the workout to the next message', () => {
   expect(screen.getByText('About a workout')).toBeInTheDocument()
   fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'How did this feel?' } })
   fireEvent.click(screen.getByRole('button', { name: /send message/i }))
-  expect(send.mutate).toHaveBeenCalledWith({ body: 'How did this feel?', replyToId: null, workout: w })
+  expect(send.mutate).toHaveBeenCalledWith({ body: 'How did this feel?', replyToId: null, workout: w }, expect.anything())
 })
 
 test('header shows the conversation title, and a read-only thread has no composer', () => {
@@ -120,4 +120,31 @@ test("other people's messages offer Report and Block; Block confirms then blocks
   fireEvent.click(screen.getAllByRole('button', { name: 'Block Jordan Lee' })[0])
   fireEvent.click(screen.getByRole('button', { name: 'Block' }))
   await vi.waitFor(() => expect(block).toHaveBeenCalledWith(expect.anything(), 'a1'))
+})
+
+test('blocking the athlete in their team chat refreshes the roster and closes the thread', async () => {
+  setup()
+  vi.spyOn(modMod, 'blockUser').mockResolvedValue(undefined)
+  vi.spyOn(convMod, 'fetchConversations').mockResolvedValue([])   // the thread is gone for me now
+  const qc = new QueryClient()
+  const invalidate = vi.spyOn(qc, 'invalidateQueries')
+  const onGone = vi.fn()
+  render(<QueryClientProvider client={qc}><ThreadView threadId="th1" conversation={team} onGone={onGone} /></QueryClientProvider>)
+  fireEvent.contextMenu(screen.getByText('hey coach'))
+  fireEvent.click(screen.getAllByRole('button', { name: 'Block Jordan Lee' })[0])
+  fireEvent.click(screen.getByRole('button', { name: 'Block' }))
+  await vi.waitFor(() => expect(onGone).toHaveBeenCalled())
+  const keys = invalidate.mock.calls.map((c) => (c[0] as any).queryKey[0])
+  expect(keys).toEqual(expect.arrayContaining(['roster', 'unread', 'conversations', 'blocked']))
+})
+
+test('a rejected send keeps the draft and says why', () => {
+  const { send } = setup()
+  send.mutate.mockImplementation((_v: unknown, opts?: { onError?: (e: Error) => void }) =>
+    opts?.onError?.(new Error("message contains language that isn't allowed")))
+  wrap(<ThreadView threadId="th1" conversation={team} />)
+  fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'great run' } })
+  fireEvent.click(screen.getByRole('button', { name: /send message/i }))
+  expect(screen.getByLabelText('Message')).toHaveValue('great run')
+  expect(screen.getByText(/includes language that isn.t allowed/)).toBeInTheDocument()
 })

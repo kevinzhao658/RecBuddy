@@ -30,6 +30,13 @@ export async function blockUser(client: SupabaseClient, userId: string): Promise
   const { error } = await client.rpc('block_user', { p_user_id: userId })
   if (error) throw error
 }
+/** Blocking can sever a coaching link and cut access to threads: refresh
+ *  everything that lists people or conversations. */
+export function invalidateAfterBlock(qc: ReturnType<typeof useQueryClient>) {
+  for (const key of ['conversations', 'blocked', 'roster', 'unread', 'messages', 'search-people']) {
+    qc.invalidateQueries({ queryKey: [key] })
+  }
+}
 export async function fetchBlockedUsers(client: SupabaseClient): Promise<BlockedUser[]> {
   const { data, error } = await client.rpc('get_blocked_users')
   if (error) throw error

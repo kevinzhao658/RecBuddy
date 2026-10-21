@@ -1,10 +1,10 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../../auth/AuthProvider'
 import { useMessages, useSendMessage, useSendImages, useMarkThreadRead, useRealtimeThread, signedChatImageUrl } from '../../lib/queries/chat'
-import { useThreadPeople } from '../../lib/queries/conversations'
+import { fetchConversations, useThreadPeople } from '../../lib/queries/conversations'
 import { useReactions, useSetReaction } from '../../lib/queries/reactions'
 import { summarize } from '../../lib/reactions'
-import { blockUser } from '../../lib/queries/moderation'
+import { blockUser, invalidateAfterBlock } from '../../lib/queries/moderation'
 import { ReportDialog, type ReportTarget } from '../chat/ReportDialog'
 import { ConfirmDialog } from '../roster/ConfirmDialog'
 import { supabase } from '../../lib/supabase'
@@ -39,7 +39,7 @@ function sessionLabel(iso: string): string {
 
 /** One conversation (team or chat): messages, reactions-ready rows, reply,
  *  copy/paste, photos, and the composer. Rendered by the Messages page. */
-export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialWorkout }: {
+export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialWorkout, onGone }: {
   threadId: string
   /** Inbox row for the header (title, members, read-only). */
   conversation?: Conversation | null
@@ -47,6 +47,8 @@ export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialW
   onInfo?: () => void
   /** "Message athlete about this" — attach this workout to the composer. */
   initialWorkout?: Pick<Workout, 'id' | 'date' | 'type' | 'title'> | null
+  /** This thread is no longer readable (e.g. I blocked my athlete): close it. */
+  onGone?: () => void
 }) {
   const { session } = useAuth()
   const meId = session!.user.id
@@ -66,14 +68,20 @@ export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialW
   const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null)
   const [blockTarget, setBlockTarget] = useState<ReportTarget | null>(null)
   const [modError, setModError] = useState<string | null>(null)
+  // After a block: refresh everything, and close the thread if it's gone for me.
+  const afterBlocked = async () => {
+    invalidateAfterBlock(qc)
+    try {
+      const rows = await fetchConversations(supabase)
+      if (!rows.some((c) => c.thread_id === threadId)) onGone?.()
+    } catch { /* the inbox refetch will catch up */ }
+  }
   const doBlock = async (t: ReportTarget) => {
     setBlockTarget(null)
     try {
       await blockUser(supabase, t.userId)
-      qc.invalidateQueries({ queryKey: ['messages', threadId] })
-      qc.invalidateQueries({ queryKey: ['conversations'] })
-      qc.invalidateQueries({ queryKey: ['blocked'] })
-    } catch { setModError(`Couldn't block ${t.userName}. Try again.`) }
+    } catch { setModError(`Couldn't block ${t.userName}. Try again.`); return }
+    await afterBlocked()
   }
   const { unit } = useUnit()
   // Replies: the message being answered; a workout attached from the results
@@ -100,6 +108,7 @@ export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialW
     return out
   }
   const [text, setText] = useState('')
+  const [sendError, setSendError] = useState<string | null>(null)
   // Picked photos are STAGED here (with previews) so a caption can be added
   // before sending — nothing uploads until Send. Capped at MAX_PHOTOS.
   const [staged, setStaged] = useState<File[]>([])
@@ -153,21 +162,34 @@ export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialW
     }
   }
 
+  // A rejected send puts the draft back and says why, instead of losing it.
+  const failed = (restore: () => void) => (e: Error) => {
+    restore()
+    setSendError(/isn.t allowed/.test(e.message)
+      ? "That message includes language that isn't allowed."
+      : "Couldn't send your message. Try again.")
+  }
   const submit = () => {
     const body = text.trim()
     if (!threadId) return
+    const reply = replyingTo
+    setSendError(null)
     if (staged.length) {
-      sendImages.mutate({ files: staged, body: body || undefined, replyToId: replyingTo?.id ?? null })
+      const files = staged
       setStaged([])
       setText('')
       setReplyingTo(null)
+      sendImages.mutate({ files, body: body || undefined, replyToId: reply?.id ?? null },
+        { onError: failed(() => { setStaged(files); setText(text); setReplyingTo(reply) }) })
       return
     }
     if (!body) return
-    send.mutate({ body, replyToId: replyingTo?.id ?? null, workout: workoutQuote })
+    const workout = workoutQuote
     setText('')
     setReplyingTo(null)
     setWorkoutQuote(null)
+    send.mutate({ body, replyToId: reply?.id ?? null, workout },
+      { onError: failed(() => { setText(text); setReplyingTo(reply); setWorkoutQuote(workout) }) })
   }
 
   return (
@@ -293,10 +315,11 @@ export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialW
           <button aria-label="Send message" onClick={submit} disabled={(!text.trim() && !staged.length) || send.isPending || sendImages.isPending}
             className="rb-glow rounded-[12px] bg-accent px-4 py-2 text-sm font-semibold text-on-accent disabled:opacity-50">Send</button>
         </div>
+        {sendError && <p role="alert" className="px-4 pb-2 text-xs text-missed">{sendError}</p>}
         </>)}
         {modError && <p className="px-4 pb-2 text-xs text-missed">{modError}</p>}
         {reportTarget && <ReportDialog open target={reportTarget} onClose={() => setReportTarget(null)}
-          onDone={(blocked) => { if (blocked) { qc.invalidateQueries({ queryKey: ['messages', threadId] }); qc.invalidateQueries({ queryKey: ['conversations'] }) } }} />}
+          onDone={(blocked) => { if (blocked) afterBlocked() }} />}
         <ConfirmDialog open={!!blockTarget} confirmLabel="Block"
           title={blockTarget ? `Block ${blockTarget.userName}? They can't message you or add you to chats, and their messages are hidden from you.` : ''}
           onCancel={() => setBlockTarget(null)} onConfirm={() => blockTarget && doBlock(blockTarget)} />

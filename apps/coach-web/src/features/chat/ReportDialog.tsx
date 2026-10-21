@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Modal } from '../../components/ui/Modal'
 import { Button } from '../../components/ui/Button'
-import { REPORT_REASONS, blockUser, reportContent, type ReportReason } from '../../lib/queries/moderation'
+import { REPORT_REASONS, blockUser, invalidateAfterBlock, reportContent, type ReportReason } from '../../lib/queries/moderation'
 import { supabase } from '../../lib/supabase'
 
 export type ReportTarget = { userId: string; userName: string; messageId?: string }
@@ -32,8 +32,7 @@ export function ReportDialog({ open, target, onClose, onDone }: {
       }
       if (alsoBlock) {
         await blockUser(supabase, target.userId)
-        qc.invalidateQueries({ queryKey: ['conversations'] })
-        qc.invalidateQueries({ queryKey: ['blocked'] })
+        invalidateAfterBlock(qc)
       }
       setDone(true)
       onDone?.(alsoBlock)

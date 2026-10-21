@@ -45,7 +45,8 @@ export function MessagesPage() {
           ? <ComposePane onOpen={select} onCancel={() => setComposing(false)} />
           : threadId
             ? <ThreadView key={threadId} threadId={threadId} conversation={open} onOpenDay={openDay}
-                initialWorkout={workout} onInfo={open ? () => setInfoOpen((o) => !o) : undefined} />
+                initialWorkout={workout} onInfo={open ? () => setInfoOpen((o) => !o) : undefined}
+                onGone={() => { setInfoOpen(false); navigate('/coach/messages') }} />
             : <div className="grid flex-1 place-items-center text-sm text-text-mute">Select a conversation</div>}
         {infoOpen && open && !composing && (
           <ConversationInfo key={open.thread_id} conversation={open} onClose={() => setInfoOpen(false)}
