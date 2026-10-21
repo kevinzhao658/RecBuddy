@@ -633,3 +633,36 @@ describe('thread_people membership flag', () => {
     expect(byId[asst.id] ?? false).toBe(false)
   })
 })
+
+describe('blocked pairs never share a new group (Kevin, 2026-10-21)', () => {
+  const tag = randomUUID().slice(0, 8)
+  let c: U, a: U, b: U, d: U
+  beforeAll(async () => {
+    c = await createAndSignIn({ role: 'coach', name: `Bc ${tag}`, title: 'Head Coach' })
+    a = await createAndSignIn({ role: 'athlete', name: `Ba ${tag}` })
+    b = await createAndSignIn({ role: 'athlete', name: `Bb ${tag}` })
+    d = await createAndSignIn({ role: 'athlete', name: `Bd ${tag}` })
+    for (const x of [a, b, d]) await link(c.id, x.id)
+    await a.client.rpc('block_user', { p_user_id: b.id })   // a blocked b
+  })
+
+  it('a third person cannot start a group with two people who have a block between them', async () => {
+    const r = await c.client.rpc('start_conversation', { p_user_ids: [a.id, b.id], p_title: 'Nope' })
+    expect(r.error?.message).toMatch(/can.t add/)
+    expect(r.error?.message).not.toMatch(new RegExp(`Ba ${tag}|Bb ${tag}`))
+  })
+
+  it('a third person cannot add someone to a group containing a person they blocked or were blocked by', async () => {
+    const g = (await c.client.rpc('start_conversation', { p_user_ids: [a.id, d.id], p_title: 'Crew' })).data
+    const r = await c.client.rpc('add_conversation_members', { p_thread: g, p_user_ids: [b.id] })
+    expect(r.error?.message).toMatch(/can.t add/)
+    const { data } = await admin().from('thread_members').select('user_id').eq('thread_id', g).eq('user_id', b.id)
+    expect(data).toEqual([])
+  })
+
+  it('people without a block between them can still be added', async () => {
+    const g = (await c.client.rpc('start_conversation', { p_user_ids: [b.id], p_title: null })).data
+    const r = await c.client.rpc('add_conversation_members', { p_thread: g, p_user_ids: [d.id] })
+    expect(r.error).toBeNull()
+  })
+})
