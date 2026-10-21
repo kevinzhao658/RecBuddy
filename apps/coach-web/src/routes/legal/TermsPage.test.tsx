@@ -18,4 +18,5 @@ test('renders all seventeen sections with the support contact', () => {
   expect(screen.getAllByText(/support@recbuddy\.app/).length).toBeGreaterThanOrEqual(2)
   expect(screen.queryByText(/kevin@recbuddy\.app/)).not.toBeInTheDocument()
   expect(screen.getByText(/last updated october 2026/i)).toBeInTheDocument()
+  expect(screen.getByText(/messages and reactions you send in conversations, including group chats/)).toBeInTheDocument()
 })

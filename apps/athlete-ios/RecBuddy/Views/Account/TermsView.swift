@@ -51,7 +51,7 @@ struct TermsView: View {
                     )
                     termsSection(
                         title: "9. Your Content",
-                        text: "You retain ownership of the content you submit to RecBuddy, including messages, notes, photos, and logged workouts. You grant RecBuddy a non-exclusive, worldwide, royalty-free license to host, store, display, and transmit that content as needed to operate the service — for example, showing your logged runs and messages to your connected coach."
+                        text: "You retain ownership of the content you submit to RecBuddy, including messages, notes, photos, logged workouts, and the messages and reactions you send in conversations, including group chats. You grant RecBuddy a non-exclusive, worldwide, royalty-free license to host, store, display, and transmit that content as needed to operate the service — for example, showing your logged runs and messages to your connected coach. Everyone in a conversation can see what you post in it."
                     )
                     termsSection(
                         title: "10. Account Deletion Rights",
