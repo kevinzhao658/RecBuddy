@@ -9,7 +9,7 @@ import { ConfirmDialog } from '../roster/ConfirmDialog'
 /** Members, group name (groups and team chats), add people, leave (groups) or hide (1:1). */
 export function ConversationInfo({ conversation, onClose, onOpenThread, onGone }: {
   conversation: Conversation; onClose: () => void
-  /** Adding people to a 1:1 starts a NEW group — open it. */
+  /** Adding people to a 1:1 or a team chat starts a NEW group — open it. */
   onOpenThread: (threadId: string) => void
   /** After leaving / hiding. */
   onGone?: () => void
@@ -56,12 +56,14 @@ export function ConversationInfo({ conversation, onClose, onOpenThread, onGone }
               <span className="text-sm text-text">{m.name}</span>
             </div>
           ))}
-          {!readOnly && !isTeam && !adding && (
+          {!readOnly && !adding && (
             <button onClick={() => setAdding(true)} className="mt-2 text-sm font-semibold text-accent">Add people</button>
           )}
         </div>
         {adding && (
           <div className="flex h-80 flex-col rounded-[12px] border border-line">
+            {isTeam && <p className="border-b border-line px-3 py-2 text-xs text-text-mute">
+              This starts a new group with everyone here. The team chat stays private to the team.</p>}
             <PeoplePicker selected={picked} onToggle={(p) => setPicked((l) => toggleIn(l, p))}
               excluded={conversation.members.map((m) => m.user_id)} />
             <div className="flex justify-end gap-3 border-t border-line p-2">

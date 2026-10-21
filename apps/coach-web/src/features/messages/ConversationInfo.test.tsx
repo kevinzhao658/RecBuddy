@@ -34,7 +34,7 @@ test('a read-only conversation says so and offers no edits', () => {
   expect(screen.queryByRole('button', { name: 'Add people' })).toBeNull()
 })
 
-test('a team chat can be renamed by its members, but has no add, leave, or hide', async () => {
+test('a team chat can be renamed by its members, but has no leave or hide', async () => {
   const { fireEvent } = await import('@testing-library/react')
   const rename = { mutate: vi.fn(), isPending: false }
   vi.spyOn(convMod, 'useRenameConversation').mockReturnValue(rename as any)
@@ -42,5 +42,20 @@ test('a team chat can be renamed by its members, but has no add, leave, or hide'
   fireEvent.change(screen.getByLabelText('Group name'), { target: { value: 'Marathon squad' } })
   fireEvent.click(screen.getByRole('button', { name: 'Save' }))
   expect(rename.mutate).toHaveBeenCalledWith({ threadId: 't1', title: 'Marathon squad' }, expect.anything())
-  expect(screen.queryByRole('button', { name: /Leave|Hide|Add people/ })).toBeNull()
+  expect(screen.queryByRole('button', { name: /Leave|Hide/ })).toBeNull()
+})
+
+test('adding people to a team chat opens the new group it starts', async () => {
+  const { fireEvent, waitFor } = await import('@testing-library/react')
+  const add = { mutate: vi.fn(), mutateAsync: vi.fn().mockResolvedValue('g9'), isPending: false }
+  vi.spyOn(convMod, 'useAddMembers').mockReturnValue(add as any)
+  vi.spyOn(convMod, 'useSearchPeople').mockReturnValue({ data: [{ ...m('b2', 'Bea Lee'), context: '', person_kind: 'athlete' }] } as any)
+  const onOpenThread = vi.fn()
+  wrap(<ConversationInfo conversation={conv([m('a1', 'Maya Chen')], { kind: 'team', team_athlete_id: 'a1' })} onClose={() => {}} onOpenThread={onOpenThread} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Add people' }))
+  expect(screen.getByText(/starts a new group/i)).toBeInTheDocument()
+  fireEvent.click(screen.getByText('Bea Lee'))
+  fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+  await waitFor(() => expect(onOpenThread).toHaveBeenCalledWith('g9'))
+  expect(add.mutateAsync).toHaveBeenCalledWith({ threadId: 't1', userIds: ['b2'] })
 })

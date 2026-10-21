@@ -11,6 +11,8 @@ struct ChatView: View {
     @Environment(SessionStore.self) private var session
     @Environment(\.dismiss) private var dismiss
     @State private var infoOpen = false
+    /// A new group started from Chat Details; opened once its sheet is gone.
+    @State private var openAfterInfo: String?
     // Tap the header's photos or names: Rename Chat / Chat Details.
     @State private var renaming = false
     @State private var newName = ""
@@ -449,12 +451,17 @@ struct ChatView: View {
 
             Spacer()
         }
-        .sheet(isPresented: $infoOpen, onDismiss: { Task { await store.refreshThread() } }) {
+        .sheet(isPresented: $infoOpen, onDismiss: {
+            // Replacing the stack while the sheet is still up gets undone, so wait for it to close.
+            if let id = openAfterInfo { openAfterInfo = nil; AppRouter.shared.openThreadId = id; return }
+            Task { await store.refreshThread() }
+        }) {
             if let id = store.thread?.id {
                 ConversationInfoView(threadId: id, title: chatTitle, me: profile.id,
                                      people: team, readOnly: readOnly,
                                      isGroup: isChat && (conversation?.members.count ?? team.count) >= 2,
-                                     isTeam: !isChat, startedAt: store.thread?.createdAt) {
+                                     isTeam: !isChat, startedAt: store.thread?.createdAt,
+                                     onOpenThread: { id in openAfterInfo = id; infoOpen = false }) {
                     infoOpen = false
                     dismiss()
                 }

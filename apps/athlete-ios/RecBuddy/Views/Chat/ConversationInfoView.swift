@@ -2,7 +2,8 @@ import SwiftUI
 
 /// Chat Details: members, start date, add people, leave (groups) or hide
 /// (1:1). Renaming lives in the header menu. Team membership follows coaching,
-/// so a team chat has no add / leave / hide.
+/// so a team chat has no leave / hide, and adding people to it (like a 1:1)
+/// starts a new group.
 struct ConversationInfoView: View {
     let threadId: String
     let title: String
@@ -13,11 +14,14 @@ struct ConversationInfoView: View {
     var isTeam: Bool = false
     /// message_threads.created_at, shown as "Started".
     var startedAt: String? = nil
+    /// Adding people to a 1:1 or team chat starts a new group: open it.
+    var onOpenThread: (String) -> Void
     /// Called after leaving/hiding (pop back to the inbox).
     var onClose: () -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var store = ConversationsStore()
     @State private var adding = false
+    @State private var startedGroup: String?
     @State private var addSelection = ComposeSelection(meIsAthlete: true)
     @State private var confirmLeave = false
     @State private var error: String?
@@ -33,7 +37,7 @@ struct ConversationInfoView: View {
                             Text(p.name).foregroundStyle(.white)
                         }
                     }
-                    if !readOnly && !isTeam {
+                    if !readOnly {
                         Button { adding = true } label: { Label("Add People", systemImage: "person.badge.plus") }
                             .foregroundStyle(RB.accent)
                     }
@@ -74,13 +78,22 @@ struct ConversationInfoView: View {
             } message: {
                 Text("You won't get new messages or see its history.")
             }
-            .sheet(isPresented: $adding) { addSheet }
+            .sheet(isPresented: $adding, onDismiss: {
+                if let id = startedGroup { startedGroup = nil; onOpenThread(id) }
+            }) { addSheet }
         }
     }
 
     private var addSheet: some View {
         NavigationStack {
-            PeoplePicker(store: store, selection: $addSelection, excluded: Set(people.map(\.userId) + [me]))
+            VStack(spacing: 0) {
+                if isTeam {
+                    Text("This starts a new group with everyone here. The team chat stays private to the team.")
+                        .font(.footnote).foregroundStyle(RB.textMute)
+                        .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal).padding(.vertical, 8)
+                }
+                PeoplePicker(store: store, selection: $addSelection, excluded: Set(people.map(\.userId) + [me]))
+            }
                 .background(RB.bg.ignoresSafeArea())
                 .navigationTitle("Add People")
                 .navigationBarTitleDisplayMode(.inline)
@@ -97,11 +110,11 @@ struct ConversationInfoView: View {
     private func add() async {
         do {
             let id = try await store.add(threadId: threadId, userIds: addSelection.userIds)
-            adding = false
-            if id != threadId {   // adding to a 1:1 starts a new group
-                AppRouter.shared.openThreadId = id
-                onClose()
+            if id != threadId {   // adding to a 1:1 or team chat starts a new group
+                startedGroup = id   // opened once this sheet is gone
+                adding = false
             } else {
+                adding = false
                 dismiss()
             }
         } catch {

@@ -44,6 +44,7 @@ struct ChatsView: View {
             .navigationDestination(for: String.self) { threadId in
                 ChatView(profile: profile, threadId: threadId,
                          conversation: store.conversations.first { $0.id == threadId })
+                    .id(threadId)   // swapping the open thread must not reuse the old chat's state
                     .toolbar(.hidden, for: .navigationBar)
             }
         }

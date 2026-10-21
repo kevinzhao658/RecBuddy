@@ -284,6 +284,18 @@ describe('conversation RPCs', () => {
     expect(grown.data).not.toBe(one)
   })
 
+  it('adding people to a team chat starts a new group with the team; the team chat stays as it was', async () => {
+    const team = (await athA.client.rpc('team_thread_id', { p_athlete: athA.id })).data
+    const add = await coachA.client.rpc('add_conversation_members', { p_thread: team, p_user_ids: [athB.id] })
+    expect(add.error).toBeNull()
+    expect(add.data).not.toBe(team)
+    const members = (await admin().from('thread_members').select('user_id').eq('thread_id', add.data)).data ?? []
+    expect(ids(members).sort()).toEqual([athA.id, athB.id, coachA.id, coachB.id].sort())
+    expect((await admin().from('thread_members').select('user_id').eq('thread_id', team)).data ?? []).toEqual([])
+    // only the team can do this
+    expect((await coachC.client.rpc('add_conversation_members', { p_thread: team, p_user_ids: [athD.id] })).error).not.toBeNull()
+  })
+
   it('my_conversations lists the athlete team chat first and counts unread per thread', async () => {
     await athA.client.rpc('team_thread_id', { p_athlete: athA.id })
     const g = (await coachA.client.rpc('start_conversation', { p_user_ids: [athA.id], p_title: null })).data
