@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { supabase } from '../supabase'
+import { supabase, uniqueTopic } from '../supabase'
 import { compressImage } from '../compressImage'
 import type { Message, Thread, Workout, WorkoutQuote } from '../types'
 
@@ -174,7 +174,7 @@ export function useUnreadCounts() {
 export function useUnreadRealtime() {
   const qc = useQueryClient()
   useEffect(() => {
-    const ch = supabase.channel('unread')
+    const ch = supabase.channel(uniqueTopic('unread'))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' },
         () => qc.invalidateQueries({ queryKey: ['unread'] }))
       .subscribe()
@@ -187,7 +187,7 @@ export function useRealtimeThread(threadId: string | null) {
   const qc = useQueryClient()
   useEffect(() => {
     if (!threadId) return
-    const ch = supabase.channel(`messages:${threadId}`)
+    const ch = supabase.channel(uniqueTopic(`messages:${threadId}`))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: `thread_id=eq.${threadId}` },
         () => qc.invalidateQueries({ queryKey: ['messages', threadId] }))
       .subscribe()

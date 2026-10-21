@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { supabase } from '../supabase'
+import { supabase, uniqueTopic } from '../supabase'
 import type { ChatPerson, Conversation, ThreadPerson } from '../types'
 
 export async function fetchConversations(client: SupabaseClient): Promise<Conversation[]> {
@@ -32,7 +32,7 @@ export function useConversations(meId: string | null) {
   const qc = useQueryClient()
   useEffect(() => {
     if (!meId) return
-    const ch = supabase.channel(`inbox:${meId}`)
+    const ch = supabase.channel(uniqueTopic(`inbox:${meId}`))
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => invalidateInbox(qc))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'thread_members', filter: `user_id=eq.${meId}` }, () => invalidateInbox(qc))
       .subscribe()
