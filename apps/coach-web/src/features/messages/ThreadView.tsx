@@ -17,6 +17,7 @@ import type { Conversation, Message, ImageCard, Workout } from '../../lib/types'
 import type { MessageAction } from '../chat/MessageActions'
 import { latestCardIds, supersededCardIds } from '../../lib/runcardRollup'
 import { MessageItem, type Sender } from '../chat/MessageItem'
+import { ArrowLeftIcon } from '../../components/ui/FormIcons'
 
 const initialsOf = (name: string) =>
   name.split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '·'
@@ -39,7 +40,7 @@ function sessionLabel(iso: string): string {
 
 /** One conversation (team or chat): messages, reactions-ready rows, reply,
  *  copy/paste, photos, and the composer. Rendered by the Messages page. */
-export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialWorkout, onGone }: {
+export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialWorkout, onGone, onBack }: {
   threadId: string
   /** Inbox row for the header (title, members, read-only). */
   conversation?: Conversation | null
@@ -49,6 +50,8 @@ export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialW
   initialWorkout?: Pick<Workout, 'id' | 'date' | 'type' | 'title'> | null
   /** This thread is no longer readable (e.g. I blocked my athlete): close it. */
   onGone?: () => void
+  /** Phones: back to the inbox (list and thread share the screen below md). */
+  onBack?: () => void
 }) {
   const { session } = useAuth()
   const meId = session!.user.id
@@ -194,8 +197,14 @@ export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialW
 
   return (
     <section className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between border-b border-line px-4 py-3">
-          <div className="min-w-0">
+        <header className="flex items-center justify-between gap-2 border-b border-line px-4 py-3">
+          {onBack && (
+            <button aria-label="Back to messages" onClick={onBack}
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-text-mute hover:text-text md:hidden">
+              <ArrowLeftIcon />
+            </button>
+          )}
+          <div className="min-w-0 flex-1">
             <p className="truncate font-display text-lg font-bold leading-tight">{title}</p>
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-accent">{subtitle}</p>
           </div>

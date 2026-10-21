@@ -122,3 +122,24 @@ export function SportIcon({ sport, className = '' }: { sport: 'run' | 'ride' | '
     </svg>
   )
 }
+
+/** Coach view switch, mirroring the athlete app's tab bar SF Symbols:
+ *  plans = calendar, messages = bubble.left. Uncolored. */
+const NAV_GLYPH: Record<'plans' | 'messages', React.ReactNode> = {
+  plans: (
+    <>
+      <rect x="3.5" y="5" width="17" height="15.5" rx="2.5" />
+      <path d="M3.5 10h17M8 3v4M16 3v4" />
+    </>
+  ),
+  messages: <path d="M6 4.5h12a3 3 0 0 1 3 3v6.5a3 3 0 0 1-3 3h-7.5L6 20.5V17a3 3 0 0 1-3-3V7.5a3 3 0 0 1 3-3z" />,
+}
+
+export function NavIcon({ name, className = '' }: { name: 'plans' | 'messages'; className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={`h-[18px] w-[18px] ${className}`} aria-hidden
+      fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      {NAV_GLYPH[name]}
+    </svg>
+  )
+}

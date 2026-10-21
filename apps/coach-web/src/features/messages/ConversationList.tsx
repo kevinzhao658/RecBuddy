@@ -1,4 +1,5 @@
 import { Avatar } from '../../components/ui/Avatar'
+import { HamburgerIcon } from '../../components/ui/FormIcons'
 import { conversationTitle, previewLine } from '../../lib/conversations'
 import type { Conversation } from '../../lib/types'
 
@@ -13,14 +14,24 @@ function timeLabel(iso: string | null): string {
 }
 
 /** Inbox pane: "New message" on top, then every conversation. */
-export function ConversationList({ conversations, selectedId, meId, onSelect, onCompose }: {
+export function ConversationList({ conversations, selectedId, meId, onSelect, onCompose, onMenu }: {
   conversations: Conversation[]; selectedId: string | null; meId: string
   onSelect: (threadId: string) => void; onCompose: () => void
+  /** Phones: open the roster drawer (the sidebar is hidden below md). */
+  onMenu?: () => void
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center justify-between border-b border-line px-4 py-3">
-        <p className="font-display text-lg font-bold">Messages</p>
+        <div className="flex items-center gap-2">
+          {onMenu && (
+            <button aria-label="Open roster" onClick={onMenu}
+              className="grid h-9 w-9 place-items-center rounded-[10px] border border-line bg-surface2 text-text-mute hover:text-text md:hidden">
+              <HamburgerIcon />
+            </button>
+          )}
+          <p className="font-display text-lg font-bold">Messages</p>
+        </div>
         <button onClick={onCompose} className="rounded-[10px] px-2.5 py-1.5 text-sm font-semibold text-accent hover:bg-surface2">✎ New message</button>
       </div>
       <div className="flex-1 overflow-y-auto p-2">

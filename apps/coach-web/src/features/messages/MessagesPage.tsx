@@ -21,6 +21,7 @@ export function MessagesPage() {
   const conversations = useConversations(meId)
   const [composing, setComposing] = useState(false)
   const [infoOpen, setInfoOpen] = useState(false)
+  const [rosterOpen, setRosterOpen] = useState(false)
   const rows = conversations.data ?? []
   const open = threadId ? rows.find((c) => c.thread_id === threadId) ?? null : null
   const workout = (location.state as NavState)?.workout ?? null
@@ -36,9 +37,19 @@ export function MessagesPage() {
       <div className="hidden md:flex">
         <RosterSidebar selectedId={null} messagesActive onSelect={(id) => navigate('/coach', { state: { athleteId: id } })} />
       </div>
+      {/* Phones: the roster as a drawer, opened from the inbox header */}
+      {rosterOpen && (
+        <div className="fixed inset-0 z-40 md:hidden">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setRosterOpen(false)} />
+          <div className="fixed inset-y-0 left-0 z-40">
+            <RosterSidebar selectedId={null} messagesActive onSelect={(id) => navigate('/coach', { state: { athleteId: id } })} />
+          </div>
+        </div>
+      )}
       <div className={`${threadId || composing ? 'hidden md:flex' : 'flex'} w-full flex-col border-r border-line md:w-80`}>
         <ConversationList conversations={rows} selectedId={threadId ?? null} meId={meId}
-          onSelect={select} onCompose={() => { setComposing(true); navigate('/coach/messages') }} />
+          onSelect={select} onCompose={() => { setComposing(true); navigate('/coach/messages') }}
+          onMenu={() => setRosterOpen(true)} />
       </div>
       <main className={`${threadId || composing ? 'flex' : 'hidden md:flex'} min-w-0 flex-1`}>
         {composing
@@ -46,7 +57,8 @@ export function MessagesPage() {
           : threadId
             ? <ThreadView key={threadId} threadId={threadId} conversation={open} onOpenDay={openDay}
                 initialWorkout={workout} onInfo={open ? () => setInfoOpen((o) => !o) : undefined}
-                onGone={() => { setInfoOpen(false); navigate('/coach/messages') }} />
+                onGone={() => { setInfoOpen(false); navigate('/coach/messages') }}
+                onBack={() => { setInfoOpen(false); navigate('/coach/messages') }} />
             : <div className="grid flex-1 place-items-center text-sm text-text-mute">Select a conversation</div>}
         {infoOpen && open && !composing && (
           <ConversationInfo key={open.thread_id} conversation={open} onClose={() => setInfoOpen(false)}

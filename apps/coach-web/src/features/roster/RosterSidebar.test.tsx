@@ -31,3 +31,22 @@ test('shows active athletes and dimmed pending invite rows', () => {
   expect(screen.getAllByLabelText('3 unread')).toHaveLength(2) // athlete badge + Messages total (2 + 1)
   expect(screen.getByRole('button', { name: 'Messages, 3 unread' })).toBeInTheDocument()
 })
+
+test('a compact Plans | Messages toggle: icons only, labels as tooltips, current view pressed', () => {
+  vi.spyOn(authMod, 'useAuth').mockReturnValue({ session: { user: { id: 'c1' } }, role: 'coach', loading: false } as any)
+  vi.spyOn(roster, 'useRoster').mockReturnValue({ data: [], isLoading: false } as any)
+  vi.spyOn(invites, 'usePendingInvites').mockReturnValue({ data: [], isLoading: false } as any)
+  vi.spyOn(invites, 'useRevokeInvite').mockReturnValue({ mutate: vi.fn() } as any)
+  vi.spyOn(meMod, 'useMe').mockReturnValue({ data: { name: 'Mara', initials: 'M' } } as any)
+  vi.spyOn(chatMod, 'useUnreadCounts').mockReturnValue({ data: {} } as any)
+  vi.spyOn(convMod, 'useConversations').mockReturnValue({ data: [] } as any)
+
+  wrap(<RosterSidebar selectedId={null} onSelect={() => {}} messagesActive />)
+  const plans = screen.getByRole('button', { name: 'Plans' })
+  const messages = screen.getByRole('button', { name: 'Messages' })
+  expect(messages).toHaveAttribute('aria-pressed', 'true')
+  expect(plans).toHaveAttribute('aria-pressed', 'false')
+  // The words appear only inside tooltips, not as visible row labels.
+  expect(screen.getAllByRole('tooltip').map((t) => t.textContent)).toEqual(['Plans', 'Messages'])
+  expect(screen.queryByText('Messages', { selector: ':not([role=tooltip])' })).toBeNull()
+})

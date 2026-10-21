@@ -60,3 +60,19 @@ test('a thread id in the URL opens directly, and new rows appear when the inbox 
     </QueryClientProvider>)
   expect(screen.getByRole('button', { name: 'Marcus Hale' })).toBeInTheDocument()
 })
+
+test('phone: the inbox header has a hamburger that opens the roster drawer', () => {
+  setup([row('t1', 'team')])
+  renderAt('/coach/messages')
+  expect(screen.getAllByText('sidebar')).toHaveLength(1)        // desktop column only
+  fireEvent.click(screen.getByRole('button', { name: 'Open roster' }))
+  expect(screen.getAllByText('sidebar')).toHaveLength(2)        // + the phone drawer
+})
+
+test('phone: an open thread has a back button to the inbox', () => {
+  setup([row('t1', 'team')])
+  vi.spyOn(threadMod, 'ThreadView').mockImplementation(((p: any) => <button onClick={p.onBack}>back</button>) as any)
+  renderAt('/coach/messages/t1')
+  fireEvent.click(screen.getByRole('button', { name: 'back' }))
+  expect(screen.getByText('Select a conversation')).toBeInTheDocument()
+})

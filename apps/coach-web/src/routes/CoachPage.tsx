@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { HamburgerIcon } from '../components/ui/FormIcons'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { DndContext, DragOverlay, PointerSensor, TouchSensor, pointerWithin, useSensor, useSensors } from '@dnd-kit/core'
 import { RosterSidebar } from '../features/roster/RosterSidebar'
@@ -48,13 +49,6 @@ function ChatIcon({ className = '' }: { className?: string }) {
   )
 }
 
-function HamburgerIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-      <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
-    </svg>
-  )
-}
 
 /** Arriving from Messages: open this athlete (and day/workout). */
 type CoachNavState = { athleteId?: string; date?: string; workoutId?: string } | null
