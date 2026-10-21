@@ -4,7 +4,13 @@ import UIKit
 
 struct ChatView: View {
     let profile: Profile
+    /// The conversation to open; nil = the athlete's team chat.
+    var threadId: String? = nil
+    /// Inbox row for this thread (title / members), when pushed from ChatsView.
+    var conversation: Conversation? = nil
     @Environment(SessionStore.self) private var session
+    @Environment(\.dismiss) private var dismiss
+    @State private var infoOpen = false
     @State private var store = ChatStore()
     @State private var draft = ""
     // Keyboard is visible only while composing: scrolling the thread dismisses
@@ -49,7 +55,17 @@ struct ChatView: View {
 
     /// Chat title = the other members' names (never the athlete's own):
     /// "Sarah" / "Sarah & Mike" / "Sarah, Mike & Dana".
+    private var isChat: Bool { store.thread.map { !$0.isTeam } ?? (conversation.map { !$0.isTeam } ?? false) }
+    private var readOnly: Bool { store.thread?.readOnly ?? conversation?.readOnly ?? false }
+
+    private func reopen() async {
+        if let threadId { await store.open(threadId: threadId, me: profile.id) }
+        else { await store.openTeam(athleteId: profile.id) }
+    }
+
     private var chatTitle: String {
+        if isChat, let conversation { return conversation.displayTitle }
+        if let title = store.thread?.title, !title.isEmpty { return title }
         let names = team.map(\.name)
         switch names.count {
         case 0:  return "Coach"
@@ -60,7 +76,11 @@ struct ChatView: View {
     }
 
     private var chatSubtitle: String {
-        team.count > 1 ? "Your coaching team" : (team.first?.title ?? "Head Coach")
+        if isChat {
+            let n = (conversation?.members.count ?? max(team.count, 1)) + 1
+            return n <= 2 ? "Private conversation" : "\(n) people"
+        }
+        return team.count > 1 ? "Your coaching team" : (team.first?.title ?? "Head Coach")
     }
 
     // ── Session-separator helpers ──────────────────────────────────────────
@@ -285,7 +305,7 @@ struct ChatView: View {
                         .padding(.top, 8)
                         .padding(.bottom, 12)
                     }
-                    .refreshable { await store.openTeam(athleteId: profile.id) }
+                    .refreshable { await reopen() }
                     // Drag follows the finger to tuck the keyboard away; a plain
                     // tap on the thread dismisses it too. Buttons inside message
                     // rows still win over the tap gesture.
@@ -313,20 +333,30 @@ struct ChatView: View {
                         .padding(.bottom, 2)
                 }
 
-                inputBar
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                    .background(RB.bg)
-                    .overlay(
-                        Rectangle().fill(RB.line).frame(height: 1),
-                        alignment: .top
-                    )
+                Group {
+                    if readOnly {
+                        Text("This conversation is read-only.")
+                            .font(.footnote)
+                            .foregroundStyle(RB.textMute)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                    } else {
+                        inputBar
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 10)
+                    }
+                }
+                .background(RB.bg)
+                .overlay(
+                    Rectangle().fill(RB.line).frame(height: 1),
+                    alignment: .top
+                )
                 }
             }
         }
         // Re-opens when a coach is added/removed (hasCoach flips) so the
         // no-coach empty state and a fresh thread appear without a relaunch.
-        .task(id: session.hasCoach) { await store.openTeam(athleteId: profile.id) }
+        .task(id: session.hasCoach) { await reopen() }
         .onDisappear { Task { await store.close() } }
         .sheet(item: $reportTarget) { target in
             ReportSheet(target: target) { await afterBlock() }
@@ -348,7 +378,8 @@ struct ChatView: View {
         }
         // "Message coach about this" from a workout sheet.
         .onChange(of: router.pendingWorkoutQuote, initial: true) { _, q in
-            guard let q else { return }
+            // Only the team chat takes a workout from the calendar.
+            guard let q, !isChat else { return }
             workoutQuote = q
             router.pendingWorkoutQuote = nil
             composerFocused = true
@@ -385,6 +416,15 @@ struct ChatView: View {
 
     private var chatHeader: some View {
         HStack(spacing: 12) {
+            if threadId != nil {
+                Button { dismiss() } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(RB.accent)
+                        .frame(width: 28, height: 36)
+                }
+                .accessibilityLabel("Back to chats")
+            }
             // Overlapping avatar stack — every team member (up to three shown)
             HStack(spacing: -10) {
                 if team.isEmpty {
@@ -412,9 +452,24 @@ struct ChatView: View {
             }
 
             Spacer()
+
+            if isChat, let threadId {
+                Button { infoOpen = true } label: {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 18))
+                        .foregroundStyle(RB.textMute)
+                }
+                .accessibilityLabel("Conversation info")
+                .sheet(isPresented: $infoOpen) {
+                    ConversationInfoView(threadId: threadId, title: chatTitle, me: profile.id,
+                                         people: team, readOnly: readOnly,
+                                         isGroup: (conversation?.members.count ?? team.count) >= 2) {
+                        infoOpen = false
+                        dismiss()
+                    }
+                }
+            }
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(chatTitle), \(chatSubtitle)")
     }
 
     // ── Input bar ─────────────────────────────────────────────────────────
@@ -486,7 +541,7 @@ struct ChatView: View {
                 }
                     .overlay(alignment: .topLeading) {
                         if draft.isEmpty {
-                            Text(staged.isEmpty ? "Message your coach…" : "Add a caption…")
+                            Text(staged.isEmpty ? (isChat ? "Message" : "Message your coach…") : "Add a caption…")
                                 .foregroundStyle(RB.textFaint)
                                 .allowsHitTesting(false)
                                 .accessibilityHidden(true)
@@ -547,7 +602,7 @@ struct ChatView: View {
         }
         // Report / Block (App Store 1.2) for other people's messages.
         if m.fromUserId != profile.id {
-            let name = store.senders[m.fromUserId]?.name ?? "this coach"
+            let name = store.senders[m.fromUserId]?.name ?? "this person"
             Divider()
             Button {
                 reportTarget = .init(userId: m.fromUserId, userName: name, messageId: m.id)
@@ -642,7 +697,7 @@ struct ChatView: View {
     /// the profile (hasCoach may flip to the no-coach state) and the thread.
     private func afterBlock() async {
         await session.refreshProfile()
-        await store.openTeam(athleteId: profile.id)
+        await reopen()
     }
 
     /// Fetch the referenced workout (and its logged actual, if any) and open

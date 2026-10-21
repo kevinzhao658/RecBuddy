@@ -188,6 +188,11 @@ struct AccountSheet: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 14)
             .rbCard()
+
+            DiscoverabilityToggle(userId: profile.id)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 14)
+                .rbCard()
         }
     }
 

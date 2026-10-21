@@ -8,6 +8,11 @@ final class AppRouter {
     static let shared = AppRouter()
     /// Set by a notification tap; MainTabs switches to the chat tab and resets it.
     var openChat = false
+    /// Set with openChat by a push tap: ChatsView opens this conversation.
+    var openThreadId: String?
+    /// A conversation is pushed inside the Chat tab: the tab bar hides (like
+    /// Messages) so it doesn't cover the composer.
+    var inConversation = false
     /// True while the chat tab is frontmost — banners are suppressed there
     /// (realtime already paints the incoming message).
     var chatVisible = false

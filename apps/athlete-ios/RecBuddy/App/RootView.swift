@@ -102,6 +102,9 @@ struct MainTabs: View {
     let profile: Profile
     @State private var tab = 0
     @State private var router = AppRouter.shared
+    /// A conversation is open in the Chat tab: hide the bar (like Messages).
+    private var hideTabBar: Bool { tab == 1 && router.inConversation }
+
     var body: some View {
         // Both tabs stay ALIVE (opacity toggle, not if/else): switching is
         // instant — no refetch, and the chat's realtime subscription persists.
@@ -110,12 +113,14 @@ struct MainTabs: View {
                 .opacity(tab == 0 ? 1 : 0)
                 .allowsHitTesting(tab == 0)
                 .accessibilityHidden(tab != 0)
-            ChatView(profile: profile)
+            ChatsView(profile: profile)
                 .opacity(tab == 1 ? 1 : 0)
                 .allowsHitTesting(tab == 1)
                 .accessibilityHidden(tab != 1)
         }
-        .safeAreaInset(edge: .bottom) { RBTabBar(tab: $tab) }
+        .safeAreaInset(edge: .bottom) {
+            if !hideTabBar { RBTabBar(tab: $tab) }
+        }
         .onAppear {
             router.chatVisible = (tab == 1)
             Task { await PushRegistrar.reregisterIfEnabled() }

@@ -47,7 +47,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         if let textResponse = response as? UNTextInputNotificationResponse, let threadId {
             _ = await PushRegistrar.sendReply(textResponse.userText, threadId: threadId)
         } else {
-            await MainActor.run { AppRouter.shared.openChat = true }
+            await MainActor.run {
+                AppRouter.shared.openThreadId = threadId
+                AppRouter.shared.openChat = true
+            }
         }
     }
 }

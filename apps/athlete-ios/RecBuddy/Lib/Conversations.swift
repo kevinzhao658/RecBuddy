@@ -50,6 +50,27 @@ struct Conversation: Decodable, Identifiable, Equatable {
         }
     }
 
+    /// No messages yet.
+    var isEmptyPreview: Bool { lastAt == nil }
+
+    /// Inbox subtitle: "You: …" for my messages, "Dani: …" in groups, else the text.
+    func previewLine(me: String) -> String {
+        let content: String
+        switch lastKind {
+        case "image": content = (lastBody?.isEmpty == false) ? "📷 \(lastBody!)" : "📷 Photo"
+        case "runcard": content = "Logged a run"
+        case "workout": content = "Shared a workout"
+        case "adjust": content = "Adjusted a workout"
+        case nil: return "No messages yet"
+        default: content = (lastBody ?? "").split(whereSeparator: \.isNewline).joined(separator: " ")
+        }
+        if lastFrom == me { return "You: \(content)" }
+        if members.count > 1, let from = lastFrom, let who = members.first(where: { $0.userId == from }) {
+            return "\(who.name.split(separator: " ").first.map(String.init) ?? who.name): \(content)"
+        }
+        return content
+    }
+
     enum CodingKeys: String, CodingKey {
         case kind, title, members, unread
         case threadId = "thread_id"
@@ -158,5 +179,22 @@ enum ReactionSummary {
         return ReactionKind.allCases.flatMap { k in
             all.filter { $0.kind == k }.map { (nameFor($0.user), k) }
         }
+    }
+}
+
+/// Who's picked in the "New message → To:" field.
+struct ComposeSelection: Equatable {
+    private(set) var people: [ChatPerson] = []
+    /// The composer is an athlete (counts toward "athletes see each other").
+    var meIsAthlete = false
+    var userIds: [String] { people.map(\.userId) }
+    var canSend: Bool { !people.isEmpty }
+    var isGroup: Bool { people.count >= 2 }
+    var athleteCount: Int { people.filter(\.isAthlete).count }
+    /// Two or more athletes see each other's names and messages.
+    var showsAthleteNote: Bool { athleteCount + (meIsAthlete ? 1 : 0) >= 2 }
+    func contains(_ p: ChatPerson) -> Bool { people.contains { $0.userId == p.userId } }
+    mutating func toggle(_ p: ChatPerson) {
+        if let i = people.firstIndex(where: { $0.userId == p.userId }) { people.remove(at: i) } else { people.append(p) }
     }
 }
