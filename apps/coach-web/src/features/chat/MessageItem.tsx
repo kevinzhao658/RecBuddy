@@ -137,7 +137,7 @@ function AdjustCardView({ p }: { p: AdjustCard }) {
  *  - others: avatar to the LEFT (on the last message of a run) + name ABOVE
  *    (on the first), so co-coaches and the athlete are distinguishable.
  *  `grouped` tightens same-sender stacking. Timestamps live in the centered
- *  session separators rendered by ChatPanel, not per message. */
+ *  session separators rendered by ThreadView, not per message. */
 export function MessageItem({ m, mine, sender, showName, showAvatar, grouped, superseded, domId, onJumpToLatest, onOpenWorkout, actions = [], quote, highlighted }: {
   m: Message; mine: boolean; sender?: Sender; showName?: boolean; showAvatar?: boolean
   grouped?: boolean; superseded?: boolean; domId?: string

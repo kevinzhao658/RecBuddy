@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { DndContext, DragOverlay, PointerSensor, TouchSensor, pointerWithin, useSensor, useSensors } from '@dnd-kit/core'
 import { RosterSidebar } from '../features/roster/RosterSidebar'
 import { AthleteSettingsModal } from '../features/roster/AthleteSettingsModal'
@@ -16,7 +17,6 @@ import { useAthleteDnd } from '../features/plan-grid/useAthleteDnd'
 import { WorkoutEditor } from '../features/editor/WorkoutEditor'
 import { WorkoutResults } from '../features/editor/WorkoutResults'
 import { WorkoutLibrary } from '../features/library/WorkoutLibrary'
-import { ChatPanel } from '../features/chat/ChatPanel'
 import { TeamPopover } from '../features/team/TeamPopover'
 import { Toast } from '../components/ui/Toast'
 import { useRoster } from '../lib/queries/roster'
@@ -24,7 +24,8 @@ import { useLibrary } from '../lib/queries/library'
 import { useAthletePlan, useAthleteMonth, useUpsertWorkout, useDeleteWorkout, useMoveWorkout, usePasteWorkout, useDuplicateWeek } from '../lib/queries/plan'
 import { useStandaloneActuals, useActualsByWorkoutIds } from '../lib/queries/actuals'
 import type { Workout, Actual } from '../lib/types'
-import { useShareWorkout, useShareAdjust, useUnreadCounts, useUnreadRealtime } from '../lib/queries/chat'
+import { useShareWorkout, useShareAdjust, useUnreadCounts, useUnreadRealtime, fetchThread } from '../lib/queries/chat'
+import { supabase } from '../lib/supabase'
 import { UnreadBadge } from '../components/ui/UnreadBadge'
 import { useClipboard } from '../features/plan-grid/useClipboard'
 import { useRealtimePlan } from '../lib/useRealtimePlan'
@@ -55,14 +56,18 @@ function HamburgerIcon() {
   )
 }
 
+/** Arriving from Messages: open this athlete (and day/workout). */
+type CoachNavState = { athleteId?: string; date?: string; workoutId?: string } | null
+
 export default function CoachPage() {
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [monday, setMonday] = useState<string>(() => mondayOf(todayISO()))
+  const nav = useLocation().state as CoachNavState
+  const [selectedId, setSelectedId] = useState<string | null>(nav?.athleteId ?? null)
+  const [monday, setMonday] = useState<string>(() => mondayOf(nav?.date ?? todayISO()))
   const [monthAnchor, setMonthAnchor] = useState<string>(() => firstOfMonth(todayISO()))
   const [view, setView] = useState<PlanView>('week')
-  const [selectedDate, setSelectedDate] = useState<string | null>(null)
+  const [selectedDate, setSelectedDate] = useState<string | null>(nav?.date ?? null)
   // Selected workout on that date; null + selectedDate = composing a NEW workout.
-  const [selectedWorkoutId, setSelectedWorkoutId] = useState<string | null>(null)
+  const [selectedWorkoutId, setSelectedWorkoutId] = useState<string | null>(nav?.workoutId ?? null)
   const [toast, setToast] = useState<string | null>(null)
   const [rosterOpen, setRosterOpen] = useState(false)
   const clipboard = useClipboard()
@@ -188,9 +193,15 @@ function AthleteDashboard({ athleteId, monday, setMonday, monthAnchor, setMonthA
     onMove: (id, to) => move.mutate({ id, to }, { onError }),
   })
 
-  const [chatOpen, setChatOpen] = useState(false)
-  // Workout attached to the chat composer by "Message athlete about this".
-  const [chatWorkout, setChatWorkout] = useState<Workout | null>(null)
+  const navigate = useNavigate()
+  // "Message" / "Message athlete about this": open the athlete's team chat on
+  // the Messages page, optionally with a workout attached to the composer.
+  const openTeamChat = async (workout?: Workout | null) => {
+    try {
+      const t = await fetchThread(supabase, athleteId)
+      navigate(`/coach/messages/${t.id}`, { state: workout ? { workout } : null })
+    } catch { flash("Couldn't open chat") }
+  }
   const [libraryOpen, setLibraryOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   // Month day with 2+ workouts opens this read-only picker instead of jumping.
@@ -236,7 +247,7 @@ function AthleteDashboard({ athleteId, monday, setMonday, monthAnchor, setMonthA
         : null)
     : selectedWorkout?.status === 'done'
       ? <WorkoutResults key={selectedWorkoutId ?? selectedDate} workout={selectedWorkout} onClose={clearSelection}
-          onMessage={() => { setChatWorkout(selectedWorkout); setChatOpen(true) }} />
+          onMessage={() => openTeamChat(selectedWorkout)} />
       : <WorkoutEditor key={`${selectedDate}:${selectedWorkoutId ?? 'new'}`} date={selectedDate} workout={selectedWorkout}
           canDelete={!!selectedWorkoutId} readOnly={!canEdit}
           onSave={(draft) => { upsert.mutate({ date: selectedDate, draft, id: selectedWorkoutId }, { onSuccess: clearSelection, onError }) }}
@@ -265,7 +276,7 @@ function AthleteDashboard({ athleteId, monday, setMonday, monthAnchor, setMonthA
             actions={
               <>
                 <TeamPopover athleteId={athleteId} isAdmin={isAdmin} />
-                <button onClick={() => setChatOpen(true)}
+                <button onClick={() => openTeamChat()}
                   className="flex items-center gap-1.5 rounded-[12px] bg-accent px-4 py-2 text-sm font-semibold text-on-accent hover:brightness-110">
                   <ChatIcon className="h-4 w-4" /> Message
                   <UnreadBadge count={unread.data?.[athleteId] ?? 0} className="ml-0.5" />
@@ -337,15 +348,6 @@ function AthleteDashboard({ athleteId, monday, setMonday, monthAnchor, setMonthA
 
       <DragOverlay dropAnimation={null}><DragGhost workout={dnd.activeGhost} /></DragOverlay>
 
-      {chatOpen && <ChatPanel athleteId={athleteId} athleteName={entry.athlete.name} athleteAvatarUrl={entry.athlete.avatar_url}
-        initialWorkout={chatWorkout} onClose={() => { setChatOpen(false); setChatWorkout(null) }}
-        onOpenDay={(date, workoutId) => {
-          // No id on the card -> fall back to the day's first workout if that
-          // week is already loaded, else open the day fresh.
-          const fallback = week.flat().find((w) => w.date === date)?.id ?? null
-          setMonday(mondayOf(date)); setView('week'); setSelectedDate(date)
-          setSelectedWorkoutId(workoutId ?? fallback); setChatOpen(false)
-        }} />}
 
       {settingsOpen && <AthleteSettingsModal open onClose={() => setSettingsOpen(false)}
         athlete={entry.athlete} plan={entry.plans?.[0] ?? null} canEdit={canEdit} isAdmin={isAdmin}

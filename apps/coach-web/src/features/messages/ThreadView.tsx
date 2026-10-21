@@ -1,14 +1,15 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../../auth/AuthProvider'
-import { useThread, useMessages, useSendMessage, useSendImages, useMarkThreadRead, useRealtimeThread, signedChatImageUrl } from '../../lib/queries/chat'
+import { useMessages, useSendMessage, useSendImages, useMarkThreadRead, useRealtimeThread, signedChatImageUrl } from '../../lib/queries/chat'
+import { useThreadPeople } from '../../lib/queries/conversations'
+import { conversationTitle } from '../../lib/conversations'
 import { copyText, quotePreview } from '../../lib/messageText'
 import { copyTextToClipboard, copyImageToClipboard, imageFilesFromClipboard } from '../../lib/clipboard'
 import { useUnit } from '../../lib/useUnit'
-import type { Message, ImageCard, Workout } from '../../lib/types'
-import type { MessageAction } from './MessageActions'
+import type { Conversation, Message, ImageCard, Workout } from '../../lib/types'
+import type { MessageAction } from '../chat/MessageActions'
 import { latestCardIds, supersededCardIds } from '../../lib/runcardRollup'
-import { useTeam } from '../../lib/queries/team'
-import { MessageItem, type Sender } from './MessageItem'
+import { MessageItem, type Sender } from '../chat/MessageItem'
 
 const initialsOf = (name: string) =>
   name.split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '·'
@@ -29,16 +30,19 @@ function sessionLabel(iso: string): string {
   return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} · ${time}`
 }
 
-export function ChatPanel({ athleteId, athleteName, athleteAvatarUrl, onClose, onOpenDay, initialWorkout }: {
-  athleteId: string; athleteName: string; athleteAvatarUrl?: string | null
-  onClose: () => void; onOpenDay?: (date: string, workoutId?: string) => void
+/** One conversation (team or chat): messages, reactions-ready rows, reply,
+ *  copy/paste, photos, and the composer. Rendered by the Messages page. */
+export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialWorkout }: {
+  threadId: string
+  /** Inbox row for the header (title, members, read-only). */
+  conversation?: Conversation | null
+  onOpenDay?: (date: string, workoutId?: string) => void
+  onInfo?: () => void
   /** "Message athlete about this" — attach this workout to the composer. */
   initialWorkout?: Pick<Workout, 'id' | 'date' | 'type' | 'title'> | null
 }) {
   const { session } = useAuth()
   const meId = session!.user.id
-  const threadQ = useThread(athleteId)
-  const threadId = threadQ.data?.id ?? null
   const messagesQ = useMessages(threadId)
   const send = useSendMessage(threadId)
   const sendImages = useSendImages(threadId)
@@ -47,7 +51,8 @@ export function ChatPanel({ athleteId, athleteName, athleteAvatarUrl, onClose, o
   const markRead = useMarkThreadRead(threadId)
   useRealtimeThread(threadId)
 
-  const team = useTeam(athleteId)
+  const people = useThreadPeople(threadId)
+  const readOnly = conversation?.read_only ?? false
   const { unit } = useUnit()
   // Replies: the message being answered; a workout attached from the results
   // view; the row flashed after jumping to an original from its quote.
@@ -84,8 +89,11 @@ export function ChatPanel({ athleteId, athleteName, athleteAvatarUrl, onClose, o
   const byId = useMemo(() => new Map((messagesQ.data ?? []).map((m) => [m.id, m])), [messagesQ.data])
 
   // Resolve each from_user_id → name/initials: every coach on the team + the athlete.
-  const senders: Record<string, Sender> = { [athleteId]: { name: athleteName, initials: initialsOf(athleteName), avatarUrl: athleteAvatarUrl } }
-  for (const m of team.data ?? []) senders[m.coach_id] = { name: m.coach.name, initials: m.coach.initials, avatarUrl: m.coach.avatar_url }
+  const senders: Record<string, Sender> = {}
+  for (const p of people.data ?? []) senders[p.user_id] = { name: p.name, initials: p.initials || initialsOf(p.name), avatarUrl: p.avatar_url }
+  const title = conversation ? conversationTitle(conversation) : 'Conversation'
+  const subtitle = conversation?.kind === 'team' ? 'Team chat'
+    : (conversation?.members.length ?? 0) > 1 ? `${(conversation?.members.length ?? 0) + 1} people` : 'Private conversation'
 
   // Mark the athlete's unread messages read once the thread opens.
   useEffect(() => { if (threadId) markRead.mutate() }, [threadId]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -136,21 +144,22 @@ export function ChatPanel({ athleteId, athleteName, athleteAvatarUrl, onClose, o
   }
 
   return (
-    <div className="fixed inset-0 z-40">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <aside className="rb-surface absolute right-0 top-0 flex h-screen w-full flex-col border-l border-line shadow-2xl sm:w-[400px]">
+    <section className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-between border-b border-line px-4 py-3">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-accent">Messages</p>
-            <p className="font-display text-lg font-bold leading-tight">{athleteName}</p>
+          <div className="min-w-0">
+            <p className="truncate font-display text-lg font-bold leading-tight">{title}</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-accent">{subtitle}</p>
           </div>
-          <button aria-label="Close chat" onClick={onClose} className="text-text-faint hover:text-text">✕</button>
+          {onInfo && (
+            <button aria-label="Conversation info" onClick={onInfo}
+              className="grid h-8 w-8 place-items-center rounded-full border border-line text-sm text-text-mute hover:text-text">i</button>
+          )}
         </header>
 
         <div ref={scrollRef} className="flex flex-1 flex-col overflow-y-auto p-4">
           {messagesQ.isLoading && <p className="text-sm text-text-faint">Loading…</p>}
           {!messagesQ.isLoading && messages.length === 0 && (
-            <p className="m-auto max-w-[80%] text-center text-sm text-text-faint">No messages yet. Say hello to {athleteName.split(' ')[0]}.</p>
+            <p className="m-auto max-w-[80%] text-center text-sm text-text-faint">No messages yet. Say hello.</p>
           )}
           {messages.map((m, i) => {
             // A separator (new session) breaks the flow at a > 1h gap or a new day.
@@ -181,6 +190,9 @@ export function ChatPanel({ athleteId, athleteName, athleteAvatarUrl, onClose, o
           })}
         </div>
 
+        {readOnly ? (
+          <p className="border-t border-line px-4 py-4 text-center text-sm text-text-mute">This conversation is read-only.</p>
+        ) : (<>
         {/* Reply / workout context — shown above the composer until sent or cleared */}
         {(replyingTo || workoutQuote) && (
           <div className="space-y-2 border-t border-line px-3 pt-3">
@@ -238,7 +250,7 @@ export function ChatPanel({ athleteId, athleteName, athleteAvatarUrl, onClose, o
             </svg>
           </button>
           <textarea ref={taRef} aria-label="Message" value={text} rows={1} autoFocus={!!initialWorkout}
-            placeholder={staged.length ? 'Add a caption…' : `Message ${athleteName.split(' ')[0]}…`}
+            placeholder={staged.length ? 'Add a caption…' : 'Message…'}
             onChange={(e) => setText(e.target.value)}
             onPaste={(e) => {
               // Pasted screenshots / copied photos stage as attachments; text pastes normally.
@@ -252,8 +264,8 @@ export function ChatPanel({ athleteId, athleteName, athleteAvatarUrl, onClose, o
           <button aria-label="Send message" onClick={submit} disabled={(!text.trim() && !staged.length) || send.isPending || sendImages.isPending}
             className="rb-glow rounded-[12px] bg-accent px-4 py-2 text-sm font-semibold text-on-accent disabled:opacity-50">Send</button>
         </div>
-      </aside>
-    </div>
+        </>)}
+    </section>
   )
 }
 

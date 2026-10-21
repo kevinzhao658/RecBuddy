@@ -3,6 +3,8 @@ import { useRoster } from '../../lib/queries/roster'
 import { usePendingInvites, useRevokeInvite } from '../../lib/queries/invites'
 import { useMe } from '../../lib/queries/me'
 import { useUnreadCounts } from '../../lib/queries/chat'
+import { useConversations } from '../../lib/queries/conversations'
+import { useNavigate } from 'react-router-dom'
 import { Avatar } from '../../components/ui/Avatar'
 import { UnreadBadge } from '../../components/ui/UnreadBadge'
 import { Wordmark } from '../../components/ui/Wordmark'
@@ -13,8 +15,15 @@ import { fmtShortDate } from '../../lib/week'
 
 const RACE_LEVEL: Record<string, string> = { '3.1 mi': '5K', '6.2 mi': '10K', '13.1 mi': 'Half Marathon', '26.2 mi': 'Marathon' }
 
-export function RosterSidebar({ selectedId, onSelect }: { selectedId: string | null; onSelect: (id: string) => void }) {
+export function RosterSidebar({ selectedId, onSelect, messagesActive = false }: {
+  selectedId: string | null; onSelect: (id: string) => void
+  /** Highlights the Messages item (on /coach/messages). */
+  messagesActive?: boolean
+}) {
   const me = useMe()
+  const navigate = useNavigate()
+  const inbox = useConversations(me.data?.id ?? null)
+  const unreadTotal = (inbox.data ?? []).reduce((n, c) => n + c.unread, 0)
   const roster = useRoster()
   const pending = usePendingInvites()
   const revoke = useRevokeInvite()
@@ -30,6 +39,17 @@ export function RosterSidebar({ selectedId, onSelect }: { selectedId: string | n
       <div className="px-5 pb-4 pt-5">
         <Wordmark className="text-2xl" />
         <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-text-faint">Coach</p>
+      </div>
+
+      {/* Messages */}
+      <div className="px-3 pb-2">
+        <button onClick={() => navigate('/coach/messages')}
+          aria-label={unreadTotal ? `Messages, ${unreadTotal} unread` : 'Messages'}
+          className={`flex w-full items-center gap-3 rounded-[14px] px-3 py-2 text-left font-semibold transition ${messagesActive ? 'bg-surface2 text-text ring-1 ring-line' : 'text-text-mute hover:bg-surface2/50 hover:text-text'}`}>
+          <span aria-hidden>💬</span>
+          <span className="flex-1">Messages</span>
+          <UnreadBadge count={unreadTotal} className="shrink-0" />
+        </button>
       </div>
 
       {/* Roster */}

@@ -4,6 +4,7 @@ import LoginPage from './routes/LoginPage'
 import SignupPage from './routes/SignupPage'
 import ResetPasswordPage from './routes/ResetPasswordPage'
 import ConfirmedPage from './routes/ConfirmedPage'
+import { MessagesPage } from './features/messages/MessagesPage'
 import CoachPage from './routes/CoachPage'
 import PrivacyPage from './routes/legal/PrivacyPage'
 import TermsPage from './routes/legal/TermsPage'
@@ -26,6 +27,8 @@ export default function App() {
       <Route path="/terms" element={<TermsPage />} />
       <Route path="/support" element={<SupportPage />} />
       <Route path="/coach" element={<RequireCoach><CoachPage /></RequireCoach>} />
+      <Route path="/coach/messages" element={<RequireCoach><MessagesPage /></RequireCoach>} />
+      <Route path="/coach/messages/:threadId" element={<RequireCoach><MessagesPage /></RequireCoach>} />
       <Route path="/admin/login" element={
         <Suspense fallback={<div className="p-8 text-text-mute">Loading…</div>}><AdminLoginPage /></Suspense>
       } />

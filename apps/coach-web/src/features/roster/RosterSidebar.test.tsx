@@ -6,9 +6,11 @@ import * as invites from '../../lib/queries/invites'
 import * as meMod from '../../lib/queries/me'
 import * as chatMod from '../../lib/queries/chat'
 import * as authMod from '../../auth/AuthProvider'
+import * as convMod from '../../lib/queries/conversations'
+import { MemoryRouter } from 'react-router-dom'
 
 function wrap(ui: React.ReactNode) {
-  return render(<QueryClientProvider client={new QueryClient()}>{ui}</QueryClientProvider>)
+  return render(<QueryClientProvider client={new QueryClient()}><MemoryRouter>{ui}</MemoryRouter></QueryClientProvider>)
 }
 
 test('shows active athletes and dimmed pending invite rows', () => {
@@ -20,10 +22,12 @@ test('shows active athletes and dimmed pending invite rows', () => {
   vi.spyOn(invites, 'useCreateInvite').mockReturnValue({ mutate: vi.fn(), isPending: false } as any)
   vi.spyOn(meMod, 'useMe').mockReturnValue({ data: { name: 'Mara Whitlock', initials: 'MW', title: 'Head Coach' }, isLoading: false } as any)
   vi.spyOn(chatMod, 'useUnreadCounts').mockReturnValue({ data: { a1: 3 } } as any)
+  vi.spyOn(convMod, 'useConversations').mockReturnValue({ data: [{ unread: 2 }, { unread: 1 }] } as any)
 
   wrap(<RosterSidebar selectedId={'a1'} onSelect={() => {}} />)
   expect(screen.getByText('Rita Real')).toBeInTheDocument()
   expect(screen.getByText('Pending Pat')).toBeInTheDocument()
   expect(screen.getByText('ABCD2345')).toBeInTheDocument()
-  expect(screen.getByLabelText('3 unread')).toBeInTheDocument() // unread badge
+  expect(screen.getAllByLabelText('3 unread')).toHaveLength(2) // athlete badge + Messages total (2 + 1)
+  expect(screen.getByRole('button', { name: 'Messages, 3 unread' })).toBeInTheDocument()
 })
