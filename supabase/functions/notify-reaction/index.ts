@@ -27,7 +27,7 @@ Deno.serve(async (req) => {
   const author = msg.from_user_id
 
   // Lookup failures retry (5xx) rather than fail open.
-  const { data: thread, error: tErr } = await supa.from('message_threads').select('kind').eq('id', msg.thread_id).maybeSingle()
+  const { data: thread, error: tErr } = await supa.from('message_threads').select('kind, athlete_id').eq('id', msg.thread_id).maybeSingle()
   if (tErr) { console.error('thread query', tErr); return new Response('retry', { status: 500 }) }
   const { data: member, error: mErr } = await supa.from('thread_members').select('status')
     .eq('thread_id', msg.thread_id).eq('user_id', author).maybeSingle()
@@ -35,8 +35,19 @@ Deno.serve(async (req) => {
   const { data: block, error: bErr } = await supa.from('user_blocks').select('blocker_id')
     .eq('blocker_id', author).eq('blocked_id', record.user_id).maybeSingle()
   if (bErr) { console.error('block query', bErr); return new Response('retry', { status: 500 }) }
+  // Team thread: the author must still be the athlete or one of their coaches,
+  // and not blocked by the athlete.
+  let authorCanRead = false
+  if (thread?.kind === 'team' && thread.athlete_id) {
+    const { data: link, error: lErr } = await supa.from('coach_athlete').select('coach_id')
+      .eq('athlete_id', thread.athlete_id).eq('coach_id', author).maybeSingle()
+    const { data: ab, error: abErr } = await supa.from('user_blocks').select('blocker_id')
+      .eq('blocker_id', thread.athlete_id).eq('blocked_id', author).maybeSingle()
+    if (lErr || abErr) { console.error('team access query', lErr ?? abErr); return new Response('retry', { status: 500 }) }
+    authorCanRead = author === thread.athlete_id || (!!link && !ab)
+  }
   if (!thread || !notifyReactionAuthor({ kind: thread.kind, authorStatus: member?.status ?? null, author,
-                                         reactor: record.user_id, authorBlockedReactor: !!block })) {
+                                         reactor: record.user_id, authorBlockedReactor: !!block, authorCanRead })) {
     return new Response('skip')
   }
 

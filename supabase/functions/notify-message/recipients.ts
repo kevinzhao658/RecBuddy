@@ -31,10 +31,14 @@ export function reactionAlert(reactorName: string, kind: string): Alert {
 
 /** Whether a reaction should push to the message's author: not for their own
  *  reaction, not from someone they blocked, and in a chat only while the
- *  author is still an active member (left/removed members can't read it). */
+ *  author can still read the thread (active chat member, or the athlete/a
+ *  current coach on a team thread). */
 export function notifyReactionAuthor(p: {
-  kind: string; authorStatus: string | null; author: string; reactor: string; authorBlockedReactor: boolean
+  kind: string; authorStatus: string | null; author: string; reactor: string
+  authorBlockedReactor: boolean
+  /** team threads: the author is the athlete or still on their team (and not blocked by them) */
+  authorCanRead: boolean
 }): boolean {
   if (p.author === p.reactor || p.authorBlockedReactor) return false
-  return p.kind === 'team' || p.authorStatus === 'active'
+  return p.kind === 'team' ? p.authorCanRead : p.authorStatus === 'active'
 }

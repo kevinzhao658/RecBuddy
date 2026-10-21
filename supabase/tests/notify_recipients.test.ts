@@ -41,12 +41,14 @@ describe('push recipients', () => {
 describe('reaction push gate', () => {
   it('pushes only to an author who can still read the chat, never for self or blocked reactors', async () => {
     const { notifyReactionAuthor } = await import('../functions/notify-message/recipients')
-    expect(notifyReactionAuthor({ kind: 'team', authorStatus: null, author: 'a', reactor: 'b', authorBlockedReactor: false })).toBe(true)
-    expect(notifyReactionAuthor({ kind: 'chat', authorStatus: 'active', author: 'a', reactor: 'b', authorBlockedReactor: false })).toBe(true)
-    expect(notifyReactionAuthor({ kind: 'chat', authorStatus: 'left', author: 'a', reactor: 'b', authorBlockedReactor: false })).toBe(false)
-    expect(notifyReactionAuthor({ kind: 'chat', authorStatus: 'removed', author: 'a', reactor: 'b', authorBlockedReactor: false })).toBe(false)
-    expect(notifyReactionAuthor({ kind: 'chat', authorStatus: null, author: 'a', reactor: 'b', authorBlockedReactor: false })).toBe(false)
-    expect(notifyReactionAuthor({ kind: 'team', authorStatus: null, author: 'a', reactor: 'a', authorBlockedReactor: false })).toBe(false)
-    expect(notifyReactionAuthor({ kind: 'team', authorStatus: null, author: 'a', reactor: 'b', authorBlockedReactor: true })).toBe(false)
+    expect(notifyReactionAuthor({ kind: 'team', authorStatus: null, author: 'a', reactor: 'b', authorBlockedReactor: false, authorCanRead: true })).toBe(true)
+    expect(notifyReactionAuthor({ kind: 'chat', authorStatus: 'active', author: 'a', reactor: 'b', authorBlockedReactor: false, authorCanRead: true })).toBe(true)
+    expect(notifyReactionAuthor({ kind: 'chat', authorStatus: 'left', author: 'a', reactor: 'b', authorBlockedReactor: false, authorCanRead: true })).toBe(false)
+    expect(notifyReactionAuthor({ kind: 'chat', authorStatus: 'removed', author: 'a', reactor: 'b', authorBlockedReactor: false, authorCanRead: true })).toBe(false)
+    expect(notifyReactionAuthor({ kind: 'chat', authorStatus: null, author: 'a', reactor: 'b', authorBlockedReactor: false, authorCanRead: true })).toBe(false)
+    expect(notifyReactionAuthor({ kind: 'team', authorStatus: null, author: 'a', reactor: 'a', authorBlockedReactor: false, authorCanRead: true })).toBe(false)
+    expect(notifyReactionAuthor({ kind: 'team', authorStatus: null, author: 'a', reactor: 'b', authorBlockedReactor: true, authorCanRead: true })).toBe(false)
+    // a coach removed from the athlete's team no longer hears about their old team-chat messages
+    expect(notifyReactionAuthor({ kind: 'team', authorStatus: null, author: 'a', reactor: 'b', authorBlockedReactor: false, authorCanRead: false })).toBe(false)
   })
 })
