@@ -37,8 +37,8 @@ test('lists conversations in inbox order with titles, previews, and unread', () 
   renderAt('/coach/messages')
   const items = screen.getAllByRole('button', { name: /Maya Chen|Marcus Hale/ })
   expect(items.map((b) => b.getAttribute('aria-label'))).toEqual(['Maya Chen, team chat', 'Marcus Hale, 2 unread'])
-  // Team chats carry a small "Team" pill on the avatar instead of a title suffix.
-  expect(screen.getAllByText('Team')).toHaveLength(1)
+  // No team marker in the row: the title lists who's in the chat.
+  expect(screen.queryByText('Team')).toBeNull()
   expect(screen.getByText('Select a conversation')).toBeInTheDocument()
 })
 

@@ -2,16 +2,15 @@ import type { ChatPerson, Conversation } from './types'
 
 const first = (name: string) => name.split(' ')[0] || name
 
-/** Inbox / header title. A team chat is named after its athlete; the list
- *  marks it with a "Team" pill on the avatar. */
+/** Inbox / header title: the chat's name if it has one, else everyone else
+ *  in it (a team chat lists its athlete first). Long lists truncate with … */
 export function conversationTitle(c: Conversation): string {
-  if (c.kind === 'team') {
-    const athlete = c.members.find((m) => m.user_id === c.team_athlete_id)
-    return athlete ? athlete.name : 'Team chat'
-  }
   if (c.title) return c.title
-  const names = c.members.map((m) => m.name)
-  if (names.length === 0) return 'Conversation'
+  const members = c.kind === 'team'
+    ? [...c.members].sort((a, b) => Number(b.user_id === c.team_athlete_id) - Number(a.user_id === c.team_athlete_id))
+    : c.members
+  const names = members.map((m) => m.name)
+  if (names.length === 0) return c.kind === 'team' ? 'Team chat' : 'Conversation'
   if (names.length === 1) return names[0]
   const firsts = names.map(first)
   return firsts.length === 2 ? `${firsts[0]} & ${firsts[1]}` : `${firsts.slice(0, -1).join(', ')} & ${firsts[firsts.length - 1]}`

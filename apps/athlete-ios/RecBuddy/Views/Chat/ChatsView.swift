@@ -157,18 +157,6 @@ struct ChatsView: View {
             }
         }
         .frame(width: 44, height: 44)
-        // Team chats carry a small green "Team" pill on the avatar (same as coach web).
-        .overlay(alignment: .bottom) {
-            if c.isTeam {
-                Text("TEAM")
-                    .font(.system(size: 8, weight: .heavy)).tracking(0.5)
-                    .foregroundStyle(RB.onAccent)
-                    .padding(.horizontal, 5).padding(.vertical, 1.5)
-                    .background(RB.accent, in: Capsule())
-                    .overlay(Capsule().stroke(RB.bg, lineWidth: 2))
-                    .offset(y: 5)
-            }
-        }
         .accessibilityHidden(true)
     }
 
