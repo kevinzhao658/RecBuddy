@@ -578,3 +578,25 @@ describe('mid-point review fixes', () => {
     expect(grown.data).not.toBe(one)
   })
 })
+
+describe('final review fixes', () => {
+  const tag = randomUUID().slice(0, 8)
+
+  it('a linked athlete with no team thread yet still sees their team chat in the inbox', async () => {
+    const c = await createAndSignIn({ role: 'coach', name: `New ${tag}`, title: 'Head Coach' })
+    const a = await createAndSignIn({ role: 'athlete', name: `Newbie ${tag}` })
+    await link(c.id, a.id)
+    const { data, error } = await a.client.rpc('my_conversations')
+    expect(error).toBeNull()
+    const team = (data ?? []).find((r: any) => r.kind === 'team')
+    expect(team?.team_athlete_id).toBe(a.id)
+    expect(team.members.map((m: any) => m.user_id)).toEqual([c.id])
+  })
+
+  it('an athlete with no coach gets an empty inbox, not an error', async () => {
+    const a = await createAndSignIn({ role: 'athlete', name: `Solo ${tag}` })
+    const { data, error } = await a.client.rpc('my_conversations')
+    expect(error).toBeNull()
+    expect(data).toEqual([])
+  })
+})
