@@ -122,3 +122,17 @@ import Foundation
         #expect(r.showsBanner(forThread: "a"))
     }
 }
+
+@Suite struct ThreadPeopleTests {
+    @Test func peopleListShowsOnlyCurrentMembersHeadCoachFirst() throws {
+        let json = """
+        [{"user_id":"me","name":"Maya Chen","initials":"MC","avatar_url":null,"title":null,"current":true},
+         {"user_id":"a2","name":"Abe Gone","initials":"AG","avatar_url":null,"title":null,"current":false},
+         {"user_id":"c2","name":"Bea Assistant","initials":"BA","avatar_url":null,"title":"Assistant","current":true},
+         {"user_id":"c1","name":"Zed Head","initials":"ZH","avatar_url":null,"title":"Head Coach","current":true}]
+        """
+        let people = try JSONDecoder().decode([ThreadPerson].self, from: json.data(using: .utf8)!)
+        #expect(people[1].isMember == false)
+        #expect(ChatStore.currentPeople(people, me: "me", headCoach: "c1").map(\.userId) == ["c1", "c2"])
+    }
+}

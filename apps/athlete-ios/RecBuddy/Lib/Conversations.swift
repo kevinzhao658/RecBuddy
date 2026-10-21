@@ -102,14 +102,18 @@ struct ChatPerson: Decodable, Identifiable, Equatable, Hashable {
 }
 
 /// thread_people row: display info for anyone who can appear in a thread.
+/// Includes people who left (their old messages keep a name); `current`
+/// says who is in the conversation now.
 struct ThreadPerson: Decodable, Equatable {
     let userId: String
     let name: String
     let initials: String
     let avatarUrl: String?
     let title: String?
+    var current: Bool? = nil
+    var isMember: Bool { current ?? true }
     enum CodingKeys: String, CodingKey {
-        case name, initials, title
+        case name, initials, title, current
         case userId = "user_id"
         case avatarUrl = "avatar_url"
     }

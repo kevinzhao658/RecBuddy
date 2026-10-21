@@ -47,9 +47,7 @@ final class ChatStore {
             let people: [ThreadPerson] = try await Supa.shared
                 .rpc("thread_people", params: ["p_thread": threadId]).execute().value
             senders = Dictionary(people.map { ($0.userId, $0) }, uniquingKeysWith: { a, _ in a })
-            // Everyone but me, head coach first (team threads' coach_id is the head).
-            team = people.filter { $0.userId != me }
-                .sorted { ($0.userId == t.coachId ? 0 : 1, $0.name) < ($1.userId == t.coachId ? 0 : 1, $1.name) }
+            team = Self.currentPeople(people, me: me, headCoach: t.coachId)
             try await load(threadId: threadId)
             try await loadReactions(threadId: threadId)
             await markRead()
@@ -134,6 +132,13 @@ final class ChatStore {
             ))
             .execute()
         try await load(threadId: thread.id)
+    }
+
+    /// The other people in the conversation now, head coach first (a team
+    /// thread's coach_id is the head). People who left stay in `senders` only.
+    nonisolated static func currentPeople(_ people: [ThreadPerson], me: String, headCoach: String?) -> [ThreadPerson] {
+        people.filter { $0.userId != me && $0.isMember }
+            .sorted { ($0.userId == headCoach ? 0 : 1, $0.name) < ($1.userId == headCoach ? 0 : 1, $1.name) }
     }
 
     /// Mark this thread read for me (chat: last_read_at; team: per-message flag).

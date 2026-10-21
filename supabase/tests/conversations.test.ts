@@ -600,3 +600,36 @@ describe('final review fixes', () => {
     expect(data).toEqual([])
   })
 })
+
+describe('thread_people membership flag', () => {
+  const tag = randomUUID().slice(0, 8)
+
+  it('marks people who left a group as no longer in it, but keeps their name for old messages', async () => {
+    const c = await createAndSignIn({ role: 'coach', name: `Fc ${tag}`, title: 'Head Coach' })
+    const a = await createAndSignIn({ role: 'athlete', name: `Fa ${tag}` })
+    const b = await createAndSignIn({ role: 'athlete', name: `Fb ${tag}` })
+    await link(c.id, a.id)
+    await link(c.id, b.id)
+    const g = (await c.client.rpc('start_conversation', { p_user_ids: [a.id, b.id], p_title: 'Flag' })).data
+    await b.client.rpc('leave_conversation', { p_thread: g })
+    const { data, error } = await c.client.rpc('thread_people', { p_thread: g })
+    expect(error).toBeNull()
+    const byId = Object.fromEntries((data ?? []).map((p: any) => [p.user_id, p.current]))
+    expect(byId).toEqual({ [c.id]: true, [a.id]: true, [b.id]: false })
+  })
+
+  it('marks a coach removed from the team as no longer in the team chat', async () => {
+    const head = await createAndSignIn({ role: 'coach', name: `Fh ${tag}`, title: 'Head Coach' })
+    const asst = await createAndSignIn({ role: 'coach', name: `Fs ${tag}`, title: 'Assistant Coach' })
+    const a = await createAndSignIn({ role: 'athlete', name: `Ft ${tag}` })
+    await link(head.id, a.id)
+    await link(asst.id, a.id, 'assistant')
+    const team = (await a.client.rpc('team_thread_id', { p_athlete: a.id })).data
+    await admin().from('coach_athlete').delete().eq('coach_id', asst.id).eq('athlete_id', a.id)
+    const { data } = await a.client.rpc('thread_people', { p_thread: team })
+    const byId = Object.fromEntries((data ?? []).map((p: any) => [p.user_id, p.current]))
+    expect(byId[head.id]).toBe(true)
+    expect(byId[a.id]).toBe(true)
+    expect(byId[asst.id] ?? false).toBe(false)
+  })
+})
