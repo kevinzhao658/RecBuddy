@@ -324,3 +324,79 @@ describe('conversation RPCs', () => {
     expect(after.find((r) => r.athlete_id === athA.id)?.unread ?? 0).toBe(n0)
   })
 })
+
+// ── Task 3: membership follows coach removal and blocks ─────────────────
+describe('conversation lifecycle', () => {
+  const tag = randomUUID().slice(0, 6)
+  const status = async (thread: string, user: string) =>
+    (await admin().from('thread_members').select('status').eq('thread_id', thread).eq('user_id', user).single()).data!.status
+  const readOnly = async (thread: string) =>
+    (await admin().from('message_threads').select('read_only').eq('id', thread).single()).data!.read_only
+
+  it('removing a coach makes their 1:1 with the athlete read-only for both', async () => {
+    const c = await createAndSignIn({ role: 'coach', name: `Rem ${tag}`, title: 'Head Coach' })
+    const a = await createAndSignIn({ role: 'athlete', name: `RemA ${tag}` })
+    await link(c.id, a.id)
+    const one = (await a.client.rpc('start_conversation', { p_user_ids: [c.id] })).data
+    await a.client.from('coach_athlete').delete().eq('coach_id', c.id).eq('athlete_id', a.id)
+    expect(await readOnly(one)).toBe(true)
+    expect(await status(one, a.id)).toBe('readonly')
+    expect(await status(one, c.id)).toBe('readonly')
+    // both still read, neither posts
+    expect((await c.client.from('message_threads').select('id').eq('id', one)).data).toHaveLength(1)
+    expect((await a.client.from('messages').insert({ thread_id: one, from_user_id: a.id, kind: 'text', body: 'x' })).error).not.toBeNull()
+  })
+
+  it('removing a coach takes them out of groups with that athlete; the group continues', async () => {
+    const c = await createAndSignIn({ role: 'coach', name: `Grp ${tag}`, title: 'Head Coach' })
+    const c2 = await createAndSignIn({ role: 'coach', name: `Grp2 ${tag}`, title: 'Assistant Coach' })
+    const a = await createAndSignIn({ role: 'athlete', name: `GrpA ${tag}` })
+    await link(c.id, a.id)
+    await link(c2.id, a.id, 'assistant')
+    const g = (await c.client.rpc('start_conversation', { p_user_ids: [a.id, c2.id], p_title: 'Staff + Ada' })).data
+    await a.client.from('coach_athlete').delete().eq('coach_id', c2.id).eq('athlete_id', a.id)
+    expect(await status(g, c2.id)).toBe('removed')
+    expect(await status(g, a.id)).toBe('active')
+    expect(await readOnly(g)).toBe(false)
+    expect((await c.client.from('messages').insert({ thread_id: g, from_user_id: c.id, kind: 'text', body: 'still here' })).error).toBeNull()
+  })
+
+  it('re-linking the coach reactivates the 1:1', async () => {
+    const c = await createAndSignIn({ role: 'coach', name: `Back ${tag}`, title: 'Head Coach' })
+    const a = await createAndSignIn({ role: 'athlete', name: `BackA ${tag}` })
+    await link(c.id, a.id)
+    const one = (await a.client.rpc('start_conversation', { p_user_ids: [c.id] })).data
+    await admin().from('coach_athlete').delete().eq('coach_id', c.id).eq('athlete_id', a.id)
+    await link(c.id, a.id)
+    expect(await readOnly(one)).toBe(false)
+    expect(await status(one, a.id)).toBe('active')
+    expect(await status(one, c.id)).toBe('active')
+  })
+
+  it('blocking removes the blocked person from the 1:1 and leaves it read-only for the blocker', async () => {
+    const c = await createAndSignIn({ role: 'coach', name: `Blk ${tag}`, title: 'Head Coach' })
+    const a = await createAndSignIn({ role: 'athlete', name: `BlkA ${tag}` })
+    await link(c.id, a.id)
+    const one = (await a.client.rpc('start_conversation', { p_user_ids: [c.id] })).data
+    await c.client.from('messages').insert({ thread_id: one, from_user_id: c.id, kind: 'text', body: 'before block' })
+    expect((await a.client.rpc('block_user', { p_user_id: c.id })).error).toBeNull()
+    expect(await status(one, c.id)).toBe('removed')
+    expect(await readOnly(one)).toBe(true)
+    expect((await c.client.from('message_threads').select('id').eq('id', one)).data ?? []).toEqual([])
+    expect((await a.client.from('message_threads').select('id').eq('id', one)).data).toHaveLength(1)
+  })
+
+  it('in a shared group the blocker no longer sees the blocked person\'s messages', async () => {
+    const c = await createAndSignIn({ role: 'coach', name: `Shr ${tag}`, title: 'Head Coach' })
+    const a1 = await createAndSignIn({ role: 'athlete', name: `ShrA ${tag}` })
+    const a2 = await createAndSignIn({ role: 'athlete', name: `ShrB ${tag}` })
+    await link(c.id, a1.id)
+    await link(c.id, a2.id)
+    const g = (await c.client.rpc('start_conversation', { p_user_ids: [a1.id, a2.id], p_title: 'Shared' })).data
+    await a2.client.from('messages').insert({ thread_id: g, from_user_id: a2.id, kind: 'text', body: 'from a2' })
+    await a1.client.rpc('block_user', { p_user_id: a2.id })
+    const seen = (await a1.client.from('messages').select('body').eq('thread_id', g)).data!.map((m: any) => m.body)
+    expect(seen).not.toContain('from a2')
+    expect(await status(g, a2.id)).toBe('active')
+  })
+})
