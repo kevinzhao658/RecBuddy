@@ -492,3 +492,25 @@ describe('lifecycle edge cases (security review)', () => {
     expect(re.error?.message).toMatch(/can't add/)
   })
 })
+
+describe('thread_people', () => {
+  const tag = randomUUID().slice(0, 6)
+  it('returns names for everyone who can appear in a thread the caller can read, and nothing otherwise', async () => {
+    const c = await createAndSignIn({ role: 'coach', name: `Pc ${tag}`, title: 'Head Coach' })
+    const a = await createAndSignIn({ role: 'athlete', name: `Pa ${tag}` })
+    const b = await createAndSignIn({ role: 'athlete', name: `Pb ${tag}` })
+    const s = await createAndSignIn({ role: 'athlete', name: `Ps ${tag}` })
+    await link(c.id, a.id)
+    await link(c.id, b.id)
+    const g = (await c.client.rpc('start_conversation', { p_user_ids: [a.id, b.id], p_title: 'People' })).data
+    await b.client.rpc('leave_conversation', { p_thread: g })
+    const { data, error } = await a.client.rpc('thread_people', { p_thread: g })
+    expect(error).toBeNull()
+    expect((data as any[]).map((p) => p.user_id).sort()).toEqual([a.id, b.id, c.id].sort()) // left members keep their name on old messages
+    expect((await s.client.rpc('thread_people', { p_thread: g })).data ?? []).toEqual([])
+    const team = await a.client.rpc('team_thread_id', { p_athlete: a.id })
+    const tp = (await a.client.rpc('thread_people', { p_thread: team.data })).data as any[]
+    expect(tp.map((p) => p.user_id).sort()).toEqual([a.id, c.id].sort())
+  })
+
+})
