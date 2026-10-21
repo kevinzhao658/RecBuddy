@@ -148,3 +148,26 @@ test('a rejected send keeps the draft and says why', () => {
   expect(screen.getByLabelText('Message')).toHaveValue('great run')
   expect(screen.getByText(/includes language that isn.t allowed/)).toBeInTheDocument()
 })
+
+test('double-clicking the names in the header renames the chat inline (Enter saves, Escape cancels)', () => {
+  setup()
+  const rename = { mutate: vi.fn(), isPending: false }
+  vi.spyOn(convMod, 'useRenameConversation').mockReturnValue(rename as any)
+  wrap(<ThreadView threadId="th1" conversation={team} />)
+  fireEvent.doubleClick(screen.getByRole('heading', { name: 'Jordan Lee' }))
+  const box = screen.getByLabelText('Chat name')
+  fireEvent.keyDown(box, { key: 'Escape' })
+  expect(screen.queryByLabelText('Chat name')).toBeNull()
+  expect(rename.mutate).not.toHaveBeenCalled()
+  fireEvent.doubleClick(screen.getByRole('heading', { name: 'Jordan Lee' }))
+  fireEvent.change(screen.getByLabelText('Chat name'), { target: { value: 'Marathon squad' } })
+  fireEvent.keyDown(screen.getByLabelText('Chat name'), { key: 'Enter' })
+  expect(rename.mutate).toHaveBeenCalledWith({ threadId: 'th1', title: 'Marathon squad' }, expect.anything())
+})
+
+test('a 1:1 or read-only thread cannot be renamed from the header', () => {
+  setup()
+  wrap(<ThreadView threadId="th1" conversation={{ ...team, read_only: true }} />)
+  fireEvent.doubleClick(screen.getByRole('heading', { name: 'Jordan Lee' }))
+  expect(screen.queryByLabelText('Chat name')).toBeNull()
+})

@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../../auth/AuthProvider'
 import { useMessages, useSendMessage, useSendImages, useMarkThreadRead, useRealtimeThread, signedChatImageUrl } from '../../lib/queries/chat'
-import { fetchConversations, useThreadPeople } from '../../lib/queries/conversations'
+import { fetchConversations, useRenameConversation, useThreadPeople } from '../../lib/queries/conversations'
 import { useReactions, useSetReaction } from '../../lib/queries/reactions'
 import { summarize } from '../../lib/reactions'
 import { blockUser, invalidateAfterBlock } from '../../lib/queries/moderation'
@@ -131,6 +131,17 @@ export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialW
   const senders: Record<string, Sender> = {}
   for (const p of people.data ?? []) senders[p.user_id] = { name: p.name, initials: p.initials || initialsOf(p.name), avatarUrl: p.avatar_url }
   const title = conversation ? conversationTitle(conversation) : 'Conversation'
+  // Groups and team chats can be named: double-click the names in the header.
+  const renamable = !!conversation && !readOnly && (conversation.kind === 'team' || conversation.members.length >= 2)
+  const rename = useRenameConversation()
+  const [naming, setNaming] = useState<string | null>(null)
+  const saveName = () => {
+    if (naming === null) return
+    const next = naming.trim()
+    setNaming(null)
+    if (next === (conversation?.title ?? '')) return
+    rename.mutate({ threadId, title: next }, { onError: () => setModError("Couldn't rename the chat. Try again.") })
+  }
   const subtitle = conversation?.kind === 'team' ? 'Team chat'
     : (conversation?.members.length ?? 0) > 1 ? `${(conversation?.members.length ?? 0) + 1} people` : 'Private conversation'
 
@@ -205,7 +216,19 @@ export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialW
             </button>
           )}
           <div className="min-w-0 flex-1">
-            <p className="truncate font-display text-lg font-bold leading-tight">{title}</p>
+            {naming !== null ? (
+              <input aria-label="Chat name" autoFocus value={naming} placeholder={title}
+                onChange={(e) => setNaming(e.target.value)} onBlur={saveName}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') { e.preventDefault(); saveName() }
+                  if (e.key === 'Escape') setNaming(null)
+                }}
+                className="w-full rounded-[8px] border border-line bg-surface2 px-2 py-0.5 font-display text-lg font-bold leading-tight text-text outline-none placeholder:text-text-faint" />
+            ) : (
+              <h2 onDoubleClick={renamable ? () => setNaming(conversation?.title ?? '') : undefined}
+                title={renamable ? 'Double-click to rename' : undefined}
+                className={`truncate font-display text-lg font-bold leading-tight ${renamable ? 'cursor-text' : ''}`}>{title}</h2>
+            )}
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-accent">{subtitle}</p>
           </div>
           {onInfo && (
