@@ -428,6 +428,17 @@ describe('reach trust boundary', () => {
     expect(del.data).toHaveLength(1)
   })
 
+  it('an athlete cannot repoint an existing coaching link to another coach', async () => {
+    const c = await createAndSignIn({ role: 'coach', name: `Mine ${tag}`, title: 'Head Coach' })
+    const other = await createAndSignIn({ role: 'coach', name: `Theirs ${tag}`, title: 'Head Coach' })
+    const a = await createAndSignIn({ role: 'athlete', name: `Repoint ${tag}` })
+    await link(c.id, a.id)
+    const upd = await a.client.from('coach_athlete').update({ coach_id: other.id }).eq('coach_id', c.id).eq('athlete_id', a.id)
+    expect(upd.error).not.toBeNull()
+    const { data } = await admin().from('coach_athlete').select('coach_id').eq('athlete_id', a.id)
+    expect(data!.map((r: any) => r.coach_id)).toEqual([c.id])
+  })
+
   it('the "can\'t add" error does not reveal the target\'s name', async () => {
     const hidden = await createAndSignIn({ role: 'athlete', name: `Secret Name ${tag}` })
     const a = await createAndSignIn({ role: 'athlete', name: `Asker ${tag}` })
@@ -443,5 +454,41 @@ describe('reach trust boundary', () => {
     const bad = await a.client.from('message_threads')
       .insert({ athlete_id: a.id, coach_id: c.id, title: 'pwned', read_only: true, created_by: c.id })
     expect(bad.error).not.toBeNull()
+  })
+})
+
+describe('lifecycle edge cases (security review)', () => {
+  const tag = randomUUID().slice(0, 6)
+  const ro = async (t: string) => (await admin().from('message_threads').select('read_only').eq('id', t).single()).data!.read_only
+
+  it('a self-coaching link neither reopens nor closes other 1:1s', async () => {
+    const x = await createAndSignIn({ role: 'coach', name: `Self ${tag}`, title: 'Head Coach' })
+    const a = await createAndSignIn({ role: 'athlete', name: `SelfA ${tag}` })
+    const b = await createAndSignIn({ role: 'athlete', name: `SelfB ${tag}` })
+    await link(x.id, a.id)
+    await link(x.id, b.id)
+    const withA = (await a.client.rpc('start_conversation', { p_user_ids: [x.id] })).data
+    const withB = (await b.client.rpc('start_conversation', { p_user_ids: [x.id] })).data
+    await a.client.from('coach_athlete').delete().eq('coach_id', x.id).eq('athlete_id', a.id)
+    expect(await ro(withA)).toBe(true)
+    await admin().from('coach_athlete').insert({ coach_id: x.id, athlete_id: x.id, relationship: 'head' })
+    expect(await ro(withA)).toBe(true)          // self-link must not reopen
+    await admin().from('coach_athlete').delete().eq('coach_id', x.id).eq('athlete_id', x.id)
+    expect(await ro(withB)).toBe(false)         // self-unlink must not close
+  })
+
+  it('a member removed from a group cannot be added back', async () => {
+    const c1 = await createAndSignIn({ role: 'coach', name: `Ra ${tag}`, title: 'Head Coach' })
+    const c2 = await createAndSignIn({ role: 'coach', name: `Rb ${tag}`, title: 'Assistant Coach' })
+    const a = await createAndSignIn({ role: 'athlete', name: `RaA ${tag}` })
+    const b = await createAndSignIn({ role: 'athlete', name: `RaB ${tag}` })
+    await link(c1.id, a.id)
+    await link(c2.id, a.id, 'assistant')
+    await link(c1.id, b.id)
+    await link(c2.id, b.id, 'assistant') // c1 and c2 still share b after c2 leaves a's team
+    const g = (await c1.client.rpc('start_conversation', { p_user_ids: [a.id, c2.id], p_title: 'Grp' })).data
+    await a.client.from('coach_athlete').delete().eq('coach_id', c2.id).eq('athlete_id', a.id)
+    const re = await c1.client.rpc('add_conversation_members', { p_thread: g, p_user_ids: [c2.id] })
+    expect(re.error?.message).toMatch(/can't add/)
   })
 })

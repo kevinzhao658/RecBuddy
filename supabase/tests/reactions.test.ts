@@ -21,8 +21,10 @@ describe('message reactions', () => {
       .insert({ thread_id: threadId, from_user_id: coach.id, kind: 'text', body: 'Great work today' }).select().single()).data.id
   })
 
+  // A removed reaction is kept as kind = null (so un-reacting is an RLS-filtered UPDATE, not a DELETE).
   const mine = async (client: any, who: string) =>
-    ((await client.from('message_reactions').select('kind').eq('message_id', msgId).eq('user_id', who)).data ?? []).map((r: any) => r.kind)
+    ((await client.from('message_reactions').select('kind').eq('message_id', msgId).eq('user_id', who)).data ?? [])
+      .map((r: any) => r.kind).filter(Boolean)
 
   it('one reaction per user: set, switch, and same kind removes', async () => {
     expect((await athlete.client.rpc('set_reaction', { p_message: msgId, p_kind: 'like' })).data).toBe('like')
@@ -69,6 +71,24 @@ describe('message reactions', () => {
     const { data: m2 } = await athlete.client.from('messages')
       .insert({ thread_id: threadId, from_user_id: athlete.id, kind: 'text', body: 'mine' }).select().single()
     expect((await other.client.rpc('set_reaction', { p_message: m2.id, p_kind: 'like' })).error).not.toBeNull()
+  })
+
+  it('un-reacting updates the row to kind = null instead of deleting it', async () => {
+    await coach.client.rpc('set_reaction', { p_message: msgId, p_kind: 'emphasize' })
+    await coach.client.rpc('set_reaction', { p_message: msgId, p_kind: 'emphasize' })
+    const { data } = await admin().from('message_reactions').select('kind').eq('message_id', msgId).eq('user_id', coach.id)
+    expect(data).toEqual([{ kind: null }])
+  })
+
+  it('a member who joined later cannot see reactions on earlier messages', async () => {
+    const late = await createAndSignIn({ role: 'athlete', name: 'Late Joiner' })
+    await admin().from('coach_athlete').insert({ coach_id: coach.id, athlete_id: late.id, relationship: 'head' })
+    const { data: old } = await admin().from('messages')
+      .insert({ thread_id: threadId, from_user_id: coach.id, kind: 'text', body: 'old', created_at: '2026-01-01T00:00:00Z' }).select().single()
+    await admin().from('message_reactions').insert({ message_id: old!.id, user_id: coach.id, thread_id: threadId, kind: 'like' })
+    await coach.client.rpc('add_conversation_members', { p_thread: threadId, p_user_ids: [late.id] })
+    const { data } = await late.client.from('message_reactions').select('kind').eq('message_id', old!.id)
+    expect(data ?? []).toEqual([])
   })
 
   it('deleting a message removes its reactions', async () => {

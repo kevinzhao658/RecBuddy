@@ -11,6 +11,9 @@
 -- join coaches only through redeem_invite (definer). Admin coaches still add
 -- co-coaches, and athletes can still remove or change their own links.
 drop policy if exists team_write on coach_athlete;
+drop policy if exists team_insert on coach_athlete;
+drop policy if exists team_update on coach_athlete;
+drop policy if exists team_delete on coach_athlete;
 create policy team_insert on coach_athlete for insert
   with check (coach_can_admin(athlete_id));
 create policy team_update on coach_athlete for update
@@ -18,6 +21,22 @@ create policy team_update on coach_athlete for update
   with check (athlete_id = auth.uid() or coach_can_admin(athlete_id));
 create policy team_delete on coach_athlete for delete
   using (athlete_id = auth.uid() or coach_can_admin(athlete_id));
+
+-- A link can change permission or role, but never who it connects; otherwise
+-- an athlete could repoint their link at any coach.
+create or replace function coach_athlete_fixed_pair() returns trigger
+language plpgsql as $$
+begin
+  if auth.uid() is not null
+     and (new.coach_id is distinct from old.coach_id or new.athlete_id is distinct from old.athlete_id) then
+    raise exception 'a coaching link can''t be moved to another person';
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists coach_athlete_fixed_pair on coach_athlete;
+create trigger coach_athlete_fixed_pair before update on coach_athlete
+  for each row execute function coach_athlete_fixed_pair();
 
 -- ============================================================
 -- 1. Reach: the people a user may start a chat with or add to one
@@ -175,7 +194,9 @@ begin
 
   if cardinality(v_active) + cardinality(v_new) > 25 then raise exception 'groups are limited to 25 people'; end if;
   foreach v_target in array v_new loop
-    if not can_add_to_chat(v_me, v_target) then
+    -- 'removed' is final (coach taken off the athlete's team, or blocked).
+    if not can_add_to_chat(v_me, v_target)
+       or exists (select 1 from thread_members where thread_id = p_thread and user_id = v_target and status = 'removed') then
       raise exception 'you can''t add that person to a chat';
     end if;
   end loop;

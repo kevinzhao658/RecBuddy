@@ -11,8 +11,9 @@
 -- 1:1 chats (exactly two member rows, any status) between two people.
 create or replace function one_to_one_threads(p_a uuid, p_b uuid) returns setof uuid
 language sql stable security definer set search_path = public, pg_temp as $$
+  -- p_a = p_b (a self-coaching link) would match every 1:1 the person is in.
   select t.id from message_threads t
-  where t.kind = 'chat'
+  where t.kind = 'chat' and p_a <> p_b
     and exists (select 1 from thread_members where thread_id = t.id and user_id = p_a)
     and exists (select 1 from thread_members where thread_id = t.id and user_id = p_b)
     and (select count(*) from thread_members where thread_id = t.id) = 2;
