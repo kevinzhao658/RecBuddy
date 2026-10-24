@@ -141,6 +141,8 @@ function AdjustCardView({ p }: { p: AdjustCard }) {
  *    (on the first), so co-coaches and the athlete are distinguishable.
  *  `grouped` tightens same-sender stacking. Timestamps live in the centered
  *  session separators rendered by ThreadView, not per message. */
+const HOLD_MS = 450
+
 export function MessageItem({ m, mine, sender, showName, showAvatar, grouped, superseded, domId, onJumpToLatest, onOpenWorkout, actions = [], quote, highlighted, reactions = [], onReact }: {
   m: Message; mine: boolean; sender?: Sender; showName?: boolean; showAvatar?: boolean
   grouped?: boolean; superseded?: boolean; domId?: string
@@ -164,7 +166,7 @@ export function MessageItem({ m, mine, sender, showName, showAvatar, grouped, su
   const [barStyle, setBarStyle] = useState<CSSProperties>()
   useLayoutEffect(() => {
     const wrap = wrapRef.current, bubble = bubbleRef.current?.firstElementChild, bar = barRef.current
-    if (!(hovered || menuOpen) || !wrap || !bubble || !bar) return
+    if (!menuOpen || !wrap || !bubble || !bar) return
     const w = wrap.getBoundingClientRect(), b = bubble.getBoundingClientRect(), r = bar.getBoundingClientRect()
     setBarStyle(actionBarPosition({
       wrapperWidth: w.width,
@@ -172,7 +174,11 @@ export function MessageItem({ m, mine, sender, showName, showAvatar, grouped, su
       bar: { width: r.width, height: r.height },
       mine,
     }))
-  }, [hovered, menuOpen, mine])
+  }, [menuOpen, mine])
+  // Press and hold (mouse or touch) opens the bar; a quick click doesn't.
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const cancelHold = () => clearTimeout(holdTimer.current)
+  useLayoutEffect(() => cancelHold, [])
   const chips = onReact && !superseded
     ? <ReactionChips items={reactions} onToggle={onReact} showAll={hovered || menuOpen} />
     : null
@@ -206,13 +212,18 @@ export function MessageItem({ m, mine, sender, showName, showAvatar, grouped, su
     <AdjustCardView p={m.payload as AdjustCard} />
   )
 
-  // Bubble + its action bar. Right-click (desktop) or long-press (touch fires
-  // contextmenu) pins the bar open; leaving the message closes it.
+  // Bubble + its action bar. Pressing and holding the message opens the bar;
+  // leaving the message (or Escape) closes it.
   const withActions = actions.length && !superseded ? (
     <div ref={wrapRef} className={`group/msg relative flex w-full flex-col ${mine ? 'items-end' : 'items-start'}`}
-      onContextMenu={(e) => { e.preventDefault(); setMenuOpen(true) }}
+      onContextMenu={(e) => e.preventDefault()}
+      onPointerDown={(e) => {
+        if (e.button !== 0 || (e.target as Element).closest('[role="toolbar"]')) return
+        cancelHold(); holdTimer.current = setTimeout(() => setMenuOpen(true), HOLD_MS)
+      }}
+      onPointerUp={cancelHold} onPointerCancel={cancelHold}
       onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => { setMenuOpen(false); setHovered(false) }}
+      onMouseLeave={() => { cancelHold(); setMenuOpen(false); setHovered(false) }}
       onKeyDown={(e) => { if (e.key === 'Escape') setMenuOpen(false) }}>
       <MessageActions ref={barRef} actions={actions} open={menuOpen} style={barStyle} />
       {quote && !superseded && <QuoteView q={quote} />}

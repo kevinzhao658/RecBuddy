@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, act } from '@testing-library/react'
 import * as chatQueries from '../../lib/queries/chat'
 import { MessageItem } from './MessageItem'
 
@@ -94,27 +94,30 @@ test('renders nothing for a legacy javascript: url (XSS guard)', () => {
   expect(screen.queryByRole('link')).toBeNull()
 })
 
-test('action bar: right-click pins it open and Copy runs the action', async () => {
+test('action bar: only press-and-hold opens it, and Copy runs the action', async () => {
+  vi.useFakeTimers()
   const onClick = vi.fn()
   render(<MessageItem mine={false} actions={[{ key: 'copy', label: 'Copy', doneLabel: 'Copied', onClick }]}
     m={{ ...base, kind: 'text', body: 'copy me', payload: null } as any} />)
   const bar = screen.getByRole('toolbar', { name: 'Message actions' })
+  const bubble = screen.getByText('copy me')
+  // hover, right-click, and a quick click don't open it
+  fireEvent.mouseEnter(bubble)
+  fireEvent.contextMenu(bubble)
+  fireEvent.pointerDown(bubble); act(() => { vi.advanceTimersByTime(200) }); fireEvent.pointerUp(bubble)
+  act(() => { vi.advanceTimersByTime(1000) })
   expect(bar.className).toMatch(/opacity-0/)
-  fireEvent.contextMenu(screen.getByText('copy me'))
+  expect(bar.className).not.toMatch(/group-hover/)
+  // holding does
+  fireEvent.pointerDown(bubble); act(() => { vi.advanceTimersByTime(500) })
   expect(bar.className).toMatch(/opacity-100/)
+  // jsdom lays nothing out, so there's no room beside: it overlaps the top edge.
+  expect(bar.style.top).toBe('-12px')
+  fireEvent.pointerUp(bubble)
+  vi.useRealTimers()
   fireEvent.click(screen.getByRole('button', { name: 'Copy' }))
   expect(onClick).toHaveBeenCalled()
   expect(await screen.findByRole('button', { name: 'Copied' })).toBeInTheDocument()
-})
-
-test('action bar: hovering places it against the bubble', () => {
-  render(<MessageItem mine={false} actions={[{ key: 'copy', label: 'Copy', onClick: vi.fn() }]}
-    m={{ ...base, kind: 'text', body: 'place me', payload: null } as any} />)
-  const bar = screen.getByRole('toolbar', { name: 'Message actions' })
-  expect(bar.style.top).toBe('')
-  fireEvent.mouseEnter(screen.getByText('place me'))
-  // jsdom lays nothing out, so there's no room beside: it overlaps the top edge.
-  expect(bar.style.top).toBe('-12px')
 })
 
 test('no action bar on rolled-up placeholders or when there are no actions', () => {

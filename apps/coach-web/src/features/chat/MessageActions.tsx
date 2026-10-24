@@ -25,8 +25,8 @@ export function actionBarPosition({ wrapperWidth, bubble, bar, mine }: {
   return { left: Math.max(0, Math.min(over, wrapperWidth - bar.width)), top: bubble.top - 12 }
 }
 
-/** Small action bar next to a message: appears on hover, keyboard focus, or a
- *  right-click / long-press (open). The parent places it via `style`. */
+/** Small action bar next to a message: appears on press-and-hold (open) or
+ *  keyboard focus. The parent places it via `style`. */
 export const MessageActions = forwardRef<HTMLDivElement, {
   actions: MessageAction[]; open: boolean; style?: CSSProperties
 }>(function MessageActions({ actions, open, style }, ref) {
@@ -45,7 +45,7 @@ export const MessageActions = forwardRef<HTMLDivElement, {
   return (
     <div ref={ref} role="toolbar" aria-label="Message actions" style={style}
       className={`absolute left-0 top-0 z-10 flex w-max gap-0.5 rounded-full border border-line bg-surface2 p-0.5 shadow-lg transition-opacity
-        ${open ? 'opacity-100' : 'pointer-events-none opacity-0 group-hover/msg:pointer-events-auto group-hover/msg:opacity-100 group-focus-within/msg:pointer-events-auto group-focus-within/msg:opacity-100'}`}>
+        ${open ? 'opacity-100' : 'pointer-events-none opacity-0 focus-within:pointer-events-auto focus-within:opacity-100'}`}>
       {actions.map((a) => (
         <button key={a.key} type="button" onClick={() => run(a)}
           className="rounded-full px-2.5 py-1 text-[11px] font-semibold text-text-mute hover:bg-surface hover:text-text">
