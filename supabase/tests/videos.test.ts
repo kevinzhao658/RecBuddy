@@ -2,6 +2,7 @@ import 'dotenv/config'
 import { describe, it, expect, beforeAll } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import { admin, createAndSignIn } from './helpers'
+import { purgeExpiredVideos } from '../functions/purge-chat-videos/purge.ts'
 
 type U = { id: string; email: string; client: any }
 
@@ -102,5 +103,67 @@ describe('video read rules match photos', () => {
     const t = await makeChat([{ id: sender.id }])
     const up = await outsider.client.storage.from('chat-videos').upload(`${t}/${randomUUID()}.mp4`, Buffer.from('mp4'), { contentType: 'video/mp4' })
     expect(up.error).not.toBeNull()
+  })
+})
+
+describe('purging expired videos', () => {
+  const sql = admin()
+  async function postVideo() {
+    const s = await createAndSignIn({ role: 'athlete', name: `Purge ${randomUUID()}` })
+    const t = await makeChat([{ id: s.id }])
+    const p = payload(t)
+    await s.client.storage.from('chat-videos').upload(p.path, Buffer.from('mp4'), { contentType: 'video/mp4' })
+    await s.client.storage.from('chat-images').upload(p.poster, Buffer.from('jpg'), { contentType: 'image/jpeg' })
+    const { data: m } = await s.client.from('messages')
+      .insert({ thread_id: t, from_user_id: s.id, kind: 'video', payload: p }).select('id').single()
+    return { id: m.id as string, t, p, sender: s }
+  }
+  const expire = (id: string) => sql.from('messages').update({ expires_at: new Date(Date.now() - 60_000).toISOString() }).eq('id', id)
+  const exists = async (bucket: string, path: string) => {
+    const [folder, name] = path.split('/')
+    return ((await sql.storage.from(bucket).list(folder)).data ?? []).some((o) => o.name === name)
+  }
+  const purgedAt = async (id: string) => (await sql.from('messages').select('media_purged_at').eq('id', id).single()).data!.media_purged_at
+
+  it('deletes an expired video file, marks the message, and keeps the poster', async () => {
+    const v = await postVideo()
+    await expire(v.id)
+    await purgeExpiredVideos(sql)
+    expect(await exists('chat-videos', v.p.path)).toBe(false)
+    expect(await purgedAt(v.id)).not.toBeNull()
+    expect(await exists('chat-images', v.p.poster)).toBe(true)
+  })
+
+  it('leaves unexpired videos alone', async () => {
+    const v = await postVideo()
+    await purgeExpiredVideos(sql)
+    expect(await exists('chat-videos', v.p.path)).toBe(true)
+    expect(await purgedAt(v.id)).toBeNull()
+  })
+
+  it('holds a video with an open report, and purges it once the report is dismissed', async () => {
+    const v = await postVideo()
+    await expire(v.id)
+    const { data: r } = await sql.from('content_reports')
+      .insert({ reporter_id: v.sender.id, message_id: v.id, reason: 'spam' }).select('id').single()
+    await purgeExpiredVideos(sql)
+    expect(await exists('chat-videos', v.p.path)).toBe(true)
+    await sql.from('content_reports').update({ status: 'dismissed' }).eq('id', r!.id)
+    await purgeExpiredVideos(sql)
+    expect(await exists('chat-videos', v.p.path)).toBe(false)
+  })
+
+  it('marks a video whose file is already gone', async () => {
+    const v = await postVideo()
+    await expire(v.id)
+    await sql.storage.from('chat-videos').remove([v.p.path])
+    await purgeExpiredVideos(sql)
+    expect(await purgedAt(v.id)).not.toBeNull()
+  })
+
+  it('clients cannot list or mark expired videos', async () => {
+    const u = await createAndSignIn({ role: 'athlete', name: `Nosy ${randomUUID()}` })
+    expect((await u.client.rpc('expired_videos', { p_limit: 5 })).error).not.toBeNull()
+    expect((await u.client.rpc('mark_videos_purged', { p_ids: [] })).error).not.toBeNull()
   })
 })
