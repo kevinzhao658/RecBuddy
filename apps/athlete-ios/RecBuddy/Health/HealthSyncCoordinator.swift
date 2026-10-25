@@ -39,18 +39,19 @@ final class HealthSyncCoordinator {
         let since = (state.lastSync ?? passStart.addingTimeInterval(
             -Double(Self.firstSyncLookbackDays) * 86_400)).addingTimeInterval(-Self.overlapSeconds)
         guard let fetched = try? await provider.fetchActivities(since: since) else { return 0 }
-        // Coros + Apple Watch can both write the same run to Health — collapse
-        // overlapping same-kind recordings to the richest copy before classifying.
-        let samples = HealthMatcher.dedupeOverlapping(fetched)
-
         var newPending = 0
         var allDaysSucceeded = true
-        let byDay = Dictionary(grouping: samples) { HealthMatcher.localDay(of: $0.startDate, calendar: calendar) }
-        for (day, dayActivities) in byDay.sorted(by: { $0.key < $1.key }) {
+        let byDay = Dictionary(grouping: fetched) { HealthMatcher.localDay(of: $0.startDate, calendar: calendar) }
+        for (day, fetchedToday) in byDay.sorted(by: { $0.key < $1.key }) {
             guard let ctx = try? await sink.dayContext(day) else { allDaysSucceeded = false; continue }
             var logged = ctx.loggedWorkoutIds
             // Known DB source_ids + user exclusions both mean "don't touch".
             var excluded = state.excludedSourceIds.union(ctx.knownSourceIds)
+            // Coros + Apple Watch can both write the same run to Health — collapse
+            // overlapping same-kind recordings to one copy before classifying,
+            // keeping whichever copy was already logged, dismissed, or queued.
+            let dayActivities = HealthMatcher.dedupeOverlapping(
+                fetchedToday, handled: excluded.union(state.pending.map(\.id)))
             for activity in dayActivities.sorted(by: { $0.startDate < $1.startDate }) {
                 let outcome = HealthMatcher.classify(activity: activity, dayActivities: dayActivities,
                                                      dayWorkouts: ctx.workouts, loggedWorkoutIds: logged,
