@@ -86,3 +86,24 @@ describe('message immutability vs. deletes', () => {
     expect(after!.workout_id).toBeNull()
   })
 })
+
+describe('message immutability vs. RLS visibility', () => {
+  it("a sender who can't see a still-existing workout can't null its workout_id", async () => {
+    const coach = await createAndSignIn({ role: 'coach', name: `Coach ${randomUUID()}`, title: 'Head Coach' })
+    const athlete = await createAndSignIn({ role: 'athlete', name: 'Hidden Workout Athlete' })
+    const other = await createAndSignIn({ role: 'athlete', name: 'Other Athlete' })
+    const sql = admin()
+    await sql.from('coach_athlete').insert({ coach_id: coach.id, athlete_id: athlete.id, relationship: 'head' })
+    // a workout belonging to someone else: the athlete can't see it under RLS
+    const { data: plan } = await sql.from('plans').insert({ athlete_id: other.id, plan_week: 1, plan_weeks: 12 }).select().single()
+    const { data: w } = await sql.from('workouts').insert({ plan_id: plan!.id, athlete_id: other.id, date: '2026-10-18', type: 'easy', title: 'Hidden', status: 'planned' }).select().single()
+    const { data: t } = await sql.from('message_threads').insert({ athlete_id: athlete.id, coach_id: coach.id }).select().single()
+    const { data: m } = await sql.from('messages').insert({ thread_id: t!.id, from_user_id: coach.id, kind: 'text', body: 'x', workout_id: w!.id }).select().single()
+
+    // The sender can't see `other`'s workout, but it still exists: not a delete clean-up.
+    const res = await coach.client.from('messages').update({ workout_id: null }).eq('id', m!.id)
+    const { data: after } = await sql.from('messages').select('workout_id').eq('id', m!.id).single()
+    expect(after!.workout_id).toBe(w!.id)
+    expect(res.error?.message).toMatch(/only the read flag/)
+  })
+})
