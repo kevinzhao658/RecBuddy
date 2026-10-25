@@ -1,4 +1,5 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
+import { removeMessageMedia } from './media.ts'
 
 // Admin console actions that need the service role: the Auth admin API (ban)
 // or Storage (a reported photo). Caller must be signed in AND profiles.is_admin
@@ -50,23 +51,10 @@ Deno.serve(async (req) => {
       const { data: m } = await admin.from('messages')
         .select('id, thread_id, from_user_id, kind, payload').eq('id', body.message_id).maybeSingle()
       if (!m) return json({ error: 'message not found (already deleted?)' }, 404)
-      // payload.path is written by the sender: only delete a file in this
-      // message's own thread folder that the sender themselves uploaded —
-      // never one the message merely points at.
-      const path = (m.payload as { path?: string } | null)?.path
-      let ownFile = typeof path === 'string' && path.startsWith(`${m.thread_id}/`) && !path.includes('..')
-      if (ownFile) {
-        const { data: owner } = await admin.rpc('chat_image_owner', { p_path: path })
-        ownFile = owner === m.from_user_id
-      }
-      if (m.kind === 'image' && path && !ownFile) console.error('refusing to delete foreign storage path', path)
-      if (m.kind === 'image' && path && ownFile) {
-        const { error } = await admin.storage.from('chat-images').remove([path])
-        if (error) console.error('storage remove', error)
-      }
+      const removed = await removeMessageMedia(admin, m)
       const { error } = await admin.from('messages').delete().eq('id', m.id)
       if (error) return json({ error: error.message }, 500)
-      await log('delete_message', m.from_user_id, { kind: m.kind, photo_removed: Boolean(path && ownFile) })
+      await log('delete_message', m.from_user_id, { kind: m.kind, photo_removed: removed.photo, video_removed: removed.video })
       return json({ ok: true })
     }
 

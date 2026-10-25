@@ -3,6 +3,7 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import { admin, createAndSignIn } from './helpers'
 import { purgeExpiredVideos } from '../functions/purge-chat-videos/purge.ts'
+import { removeMessageMedia } from '../functions/admin-action/media.ts'
 
 type U = { id: string; email: string; client: any }
 
@@ -165,5 +166,29 @@ describe('purging expired videos', () => {
     const u = await createAndSignIn({ role: 'athlete', name: `Nosy ${randomUUID()}` })
     expect((await u.client.rpc('expired_videos', { p_limit: 5 })).error).not.toBeNull()
     expect((await u.client.rpc('mark_videos_purged', { p_ids: [] })).error).not.toBeNull()
+  })
+})
+
+describe('admin removal of a reported video', () => {
+  const sql = admin()
+  it('removes the sender\'s own video and poster, never a file the message merely points at', async () => {
+    const s = await createAndSignIn({ role: 'athlete', name: `Rm ${randomUUID()}` })
+    const other = await createAndSignIn({ role: 'athlete', name: `Other ${randomUUID()}` })
+    const t = await makeChat([{ id: s.id }, { id: other.id }])
+    const mine = payload(t)
+    await s.client.storage.from('chat-videos').upload(mine.path, Buffer.from('mp4'), { contentType: 'video/mp4' })
+    await s.client.storage.from('chat-images').upload(mine.poster, Buffer.from('jpg'), { contentType: 'image/jpeg' })
+    const theirs = payload(t)
+    await other.client.storage.from('chat-videos').upload(theirs.path, Buffer.from('mp4'), { contentType: 'video/mp4' })
+
+    const removed = await removeMessageMedia(sql, { thread_id: t, from_user_id: s.id, kind: 'video', payload: mine })
+    expect(removed).toEqual({ photo: false, video: true, poster: true })
+    const left = ((await sql.storage.from('chat-videos').list(t)).data ?? []).map((o) => `${t}/${o.name}`)
+    expect(left).not.toContain(mine.path)
+
+    const spared = await removeMessageMedia(sql, { thread_id: t, from_user_id: s.id, kind: 'video', payload: { ...theirs, poster: null } })
+    expect(spared.video).toBe(false)
+    const still = ((await sql.storage.from('chat-videos').list(t)).data ?? []).map((o) => `${t}/${o.name}`)
+    expect(still).toContain(theirs.path)
   })
 })

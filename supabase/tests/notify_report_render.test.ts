@@ -28,6 +28,8 @@ describe('notify-report email', () => {
 
   it('describes non-text content and direct user reports', () => {
     expect(describeContent({ kind: 'image', body: 'look', payload: { path: 't/1.jpg' } })).toBe('[Photo: chat-images/t/1.jpg] — caption: look')
+    expect(describeContent({ kind: 'video', body: 'look', payload: { path: 't/1.mp4' } })).toBe('[Video: chat-videos/t/1.mp4] — caption: look')
+    expect(describeContent({ kind: 'video', body: null, payload: { path: 't/1.mp4' } })).toBe('[Video: chat-videos/t/1.mp4]')
     expect(describeContent({ kind: 'runcard', payload: { title: 'Tempo', note: 'ugh' } })).toBe('[Logged run] Tempo — note: ugh')
     expect(describeContent(null)).toMatch(/reported directly/)
   })

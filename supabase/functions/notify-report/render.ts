@@ -30,6 +30,7 @@ export function describeContent(snap: ReportRecord['content_snapshot']): string 
   const p = snap.payload ?? {}
   switch (snap.kind) {
     case 'image':   return `[Photo${p.path ? `: chat-images/${p.path}` : ''}]${snap.body ? ` — caption: ${snap.body}` : ''}`
+    case 'video':   return `[Video${p.path ? `: chat-videos/${p.path}` : ''}]${snap.body ? ` — caption: ${snap.body}` : ''}`
     case 'workout': return `[Workout card] ${p.title ?? ''}`
     case 'runcard': return `[Logged run] ${p.title ?? ''}${p.note ? ` — note: ${p.note}` : ''}`
     case 'adjust':  return `[Plan adjustment] ${p.from ?? ''} → ${p.to ?? ''}${p.reason ? ` — ${p.reason}` : ''}`
