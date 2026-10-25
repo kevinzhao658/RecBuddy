@@ -104,6 +104,36 @@ describe('co-coach requests', () => {
   })
 })
 
+describe('request integrity', () => {
+  it('an invited co-coach cannot turn the invite into a head request they approve themselves', async () => {
+    // An admin co-coach and no head coach yet, so a head request is possible.
+    const head = await coach('AdminAsst')
+    const a = await athlete('Headless')
+    await admin().from('coach_athlete').insert({ coach_id: head.id, athlete_id: a.id, relationship: 'assistant', permission: 'admin' })
+    const x = await coach('Climber')
+    await head.client.rpc('request_co_coach', { p_athlete_id: a.id, p_coach_id: x.id })
+    const [invite] = (await x.client.rpc('my_link_requests')).data ?? []
+    await x.client.rpc('coach_add_athlete', { p_athlete_id: a.id, p_relationship: 'head' })
+    // The athlete now decides; the coach can't answer it.
+    expect((await x.client.rpc('respond_link_request', { p_id: invite.id, p_accept: true })).error).not.toBeNull()
+    expect(await linked(x.id, a.id)).toHaveLength(0)
+    const forAthlete = (await a.client.rpc('my_link_requests')).data ?? []
+    expect(forAthlete).toHaveLength(1)
+    expect(forAthlete[0]).toMatchObject({ coach_id: x.id, relationship: 'head' })
+  })
+
+  it('a block between coach and athlete drops a pending request', async () => {
+    const { head, a } = await headOf()
+    const x = await coach('Blocked later')
+    await head.client.rpc('request_co_coach', { p_athlete_id: a.id, p_coach_id: x.id })
+    const [req] = (await x.client.rpc('my_link_requests')).data ?? []
+    await a.client.rpc('block_user', { p_user_id: x.id })
+    expect((await x.client.rpc('my_link_requests')).data).toHaveLength(0)
+    expect((await x.client.rpc('respond_link_request', { p_id: req.id, p_accept: true })).error).not.toBeNull()
+    expect(await linked(x.id, a.id)).toHaveLength(0)
+  })
+})
+
 describe('adding an existing athlete', () => {
   it('sends the athlete a request instead of linking them', async () => {
     const c = await coach('Adder')
