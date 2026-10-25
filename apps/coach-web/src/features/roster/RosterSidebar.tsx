@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useRoster } from '../../lib/queries/roster'
 import { usePendingInvites, useRevokeInvite } from '../../lib/queries/invites'
 import { useMe } from '../../lib/queries/me'
@@ -32,6 +32,14 @@ export function RosterSidebar({ selectedId, onSelect, messagesActive = false }: 
   const unread = useUnreadCounts()
   const [addOpen, setAddOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!menuOpen) return
+    const away = (e: MouseEvent) => { if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false) }
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenuOpen(false) }
+    document.addEventListener('mousedown', away); document.addEventListener('keydown', esc)
+    return () => { document.removeEventListener('mousedown', away); document.removeEventListener('keydown', esc) }
+  }, [menuOpen])
   const [settingsOpen, setSettingsOpen] = useState(false)
   const athletes = roster.data ?? []
 
@@ -105,16 +113,18 @@ export function RosterSidebar({ selectedId, onSelect, messagesActive = false }: 
 
       {/* Coach profile + preview */}
       <div className="border-t border-line p-3">
-        <div className="relative flex items-center gap-3 rounded-[14px] px-2 py-2">
-          <Avatar initials={me.data?.initials ?? '·'} url={me.data?.avatar_url} />
-          <span className="min-w-0 flex-1">
-            <span className="block truncate font-semibold text-text">{me.data?.name ?? 'Coach'}</span>
-            <span className="block truncate text-xs text-text-mute">{me.data?.title ?? ''}</span>
-          </span>
-          <button aria-label="Coach menu" onClick={() => setMenuOpen((o) => !o)}
-            className="grid h-7 w-7 place-items-center rounded-full text-text-faint hover:bg-chip hover:text-text">⋯</button>
+        <div ref={menuRef} className="relative">
+          {/* The name and photo are the menu's trigger — no separate ⋯ button. */}
+          <button onClick={() => setMenuOpen((o) => !o)} aria-haspopup="menu" aria-expanded={menuOpen}
+            className={`flex w-full items-center gap-3 rounded-[14px] px-2 py-2 text-left transition hover:bg-chip ${menuOpen ? 'bg-chip' : ''}`}>
+            <Avatar initials={me.data?.initials ?? '·'} url={me.data?.avatar_url} />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-semibold text-text">{me.data?.name ?? 'Coach'}</span>
+              <span className="block truncate text-xs text-text-mute">{me.data?.title ?? ''}</span>
+            </span>
+          </button>
           {menuOpen && (
-            <div className="rb-glass absolute bottom-full right-0 z-30 mb-2 w-36 rounded-[14px] p-1">
+            <div className="rb-glass absolute bottom-full left-0 right-0 z-30 mb-2 rounded-[14px] p-1 motion-safe:animate-rb-menu origin-bottom">
               <button onClick={() => { setMenuOpen(false); setSettingsOpen(true) }}
                 className="w-full rounded-[10px] px-3 py-2 text-left text-sm text-text hover:bg-chip">Settings</button>
               <button onClick={() => supabase.auth.signOut()}
