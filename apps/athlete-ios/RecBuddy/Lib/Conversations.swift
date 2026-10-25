@@ -227,3 +227,27 @@ enum ChatHeaderMenu {
         return f.string(from: date)
     }
 }
+
+/// What the Chats tab shows: a load failure is an error, not "no chats yet".
+enum InboxDisplay: Equatable {
+    case loading, error, empty, list
+    static func state(loaded: Bool, error: String?, count: Int) -> InboxDisplay {
+        if count > 0 { return .list }
+        if error != nil { return .error }
+        return loaded ? .empty : .loading
+    }
+}
+
+/// Long-press menu rules for a message.
+enum MessageMenu {
+    /// No Reply where nothing can be sent.
+    static func showsReply(readOnly: Bool) -> Bool { !readOnly }
+
+    /// Block confirmation: blocking a coach also ends coaching; anyone else
+    /// is just muted and kept out of your chats.
+    static func blockMessage(name: String, isCoach: Bool) -> String {
+        isCoach
+            ? "\(name) will be removed from your team, can't message you or see your chat, and can't reconnect unless you unblock them in Settings → Coaches. Their messages are hidden."
+            : "\(name) can't message you and you won't see their messages. Unblock anytime in Settings → Coaches."
+    }
+}

@@ -19,19 +19,32 @@ struct DiscoverabilityToggle: View {
             }
             .tint(RB.accent)
             .disabled(!loaded)
-            if let error { Text(error).font(.caption).foregroundStyle(.red) }
+            if let error {
+                HStack(spacing: 8) {
+                    Text(error).font(.caption).foregroundStyle(.red)
+                    if !loaded {
+                        Button("Retry") { Task { await load() } }.font(.caption.weight(.semibold)).foregroundStyle(RB.accent)
+                    }
+                }
+            }
         }
         .task { await load() }
     }
 
     private struct Row: Decodable { let discoverable_to_athletes: Bool }
 
+    /// The toggle stays disabled until the real value arrives, so nobody flips
+    /// it from a guessed state.
     private func load() async {
-        if let row: Row = try? await Supa.shared.from("profiles").select("discoverable_to_athletes")
-            .eq("id", value: userId).single().execute().value {
+        error = nil
+        do {
+            let row: Row = try await Supa.shared.from("profiles").select("discoverable_to_athletes")
+                .eq("id", value: userId).single().execute().value
             on = row.discoverable_to_athletes
+            loaded = true
+        } catch {
+            self.error = "Couldn't load this setting."
         }
-        loaded = true
     }
 
     private func save(_ value: Bool) async {

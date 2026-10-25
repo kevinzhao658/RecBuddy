@@ -392,7 +392,8 @@ struct ChatView: View {
             Button("Block", role: .destructive) { Task { await block(target) } }
             Button("Cancel", role: .cancel) {}
         } message: { target in
-            Text("\(target.userName) will be removed from your team, can't message you or see your chat, and can't reconnect unless you unblock them in Settings → Coaches. Their messages are hidden.")
+            Text(MessageMenu.blockMessage(name: target.userName,
+                                          isCoach: store.senders[target.userId]?.title != nil))
         }
         .sheet(item: $traceWorkout) { w in
             WorkoutDetailSheet(workout: w, store: tracePlanStore, unit: unit,
@@ -666,11 +667,13 @@ struct ChatView: View {
                 }
             }
         }
-        Button {
-            replyingTo = m
-            composerFocused = true
-        } label: {
-            Label("Reply", systemImage: "arrowshape.turn.up.left")
+        if MessageMenu.showsReply(readOnly: readOnly) {
+            Button {
+                replyingTo = m
+                composerFocused = true
+            } label: {
+                Label("Reply", systemImage: "arrowshape.turn.up.left")
+            }
         }
         if let text = MessageText.copyText(m, unit: unit) {
             Button {

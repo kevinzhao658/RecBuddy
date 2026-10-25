@@ -9,6 +9,7 @@ struct ChatsView: View {
     @State private var path: [String] = []          // thread ids
     @State private var query = ""
     @State private var composing = false
+    @State private var openError: String?
     private let router = AppRouter.shared
 
     private var filtered: [Conversation] {
@@ -23,10 +24,10 @@ struct ChatsView: View {
         NavigationStack(path: $path) {
             ZStack {
                 RB.bg.ignoresSafeArea()
-                if store.loaded && store.conversations.isEmpty {
-                    emptyState
-                } else {
-                    list
+                switch InboxDisplay.state(loaded: store.loaded, error: store.error, count: store.conversations.count) {
+                case .error: errorState
+                case .empty: emptyState
+                case .loading, .list: list
                 }
             }
             .navigationTitle("Chats")
@@ -65,6 +66,9 @@ struct ChatsView: View {
             guard q != nil else { return }
             Task { await openTeamChat() }
         }
+        .alert(openError ?? "", isPresented: Binding(get: { openError != nil }, set: { if !$0 { openError = nil } })) {
+            Button("OK", role: .cancel) {}
+        }
         .sheet(isPresented: $composing) {
             NewMessageView(store: store, me: profile.id) { threadId in
                 composing = false
@@ -78,6 +82,10 @@ struct ChatsView: View {
             path = [team.id]
         } else if let id = try? await ChatShare.teamThreadId(athleteId: profile.id) {
             path = [id]
+        } else {
+            // Don't leave the workout queued for whichever chat opens next.
+            router.pendingWorkoutQuote = nil
+            openError = "Couldn't open your team chat. Try again."
         }
     }
 
@@ -175,6 +183,17 @@ struct ChatsView: View {
         }
         .frame(width: size, height: size)
         .overlay(Circle().stroke(RB.bg, lineWidth: 2))
+    }
+
+    private var errorState: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "wifi.exclamationmark")
+                .font(.system(size: 34)).foregroundStyle(RB.textFaint)
+            Text("Couldn't load chats").font(.headline).foregroundStyle(.white)
+            Button("Try Again") { Task { await store.load() } }
+                .buttonStyle(.borderedProminent).tint(RB.accent).foregroundStyle(.black)
+        }
+        .padding(.horizontal, 40)
     }
 
     private var emptyState: some View {
