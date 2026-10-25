@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 /// Chat videos: the server keeps each clip for 7 days, and this iPhone keeps
@@ -129,5 +130,14 @@ struct VideoStore {
         var values = URLResourceValues()
         values.isExcludedFromBackup = true
         try f.setResourceValues(values)
+    }
+}
+
+/// Photo/video thumbnails: fit a w × h clip inside a box, never enlarged.
+enum MediaFit {
+    static func size(w: Int, h: Int, in box: CGSize) -> CGSize {
+        let cw = CGFloat(max(w, 1)), ch = CGFloat(max(h, 1))
+        let scale = min(box.width / cw, box.height / ch, 1)
+        return CGSize(width: cw * scale, height: ch * scale)
     }
 }

@@ -261,3 +261,23 @@ test('a read-only chat shows no drop hint', () => {
   act(() => { window.dispatchEvent(fileDrag('dragenter')) })
   expect(screen.queryByText('Drop to attach')).toBeNull()
 })
+
+test('a staged video can be previewed before sending', async () => {
+  setup()
+  vi.spyOn(chat, 'useSendVideo').mockReturnValue({ mutate: vi.fn(), isPending: false } as any)
+  vi.spyOn(videoFile, 'checkVideo').mockResolvedValue({ ok: true, duration: 12, w: 720, h: 1280 })
+  vi.spyOn(videoFile, 'posterFrame').mockResolvedValue({ blob: new Blob(['p'], { type: 'image/jpeg' }), w: 720, h: 1280 })
+  Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:preview'), revokeObjectURL: vi.fn() })
+  wrap(<ThreadView threadId="th1" conversation={team} />)
+  fireEvent.paste(screen.getByLabelText('Message'),
+    { clipboardData: { files: [new File(['x'], 'clip.mp4', { type: 'video/mp4' })], getData: () => '' } })
+  expect(await screen.findByAltText('Attached video')).toHaveAttribute('src', 'blob:preview')
+  expect(screen.queryByTestId('staged-preview')).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Preview video' }))
+  const player = screen.getByTestId('staged-preview')
+  expect(player).toHaveAttribute('src', 'blob:preview')
+  expect(player).toHaveAttribute('controls')
+  expect(player.style.width).toBe('180px')            // same thumbnail size as in the chat
+  fireEvent.click(screen.getByRole('button', { name: 'Hide preview' }))
+  expect(screen.queryByTestId('staged-preview')).toBeNull()
+})

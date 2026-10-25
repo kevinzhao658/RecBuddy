@@ -1,12 +1,13 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../../auth/AuthProvider'
 import { useMessages, useSendMessage, useSendImages, useSendVideo, useMarkThreadRead, useRealtimeThread, signedChatImageUrl, type StagedVideo } from '../../lib/queries/chat'
-import { checkVideo, posterFrame, isVideoFile, fmtClipLength } from '../../lib/videoFile'
+import { checkVideo, posterFrame, isVideoFile } from '../../lib/videoFile'
 import { fetchConversations, useRenameConversation, useThreadPeople } from '../../lib/queries/conversations'
 import { useReactions, useSetReaction } from '../../lib/queries/reactions'
 import { summarize } from '../../lib/reactions'
 import { blockUser, invalidateAfterBlock } from '../../lib/queries/moderation'
 import { MenuIcon } from '../../components/ui/Icon'
+import { StagedVideoTile } from './StagedVideoTile'
 import { ReportDialog, type ReportTarget } from '../chat/ReportDialog'
 import { ConfirmDialog } from '../roster/ConfirmDialog'
 import { supabase } from '../../lib/supabase'
@@ -375,7 +376,7 @@ export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialW
         {/* Staged attachment previews — shown above the composer until sent/removed */}
         {(staged.length > 0 || stagedVideo || preparingVideo) && (
           <div className="border-t border-line px-3 pt-3">
-            <div className="flex items-center gap-3 overflow-x-auto pb-1">
+            <div className="flex items-end gap-3 overflow-x-auto pb-1 pt-2">
               {stagedUrls.map((url, i) => (
                 <div key={url} className="relative shrink-0">
                   <img src={url} alt={`Attached photo ${i + 1}`} className="h-16 w-16 rounded-[10px] object-cover" />
@@ -385,14 +386,7 @@ export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialW
                 </div>
               ))}
               {preparingVideo && <span className="text-xs text-text-faint">Preparing…</span>}
-              {stagedVideo && (
-                <div className="relative grid h-16 w-16 shrink-0 place-items-center rounded-[10px] bg-surface2 ring-1 ring-line">
-                  <span aria-hidden className="text-lg text-text">▶</span>
-                  <span className="absolute bottom-1 right-1 rounded-[6px] bg-black/60 px-1 font-num text-[10px] text-white">{fmtClipLength(stagedVideo.duration)}</span>
-                  <button aria-label="Remove video" onClick={() => setStagedVideo(null)}
-                    className="absolute -right-2 -top-2 grid h-5 w-5 place-items-center rounded-full bg-surface2 text-xs text-text ring-1 ring-line hover:text-missed">✕</button>
-                </div>
-              )}
+              {stagedVideo && <StagedVideoTile video={stagedVideo} onRemove={() => setStagedVideo(null)} />}
             </div>
             <p className="mt-1 text-xs text-text-faint">
               {[staged.length === 1 ? 'Photo attached' : staged.length ? `${staged.length} photos attached` : null,

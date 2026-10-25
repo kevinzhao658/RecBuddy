@@ -1,4 +1,5 @@
 import SwiftUI
+import AVFoundation
 import PhotosUI
 import UIKit
 
@@ -31,6 +32,8 @@ struct ChatView: View {
     // One video per message; it sends after any staged photos and carries the caption.
     @State private var stagedVideo: PreparedVideo?
     @State private var preparingVideo = false
+    /// Playing the staged video before it's sent (tap its tile).
+    @State private var stagedPreview: AVPlayer?
     private static let maxPhotos = 6
 
     // Workout trace: tapping a workout/runcard reference opens the detail
@@ -467,6 +470,7 @@ struct ChatView: View {
                 }
             }
         }
+        .onChange(of: stagedVideo?.file) { _, _ in stagedPreview?.pause(); stagedPreview = nil }
         .alert("Rename Chat", isPresented: $renaming) {
             TextField("Chat name", text: $newName)
             Button("Save") { Task { await saveName() } }
@@ -566,6 +570,14 @@ struct ChatView: View {
                     clearLabel: "Remove workout") { self.workoutQuote = nil }
             }
             // Staged photo/video previews — remove any, caption once, then send
+            if let stagedPreview, let v = stagedVideo {
+                let fit = MediaFit.size(w: v.w, h: v.h, in: CGSize(width: 160, height: 220))
+                InlineVideoView(player: stagedPreview)
+                    .frame(width: fit.width, height: fit.height)
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 8)
+            }
             if !staged.isEmpty || stagedVideo != nil || preparingVideo {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 12) {
@@ -597,7 +609,11 @@ struct ChatView: View {
                                 .scaledToFill()
                                 .frame(width: 56, height: 56)
                                 .clipShape(RoundedRectangle(cornerRadius: 10))
-                                .overlay { Image(systemName: "play.fill").font(.system(size: 14)).foregroundStyle(.white) }
+                                .overlay { Image(systemName: stagedPreview == nil ? "play.fill" : "stop.fill").font(.system(size: 14)).foregroundStyle(.white) }
+                                .contentShape(Rectangle())
+                                .onTapGesture { toggleStagedPreview(v) }
+                                .accessibilityAddTraits(.isButton)
+                                .accessibilityLabel(stagedPreview == nil ? "Preview video" : "Hide preview")
                                 .overlay(alignment: .bottomTrailing) {
                                     Text(VideoText.duration(v.duration))
                                         .font(.system(size: 10, weight: .semibold).monospacedDigit())
@@ -733,6 +749,13 @@ struct ChatView: View {
                 Label("Block \(name)", systemImage: "hand.raised")
             }
         }
+    }
+
+    private func toggleStagedPreview(_ v: PreparedVideo) {
+        if let p = stagedPreview { p.pause(); stagedPreview = nil; return }
+        let p = AVPlayer(url: v.file)
+        stagedPreview = p
+        p.play()
     }
 
     private func react(_ m: Message, _ k: ReactionKind) {

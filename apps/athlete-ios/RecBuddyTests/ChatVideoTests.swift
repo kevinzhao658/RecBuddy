@@ -127,4 +127,10 @@ import AVKit
         #expect(view.playerLayer.player === player)
         #expect(view.playerLayer.videoGravity == .resizeAspect)
     }
+
+    @Test func mediaFitsItsBoxWithoutEnlarging() {
+        #expect(MediaFit.size(w: 720, h: 1280, in: CGSize(width: 160, height: 220)) == CGSize(width: 123.75, height: 220))
+        #expect(MediaFit.size(w: 1280, h: 720, in: CGSize(width: 160, height: 220)) == CGSize(width: 160, height: 90))
+        #expect(MediaFit.size(w: 100, h: 80, in: CGSize(width: 160, height: 220)) == CGSize(width: 100, height: 80))
+    }
 }
