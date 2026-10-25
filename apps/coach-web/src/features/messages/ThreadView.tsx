@@ -6,6 +6,7 @@ import { fetchConversations, useRenameConversation, useThreadPeople } from '../.
 import { useReactions, useSetReaction } from '../../lib/queries/reactions'
 import { summarize } from '../../lib/reactions'
 import { blockUser, invalidateAfterBlock } from '../../lib/queries/moderation'
+import { MenuIcon } from '../../components/ui/Icon'
 import { ReportDialog, type ReportTarget } from '../chat/ReportDialog'
 import { ConfirmDialog } from '../roster/ConfirmDialog'
 import { supabase } from '../../lib/supabase'
@@ -192,6 +193,10 @@ export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialW
    *  against the limits and gets a poster frame first. */
   const addFiles = async (files: File[]) => {
     const images = files.filter((f) => f.type.startsWith('image/'))
+    if (!images.length && !files.some(isVideoFile)) {
+      setSendError('You can attach photos, or an MP4 or MOV video.')
+      return
+    }
     if (images.length) setStaged((prev) => [...prev, ...images].slice(0, MAX_PHOTOS))
     const video = files.find(isVideoFile)
     if (!video) return
@@ -206,6 +211,33 @@ export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialW
       setPreparingVideo(false)
     }
   }
+
+  // Drag a file anywhere in the window while a chat is open: the chat shows
+  // where it'll land, and a drop anywhere attaches to it (never navigates away).
+  const [dragging, setDragging] = useState(false)
+  const addFilesRef = useRef(addFiles)
+  useEffect(() => { addFilesRef.current = addFiles })
+  useEffect(() => {
+    if (readOnly) return
+    let depth = 0
+    const hasFiles = (e: DragEvent) => !!e.dataTransfer?.types?.includes('Files')
+    const enter = (e: DragEvent) => { if (hasFiles(e)) { depth++; setDragging(true) } }
+    const leave = (e: DragEvent) => { if (hasFiles(e) && --depth <= 0) { depth = 0; setDragging(false) } }
+    const over = (e: DragEvent) => { if (hasFiles(e)) e.preventDefault() }
+    const drop = (e: DragEvent) => {
+      if (!hasFiles(e)) return
+      e.preventDefault()
+      depth = 0; setDragging(false)
+      const files = Array.from(e.dataTransfer?.files ?? [])
+      if (files.length) void addFilesRef.current(files)
+    }
+    window.addEventListener('dragenter', enter); window.addEventListener('dragleave', leave)
+    window.addEventListener('dragover', over); window.addEventListener('drop', drop)
+    return () => {
+      window.removeEventListener('dragenter', enter); window.removeEventListener('dragleave', leave)
+      window.removeEventListener('dragover', over); window.removeEventListener('drop', drop)
+    }
+  }, [readOnly])
 
   const submit = () => {
     const body = text.trim()
@@ -244,14 +276,20 @@ export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialW
   }
 
   return (
-    <section className="flex h-full min-h-0 min-w-0 flex-1 flex-col"
-      onDragOver={(e) => { if (e.dataTransfer?.types?.includes('Files')) e.preventDefault() }}
-      onDrop={(e) => {
-        const files = Array.from(e.dataTransfer?.files ?? [])
-        if (!files.length || readOnly) return
-        e.preventDefault()
-        void addFiles(files)
-      }}>
+    <section className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
+        {dragging && (
+          <div aria-hidden className="pointer-events-none absolute inset-0 z-40 p-3 motion-safe:animate-rb-fade">
+            <div className="rb-glass grid h-full place-items-center rounded-[18px] border-2 border-dashed border-accent/60">
+              <div className="text-center">
+                <span className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-full bg-accent/15 text-accent">
+                  <MenuIcon name="photo" className="h-6 w-6" />
+                </span>
+                <p className="font-display text-[22px] font-bold leading-tight text-text">Drop to attach</p>
+                <p className="mt-1 text-sm text-text-mute">Photos, or one video up to 60 seconds</p>
+              </div>
+            </div>
+          </div>
+        )}
         <header className="flex items-center justify-between gap-2 border-b border-line px-4 py-3">
           {onBack && (
             <button aria-label="Back to messages" onClick={onBack}

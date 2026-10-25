@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, within } from '@testing-library/react'
+import { render, screen, fireEvent, within, act } from '@testing-library/react'
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query'
 import { ThreadView } from './ThreadView'
 import * as chat from '../../lib/queries/chat'
@@ -217,4 +217,47 @@ test('a video over the limit is refused and nothing is staged', async () => {
   fireEvent.paste(screen.getByLabelText('Message'), { clipboardData: { files: [new File(['x'], 'long.mp4', { type: 'video/mp4' })], getData: () => '' } })
   expect(await screen.findByText('Videos can be up to 60 seconds and 50 MB.')).toBeInTheDocument()
   expect(screen.queryByText(/Video attached/)).toBeNull()
+})
+
+const fileDrag = (type: string, files: File[] = []) => {
+  const e = new Event(type, { bubbles: true, cancelable: true }) as any
+  e.dataTransfer = { types: ['Files'], files }
+  return e
+}
+
+test('dragging a file anywhere shows where to drop it; dropping anywhere attaches to this chat', async () => {
+  setup()
+  wrap(<ThreadView threadId="th1" conversation={team} />)
+  expect(screen.queryByText('Drop to attach')).toBeNull()
+  act(() => { window.dispatchEvent(fileDrag('dragenter')) })
+  expect(screen.getByText('Drop to attach')).toBeInTheDocument()
+  expect(screen.getByText('Photos, or one video up to 60 seconds')).toBeInTheDocument()
+  // dropped outside the thread itself (e.g. over the chat list): still attaches, never navigates
+  const drop = fileDrag('drop', [new File(['x'], 'shot.png', { type: 'image/png' })])
+  act(() => { document.body.dispatchEvent(drop) })
+  expect(drop.defaultPrevented).toBe(true)
+  expect(screen.queryByText('Drop to attach')).toBeNull()
+  expect(await screen.findByAltText('Attached photo 1')).toBeInTheDocument()
+})
+
+test('a drag that leaves the window hides the drop hint', () => {
+  setup()
+  wrap(<ThreadView threadId="th1" conversation={team} />)
+  act(() => { window.dispatchEvent(fileDrag('dragenter')) })
+  act(() => { window.dispatchEvent(fileDrag('dragleave')) })
+  expect(screen.queryByText('Drop to attach')).toBeNull()
+})
+
+test('dropping a file it cannot attach says what it can', () => {
+  setup()
+  wrap(<ThreadView threadId="th1" conversation={team} />)
+  act(() => { document.body.dispatchEvent(fileDrag('drop', [new File(['x'], 'plan.pdf', { type: 'application/pdf' })])) })
+  expect(screen.getByText('You can attach photos, or an MP4 or MOV video.')).toBeInTheDocument()
+})
+
+test('a read-only chat shows no drop hint', () => {
+  setup()
+  wrap(<ThreadView threadId="th1" conversation={{ ...team, read_only: true }} />)
+  act(() => { window.dispatchEvent(fileDrag('dragenter')) })
+  expect(screen.queryByText('Drop to attach')).toBeNull()
 })
