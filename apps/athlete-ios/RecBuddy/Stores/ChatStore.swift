@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import SwiftUI
 import Supabase
 
 /// One open conversation (team or chat): messages, the people in it,
@@ -100,9 +101,16 @@ final class ChatStore {
     }
 
     /// Delete your own message for everyone.
+    /// The bubble leaves at once (its neighbours close the space); if the
+    /// server refuses, a reload brings it back.
     func delete(messageId: String) async throws {
-        try await Supa.shared.rpc("delete_message", params: ["p_message": messageId]).execute()
-        messages.removeAll { $0.id == messageId }
+        withAnimation(.easeOut(duration: 0.2)) { messages.removeAll { $0.id == messageId } }
+        do {
+            try await Supa.shared.rpc("delete_message", params: ["p_message": messageId]).execute()
+        } catch {
+            if let thread { try? await load(threadId: thread.id) }
+            throw error
+        }
         if let thread { try? await load(threadId: thread.id) }
     }
 

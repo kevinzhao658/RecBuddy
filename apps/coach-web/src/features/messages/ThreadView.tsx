@@ -100,6 +100,8 @@ export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialW
   // typing before comes back when the edit is saved or cancelled.
   const [editing, setEditing] = useState<{ m: Message; draft: string } | null>(null)
   const [deleting, setDeleting] = useState<Message | null>(null)
+  // Deleted messages collapse right away; the refetch then drops them for good.
+  const [leaving, setLeaving] = useState<ReadonlySet<string>>(new Set())
   const editMessage = useEditMessage(threadId)
   const deleteMessage = useDeleteMessage(threadId)
   const [workoutQuote, setWorkoutQuote] = useState(initialWorkout ?? null)
@@ -351,7 +353,10 @@ export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialW
           )}
         </header>
 
-        <div ref={scrollRef} className="flex flex-1 flex-col overflow-y-auto p-4">
+        <div ref={scrollRef} data-testid="thread-scroll" className="flex flex-1 flex-col overflow-y-auto p-4">
+          {/* Fills the space above a short thread, so messages sit at the bottom
+              and older ones slide down when a newer one is deleted. */}
+          {messages.length > 0 && <div aria-hidden className="mt-auto" />}
           {messagesQ.isLoading && <p className="text-sm text-text-faint">Loading…</p>}
           {!messagesQ.isLoading && messages.length === 0 && (
             <p className="m-auto max-w-[80%] text-center text-sm text-text-faint">No messages yet. Say hello.</p>
@@ -368,9 +373,14 @@ export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialW
             const sep = sepBefore(i)
             const startsBlock = newBlock(i)
             const showAvatar = i === messages.length - 1 || newBlock(i + 1)
+            const gone = leaving.has(m.id)
             return (
               <Fragment key={m.id}>
                 {sep && <div className="my-3 text-center text-[11px] text-text-faint">{sessionLabel(m.created_at)}</div>}
+                <div data-testid="message-slot" data-leaving={gone || undefined} aria-hidden={gone || undefined}
+                  className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none
+                    ${gone ? 'grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr]'}`}>
+                <div className={gone ? 'min-h-0 overflow-hidden' : 'min-h-0'}>
                 <MessageItem m={m} mine={m.from_user_id === meId} domId={`msg-${m.id}`}
                   sender={senders[m.from_user_id] ?? { name: 'Coach', initials: '·' }}
                   showName={startsBlock} showAvatar={showAvatar} grouped={!startsBlock}
@@ -382,6 +392,8 @@ export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialW
                   quote={quoteFor(m)} highlighted={highlightId === m.id}
                   reactions={summarize(reactionsQ.data ?? [], m.id, meId, (uid) => (uid === meId ? 'You' : senders[uid]?.name ?? 'Someone'))}
                   onReact={readOnly ? undefined : (kind) => setReaction.mutate({ messageId: m.id, kind })} />
+                </div>
+                </div>
               </Fragment>
             )
           })}
@@ -487,7 +499,12 @@ export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialW
             setDeleting(null)
             if (editing?.m.id === m.id) endEdit()
             if (replyingTo?.id === m.id) setReplyingTo(null)
-            deleteMessage.mutate(m.id, { onError: () => setModError("Couldn't delete that message. Try again.") })
+            const back = () => setLeaving((s) => { const n = new Set(s); n.delete(m.id); return n })
+            setLeaving((s) => new Set(s).add(m.id))
+            // Delete after the 200 ms collapse, so the refetch can't cut it short.
+            setTimeout(() => deleteMessage.mutate(m.id, {
+              onError: () => { back(); setModError("Couldn't delete that message. Try again.") },
+            }), 200)
           }} />
         <ConfirmDialog open={!!blockTarget} confirmLabel="Block" danger icon="block"
           title={blockTarget ? `Block ${blockTarget.userName}?` : ''}

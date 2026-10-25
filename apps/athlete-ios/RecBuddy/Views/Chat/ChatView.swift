@@ -322,6 +322,9 @@ struct ChatView: View {
                         .padding(.top, 8)
                         .padding(.bottom, 12)
                     }
+                    // Short threads sit at the bottom, so older messages slide
+                    // down when a newer one is deleted.
+                    .defaultScrollAnchor(.bottom)
                     .refreshable { await reopen() }
                     // Drag follows the finger to tuck the keyboard away; a plain
                     // tap on the thread dismisses it too. Buttons inside message

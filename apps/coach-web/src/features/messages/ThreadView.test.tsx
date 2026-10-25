@@ -329,12 +329,41 @@ test('cancelling an edit restores what you were typing', () => {
   expect(box).toHaveValue('half a thought')
 })
 
-test('Delete asks first, then removes the message', () => {
+test('Delete asks first, then removes the message once it has collapsed', () => {
+  vi.useFakeTimers()
   setup(); const { del } = editHooks()
   wrap(<ThreadView threadId="th1" conversation={team} />)
   openMenu('nice work')
   fireEvent.click(screen.getByRole('menuitem', { name: 'Delete' }))
   expect(screen.getByRole('alertdialog', { name: 'Delete this message?' })).toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+  expect(del.mutate).not.toHaveBeenCalled()   // the collapse plays first, so the refetch can't cut it short
+  act(() => { vi.advanceTimersByTime(200) })
   expect(del.mutate).toHaveBeenCalledWith('m2', expect.anything())
+  vi.useRealTimers()
+})
+
+test('a short thread sits at the bottom, so removing a message pulls the older ones down', () => {
+  setup()
+  wrap(<ThreadView threadId="th1" conversation={team} />)
+  const list = screen.getByTestId('thread-scroll')
+  expect(list.firstElementChild).toHaveClass('mt-auto')   // takes up the free space above the messages
+})
+
+test('a deleted message collapses away at once, and comes back if the delete fails', () => {
+  vi.useFakeTimers()
+  setup(); const { del } = editHooks()
+  wrap(<ThreadView threadId="th1" conversation={team} />)
+  const row = () => screen.getByText('nice work').closest('[data-testid="message-slot"]') as HTMLElement
+  expect(row().dataset.leaving).toBeUndefined()
+  openMenu('nice work')
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Delete' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+  expect(row().dataset.leaving).toBe('true')
+  expect(row()).toHaveClass('grid-rows-[0fr]')
+  act(() => { vi.advanceTimersByTime(200) })
+  act(() => del.mutate.mock.calls[0][1].onError())
+  expect(row().dataset.leaving).toBeUndefined()
+  expect(screen.getByText("Couldn't delete that message. Try again.")).toBeInTheDocument()
+  vi.useRealTimers()
 })
