@@ -193,6 +193,11 @@ struct AccountSheet: View {
                 .padding(.horizontal, 14)
                 .padding(.vertical, 14)
                 .rbCard()
+
+            ChatVideoStorageRow()
+                .padding(.horizontal, 14)
+                .padding(.vertical, 14)
+                .rbCard()
         }
     }
 
@@ -342,5 +347,41 @@ struct AccountSheet: View {
         } catch {
             uploadError = "Photo upload failed — try again."
         }
+    }
+}
+
+/// How much space saved chat videos take on this iPhone, with a way to clear them.
+/// Cleared clips that the server has already deleted can't be watched again.
+private struct ChatVideoStorageRow: View {
+    @State private var bytes = VideoStore.shared.totalBytes()
+
+    /// "0 KB", "28 KB", "4.2 MB" (never "Zero KB").
+    private static func size(_ bytes: Int) -> String {
+        let f = ByteCountFormatter()
+        f.countStyle = .file
+        f.allowsNonnumericFormatting = false
+        return f.string(fromByteCount: Int64(bytes))
+    }
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Chat videos on this iPhone: \(Self.size(bytes))")
+                    .font(.subheadline)
+                    .foregroundStyle(.white)
+                Text("Clips older than 7 days can't be downloaded again.")
+                    .font(.caption)
+                    .foregroundStyle(RB.textFaint)
+            }
+            Spacer()
+            Button("Clear") {
+                try? VideoStore.shared.clear()
+                bytes = VideoStore.shared.totalBytes()
+            }
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(bytes == 0 ? RB.textFaint : RB.accent)
+            .disabled(bytes == 0)
+        }
+        .onAppear { bytes = VideoStore.shared.totalBytes() }
     }
 }

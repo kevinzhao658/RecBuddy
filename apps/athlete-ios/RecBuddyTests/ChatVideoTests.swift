@@ -84,4 +84,10 @@ import Foundation
         #expect(store.url(for: "m1") == nil)
         #expect(store.totalBytes() == 0)
     }
+
+    @Test func parsesServerTimestamps() {
+        #expect(VideoText.parse("2026-11-01T10:00:00+00:00") == Date(timeIntervalSince1970: 1_793_527_200))
+        #expect(VideoText.parse("2026-11-01T10:00:00.250000+00:00") == Date(timeIntervalSince1970: 1_793_527_200)) // fractions dropped
+        #expect(VideoText.parse("not a date") == nil)
+    }
 }

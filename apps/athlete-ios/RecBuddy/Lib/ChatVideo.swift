@@ -14,6 +14,12 @@ enum VideoText {
         return "\(sec / 60):" + String(format: "%02d", sec % 60)
     }
 
+    /// A Postgres timestamp (any fractional precision; fractions are dropped).
+    static func parse(_ iso: String) -> Date? {
+        let trimmed = iso.replacingOccurrences(of: #"\.\d+"#, with: "", options: .regularExpression)
+        return ISO8601DateFormatter().date(from: trimmed)
+    }
+
     /// "Expires in 3 days" / "Expires in 1 day" / "Expires today"; nil once expired.
     static func expiry(expiresAt: Date, now: Date = Date()) -> String? {
         let left = expiresAt.timeIntervalSince(now)
