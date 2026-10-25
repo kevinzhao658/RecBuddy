@@ -28,6 +28,9 @@ struct ChatView: View {
     // Picked photos are STAGED (with previews) so a caption can be typed
     // before sending — nothing uploads until the send button. Capped at maxPhotos.
     @State private var staged: [StagedImage] = []
+    // One video per message; it sends after any staged photos and carries the caption.
+    @State private var stagedVideo: PreparedVideo?
+    @State private var preparingVideo = false
     private static let maxPhotos = 6
 
     // Workout trace: tapping a workout/runcard reference opens the detail
@@ -544,7 +547,8 @@ struct ChatView: View {
 
     /// Nothing to send: no staged photos and an empty draft.
     private var sendDisabled: Bool {
-        busy || (staged.isEmpty && draft.trimmingCharacters(in: .whitespaces).isEmpty)
+        busy || preparingVideo
+            || (staged.isEmpty && stagedVideo == nil && draft.trimmingCharacters(in: .whitespaces).isEmpty)
     }
 
     private var inputBar: some View {
@@ -561,8 +565,8 @@ struct ChatView: View {
                     detail: "\(workoutQuote.title) · \(Week.fmtDayDate(workoutQuote.date))",
                     clearLabel: "Remove workout") { self.workoutQuote = nil }
             }
-            // Staged photo previews — remove any, caption once, then send
-            if !staged.isEmpty {
+            // Staged photo/video previews — remove any, caption once, then send
+            if !staged.isEmpty || stagedVideo != nil || preparingVideo {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 12) {
                         ForEach(staged) { photo in
@@ -582,13 +586,42 @@ struct ChatView: View {
                                     .accessibilityLabel("Remove attachment")
                                 }
                         }
+                        if preparingVideo {
+                            HStack(spacing: 6) { ProgressView().tint(RB.accent); Text("Preparing…") }
+                                .font(.caption).foregroundStyle(RB.textMute)
+                                .frame(height: 56)
+                        }
+                        if let v = stagedVideo {
+                            Image(uiImage: v.posterImage)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 56, height: 56)
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                                .overlay { Image(systemName: "play.fill").font(.system(size: 14)).foregroundStyle(.white) }
+                                .overlay(alignment: .bottomTrailing) {
+                                    Text(VideoText.duration(v.duration))
+                                        .font(.system(size: 10, weight: .semibold).monospacedDigit())
+                                        .foregroundStyle(.white)
+                                        .padding(.horizontal, 3)
+                                        .background(.black.opacity(0.6), in: RoundedRectangle(cornerRadius: 4))
+                                        .padding(3)
+                                }
+                                .overlay(alignment: .topTrailing) {
+                                    Button { stagedVideo = nil } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .font(.system(size: 18))
+                                            .symbolRenderingMode(.palette)
+                                            .foregroundStyle(.white, RB.surface2)
+                                    }
+                                    .offset(x: 7, y: -7)
+                                    .accessibilityLabel("Remove video")
+                                }
+                        }
                     }
                     .padding(.top, 8)
                     .padding(.trailing, 8)
                 }
-                Text(staged.count == 1
-                     ? "Photo attached — add a caption, then send."
-                     : "\(staged.count) photos attached — add a caption, then send.")
+                Text(attachedLine)
                     .font(.caption)
                     .foregroundStyle(RB.textFaint)
             }
@@ -596,20 +629,20 @@ struct ChatView: View {
             HStack(spacing: 8) {
                 PhotosPicker(selection: $imageItems,
                              maxSelectionCount: Self.maxPhotos - staged.count,
-                             matching: .images) {
+                             matching: .any(of: [.images, .videos])) {
                     Image(systemName: "photo")
                         .font(.system(size: 20))
                         .foregroundStyle(busy || staged.count >= Self.maxPhotos ? RB.textFaint : RB.textMute)
                 }
                 .disabled(busy || staged.count >= Self.maxPhotos)
-                .accessibilityLabel("Attach photos")
+                .accessibilityLabel("Attach photos or a video")
 
-                ComposerTextView(text: $draft, isFocused: $composerFocused) { images in
-                    stageImages(images)
-                }
+                ComposerTextView(text: $draft, isFocused: $composerFocused,
+                                 onPasteImages: { stageImages($0) },
+                                 onPasteVideo: { url in Task { await stageVideo(url) } })
                     .overlay(alignment: .topLeading) {
                         if draft.isEmpty {
-                            Text(staged.isEmpty ? (isChat ? "Message" : "Message your coach…") : "Add a caption…")
+                            Text(staged.isEmpty && stagedVideo == nil ? (isChat ? "Message" : "Message your coach…") : "Add a caption…")
                                 .foregroundStyle(RB.textFaint)
                                 .allowsHitTesting(false)
                                 .accessibilityHidden(true)
@@ -748,7 +781,26 @@ struct ChatView: View {
         sendError = nil
         defer { busy = false }
         do {
-            if !staged.isEmpty {
+            if let video = stagedVideo {
+                // Photos first (the reply rides on the first), then the video
+                // with the caption, so the caption reads beneath the batch.
+                for (i, photo) in staged.enumerated() {
+                    try await store.sendImage(photo.data, width: photo.w, height: photo.h,
+                                              from: profile.id, replyTo: i == 0 ? replyingTo?.id : nil)
+                    if i == 0 { replyingTo = nil }
+                }
+                staged = []
+                do {
+                    try await store.sendVideo(video, from: profile.id, body: body.isEmpty ? nil : body,
+                                              replyTo: replyingTo?.id)
+                } catch {
+                    sendError = Moderation.filterMessage(error) ?? VideoText.sendFailed
+                    return
+                }
+                stagedVideo = nil
+                replyingTo = nil
+                draft = ""
+            } else if !staged.isEmpty {
                 // Photos upload sequentially; the caption rides on the LAST one
                 // so it reads beneath the batch. Sent photos leave the tray as
                 // they go — a mid-batch failure keeps only the unsent ones.
@@ -816,6 +868,14 @@ struct ChatView: View {
         var images: [UIImage] = []
         var failed = 0
         for item in items {
+            if item.supportedContentTypes.contains(where: { $0.conforms(to: .movie) }) {
+                if let movie = try? await item.loadTransferable(type: PickedMovie.self) {
+                    await stageVideo(movie.url)
+                } else {
+                    failed += 1
+                }
+                continue
+            }
             if let rawData = try? await item.loadTransferable(type: Data.self),
                let uiImage = UIImage(data: rawData) {
                 images.append(uiImage)
@@ -823,7 +883,30 @@ struct ChatView: View {
                 failed += 1
             }
         }
-        stageImages(images, alreadyFailed: failed)
+        // Only when photos were picked: stageImages clears sendError, which would
+        // wipe a video refusal shown a moment ago.
+        if !images.isEmpty || failed > 0 { stageImages(images, alreadyFailed: failed) }
+    }
+
+    /// "Photo attached", "2 photos attached · Video attached", … — then the hint.
+    private var attachedLine: String {
+        let photos = staged.isEmpty ? nil : (staged.count == 1 ? "Photo attached" : "\(staged.count) photos attached")
+        let parts = [photos, stagedVideo == nil ? nil : "Video attached"].compactMap { $0 }
+        return parts.isEmpty ? "Preparing video…" : parts.joined(separator: " · ") + " — add a caption, then send."
+    }
+
+    /// Compress a picked or pasted clip into the tray (one video per message).
+    private func stageVideo(_ source: URL) async {
+        sendError = nil
+        preparingVideo = true
+        defer { preparingVideo = false; try? FileManager.default.removeItem(at: source) }
+        do {
+            stagedVideo = try await VideoPrep.prepare(source: source)
+        } catch VideoPrep.Refusal.tooLong {
+            sendError = VideoText.tooLong
+        } catch {
+            sendError = "Couldn't process that video."
+        }
     }
 
     /// Downscale photos (picked or pasted) into the composer tray, up to maxPhotos.

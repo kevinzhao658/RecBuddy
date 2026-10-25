@@ -152,6 +152,37 @@ final class ChatStore {
         try await load(threadId: thread.id)
     }
 
+    /// Upload a prepared clip to the private chat-videos bucket and its poster to
+    /// chat-images, then post kind='video' with payload {path, poster, w, h,
+    /// duration_s}. The server sets expires_at (7 days). The compressed file
+    /// moves into VideoStore under the new message id, so this iPhone keeps
+    /// playing it after the server copy is purged. Returns the message id.
+    @discardableResult
+    func sendVideo(_ v: PreparedVideo, from athleteId: String, body: String? = nil,
+                   replyTo: String? = nil) async throws -> String {
+        guard let thread else { throw CancellationError() }
+        let base = "\(thread.id)/\(UUID().uuidString)"
+        let poster = "\(base).jpg", path = "\(base).mp4"
+        try await Supa.shared.storage.from("chat-images")
+            .upload(poster, data: v.poster, options: FileOptions(contentType: "image/jpeg", upsert: false))
+        try await Supa.shared.storage.from("chat-videos")
+            .upload(path, fileURL: v.file, options: FileOptions(contentType: "video/mp4", upsert: false))
+        struct VideoPayload: Encodable { let path: String; let poster: String; let w: Int; let h: Int; let duration_s: Int }
+        struct VideoMsg: Encodable {
+            let thread_id: String; let from_user_id: String; let kind: String
+            let body: String?; let reply_to_id: String?; let payload: VideoPayload
+        }
+        struct Inserted: Decodable { let id: String }
+        let row: Inserted = try await Supa.shared.from("messages")
+            .insert(VideoMsg(thread_id: thread.id, from_user_id: athleteId, kind: "video", body: body,
+                             reply_to_id: replyTo,
+                             payload: VideoPayload(path: path, poster: poster, w: v.w, h: v.h, duration_s: v.duration)))
+            .select("id").single().execute().value
+        try? VideoStore.shared.adopt(file: v.file, messageId: row.id)
+        try await load(threadId: thread.id)
+        return row.id
+    }
+
     /// The other people in the conversation now, head coach first (a team
     /// thread's coach_id is the head). People who left stay in `senders` only.
     nonisolated static func currentPeople(_ people: [ThreadPerson], me: String, headCoach: String?) -> [ThreadPerson] {
