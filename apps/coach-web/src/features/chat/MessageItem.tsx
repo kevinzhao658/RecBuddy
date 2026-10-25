@@ -218,7 +218,9 @@ export function MessageItem({ m, mine, sender, showName, showAvatar, grouped, su
       onContextMenu={(e) => e.preventDefault()}
       onPointerDown={(e) => {
         // React bubbles events up from the menu's portal; only the message itself counts.
-        if (e.button !== 0 || menuOpen || !e.currentTarget.contains(e.target as Node)) return
+        // A hold on a playing video is scrubbing its timeline, not asking for the menu.
+        if (e.button !== 0 || menuOpen || !e.currentTarget.contains(e.target as Node)
+          || (e.target as Element).closest('video')) return
         cancelHold(); setPressing(true)
         holdTimer.current = setTimeout(() => { setPressing(false); openMenu('pointer') }, HOLD_MS)
       }}

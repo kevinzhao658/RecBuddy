@@ -35,6 +35,23 @@ test('shows the poster, a play button and the length; bytes load only on play', 
   expect(download).not.toHaveBeenCalled()
 })
 
+test('plays right in the bubble, not a pop-up; full screen keeps the whole frame', async () => {
+  vi.spyOn(store, 'hasVideo').mockResolvedValue(true)
+  vi.spyOn(store, 'getVideo').mockResolvedValue(new Blob(['v'], { type: 'video/mp4' }))
+  wrap(<VideoView messageId="m5" p={p} expiresAt={later} purgedAt={null} />)
+  fireEvent.click(await screen.findByRole('button', { name: /play video/i }))
+  const player = await screen.findByTestId('video-player')
+  expect(screen.queryByRole('dialog')).toBeNull()
+  expect(player.closest('[data-testid="video-bubble"]')).not.toBeNull()
+  expect(player).toHaveAttribute('autoplay')
+  expect(player).toHaveAttribute('playsinline')
+  // fits the frame (letterboxed) rather than zooming to fill, inline and in full screen
+  expect(player.className).toMatch(/object-contain/)
+  expect(player.className).not.toMatch(/object-cover/)
+  expect(player.className).toMatch(/\[&:fullscreen\]:object-contain/)
+  expect(screen.queryByRole('button', { name: /play video/i })).toBeNull()
+})
+
 test('an expired clip with no copy here says so, has no play button, and is not fetched', async () => {
   vi.spyOn(store, 'hasVideo').mockResolvedValue(false)
   const download = vi.spyOn(chat, 'downloadVideo')

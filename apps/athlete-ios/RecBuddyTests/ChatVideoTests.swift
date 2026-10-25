@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import AVKit
 @testable import RecBuddy
 
 @Suite struct ChatVideoTests {
@@ -109,5 +110,21 @@ import Foundation
         #expect(tried == ["a", "b"])
         #expect(sent == ["a"])
     }
-}
 
+    @MainActor @Test func fullScreenShowsTheWholeFrameAndContinuesTheSamePlayback() {
+        let player = AVPlayer(url: URL(fileURLWithPath: "/tmp/clip.mp4"))
+        let vc = AVPlayerViewController()
+        FullScreenPlayer.configure(vc, player: player)
+        #expect(vc.videoGravity == .resizeAspect)   // letterboxed, never zoomed to fill
+        #expect(vc.showsPlaybackControls)
+        #expect(vc.player === player)               // same playback, same position
+    }
+
+    @MainActor @Test func theBubblePlaysOnAPlainLayerThatFitsTheFrame() {
+        let player = AVPlayer(url: URL(fileURLWithPath: "/tmp/clip.mp4"))
+        let view = InlineVideoView.PlayerUIView()
+        view.attach(player)
+        #expect(view.playerLayer.player === player)
+        #expect(view.playerLayer.videoGravity == .resizeAspect)
+    }
+}
