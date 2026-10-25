@@ -4,7 +4,7 @@ const EMAIL = <a href="mailto:support@recbuddy.app" className="font-semibold tex
 
 export default function PrivacyPage() {
   return (
-    <LegalPage title="Privacy Policy" updated="October 21, 2026">
+    <LegalPage title="Privacy Policy" updated="October 24, 2026">
       <p>
         RecBuddy (&ldquo;RecBuddy,&rdquo; &ldquo;we,&rdquo; &ldquo;us,&rdquo; or &ldquo;our&rdquo;) provides a
         running-training app that connects athletes with their coaches. This Privacy Policy explains
@@ -37,7 +37,7 @@ export default function PrivacyPage() {
         <p><strong>Communications</strong></p>
         <ul>
           <li>Messages, photos, workout cards, reactions, and replies in your conversations: your team chat, 1:1 chats, and group chats</li>
-          <li>Coach–athlete connections you create using invite codes</li>
+          <li>Coach–athlete connections you create using invite codes or by accepting a coach&rsquo;s request</li>
           <li>Photos and images you choose to share in chat</li>
         </ul>
         <p><strong>Safety and moderation</strong></p>
@@ -79,7 +79,7 @@ export default function PrivacyPage() {
 
       <LegalSection title="How your information is shared">
         <ul>
-          <li><strong>With your coach or athlete.</strong> RecBuddy is a two-sided coaching tool. When you connect with a coach (or an athlete connects with you), training data and messages relevant to that relationship are visible to the connected person. This is the core purpose of the app. Reports are private: we never tell the reported user who reported them. A user you block can no longer message you directly or see your private conversations with them; in a group chat you both belong to, you stop seeing their messages, but they can still see what you post there unless you leave the group.</li>
+          <li><strong>With your coach or athlete.</strong> RecBuddy is a two-sided coaching tool. When you connect with a coach (or an athlete connects with you), training data and messages relevant to that relationship are visible to the connected person. This is the core purpose of the app. A coach can ask to coach you, or to join a team as a co-coach, but nothing is shared until you accept. Reports are private: we never tell the reported user who reported them. A user you block can no longer message you directly or see your private conversations with them; in a group chat you both belong to, you stop seeing their messages, but they can still see what you post there unless you leave the group.</li>
           <li><strong>With people in your conversations.</strong> Everyone in a conversation sees each other&rsquo;s names, photos, messages, and reactions. A conversation is visible only to its members. Athletes who share a coach can find each other by name to start a chat, unless you turn that off in Settings. When a coach is removed from your team, they leave your group chats that include you, and your 1:1 with them becomes read-only.</li>
           <li><strong>Service providers.</strong> We use Supabase as our hosting and backend provider to store data and handle authentication and email delivery on our behalf, and Resend to deliver safety-report notifications to our support team (these include the reported content and the names and emails of the users involved). They process data only to provide these services to us.</li>
           <li><strong>Legal reasons.</strong> We may disclose information if required by law or to protect the rights, safety, or security of users or the public.</li>

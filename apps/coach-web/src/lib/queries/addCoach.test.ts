@@ -45,11 +45,16 @@ describe('additional coaches', () => {
     expect(byName.data!.find((r: any) => r.id === athlete.id).already_on_roster).toBe(true)
   })
 
-  it('coach_add_athlete adds an existing athlete as co-coach; head is refused when one exists', async () => {
+  it('coach_add_athlete asks an existing athlete, who joins as co-coached once they accept; head is refused when one exists', async () => {
     const solo = await makeAthlete('Solo Runner') // no coach yet
-    // A third coach adds them directly.
     const coach3 = await makeCoach('Coach Three'); const c3 = await signIn(coach3.email)
     await c3.rpc('coach_add_athlete', { p_athlete_id: solo.id, p_relationship: 'assistant' })
+    const before = await admin().from('coach_athlete').select('relationship').eq('athlete_id', solo.id).eq('coach_id', coach3.id)
+    expect(before.data).toEqual([])
+
+    const s = await signIn(solo.email)
+    const { data: reqs } = await s.rpc('my_link_requests')
+    await s.rpc('respond_link_request', { p_id: reqs![0].id, p_accept: true })
     const link = await admin().from('coach_athlete').select('relationship').eq('athlete_id', solo.id).eq('coach_id', coach3.id).single()
     expect(link.data!.relationship).toBe('assistant')
 

@@ -1,7 +1,7 @@
 import 'dotenv/config'
 import { describe, it, expect, beforeAll } from 'vitest'
 import { randomUUID } from 'node:crypto'
-import { admin, createAndSignIn } from './helpers'
+import { admin, createAndSignIn, addCoCoach } from './helpers'
 
 // App Store guideline 1.2: report, block, and the language filter.
 describe('report + block + language filter', () => {
@@ -18,7 +18,7 @@ describe('report + block + language filter', () => {
     const { data: code } = await head.client.rpc('create_invite', { p_athlete_name: 'x' })
     const { error: rErr } = await athlete.client.rpc('redeem_invite', { p_code: code })
     expect(rErr).toBeNull()
-    await head.client.from('coach_athlete').insert({ coach_id: assistant.id, athlete_id: athlete.id, relationship: 'assistant' })
+    await addCoCoach(head.client, athlete.id, assistant)
 
     const { data: t } = await athlete.client.from('message_threads')
       .insert({ athlete_id: athlete.id, coach_id: head.id }).select().single()

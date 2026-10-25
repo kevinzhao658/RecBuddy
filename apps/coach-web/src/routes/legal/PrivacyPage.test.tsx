@@ -8,7 +8,7 @@ test('renders the policy with the HealthKit disclosure and contact email', () =>
   expect(screen.getByRole('heading', { level: 2, name: 'Apple Health (HealthKit)' })).toBeInTheDocument()
   expect(screen.getAllByText(/read-only/).length).toBeGreaterThan(0) // HealthKit (and conversations) wording
   expect(screen.getAllByText(/support@recbuddy\.app/).length).toBeGreaterThanOrEqual(2)
-  expect(screen.getByText(/last updated october 21, 2026/i)).toBeInTheDocument()
+  expect(screen.getByText(/last updated october 24, 2026/i)).toBeInTheDocument()
   expect(screen.getByText(/reactions, and replies in your conversations/i)).toBeInTheDocument()
   expect(screen.getByText(/A conversation is visible only to its members/)).toBeInTheDocument()
   expect(screen.getByText(/Let my coach.s other athletes find me/)).toBeInTheDocument()
@@ -23,4 +23,9 @@ test('renders the policy with the HealthKit disclosure and contact email', () =>
   // Choices/rights, Security, Children's, International, Changes, Contact = 12 h2s.
   expect(screen.getAllByRole('heading', { level: 2 })).toHaveLength(12)
   expect(screen.getByRole('heading', { level: 2, name: /children/i })).toBeInTheDocument()
+})
+
+test('says a coach connection needs your acceptance', () => {
+  render(<MemoryRouter><PrivacyPage /></MemoryRouter>)
+  expect(screen.getByText(/nothing is shared until you accept/i)).toBeInTheDocument()
 })

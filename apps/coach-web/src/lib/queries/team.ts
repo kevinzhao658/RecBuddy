@@ -33,13 +33,26 @@ export function useSetCoachPermission(athleteId: string) {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['team', athleteId] }); qc.invalidateQueries({ queryKey: ['roster'] }) },
   })
 }
-export async function addAssistant(client: SupabaseClient, { coachId, athleteId }: { coachId: string; athleteId: string }) {
-  const { error } = await client.from('coach_athlete').insert({ coach_id: coachId, athlete_id: athleteId, relationship: 'assistant' }); if (error) throw error
+/** Ask a coach to join this athlete's team. They join only once they accept. */
+export async function requestCoCoach(client: SupabaseClient, { coachId, athleteId }: { coachId: string; athleteId: string }) {
+  const { error } = await client.rpc('request_co_coach', { p_athlete_id: athleteId, p_coach_id: coachId }); if (error) throw error
+}
+export interface PendingCoCoach { id: string; coach_id: string; name: string; initials: string; avatar_url: string | null; title: CoachTitle }
+export async function fetchPendingCoCoaches(client: SupabaseClient, athleteId: string): Promise<PendingCoCoach[]> {
+  const { data, error } = await client.rpc('pending_co_coaches', { p_athlete_id: athleteId }); if (error) throw error; return data as PendingCoCoach[]
 }
 export async function removeAssistant(client: SupabaseClient, { coachId, athleteId }: { coachId: string; athleteId: string }) {
   const { error } = await client.from('coach_athlete').delete().eq('coach_id', coachId).eq('athlete_id', athleteId).eq('relationship', 'assistant'); if (error) throw error
 }
 export function useTeam(athleteId: string) { return useQuery({ queryKey: ['team', athleteId], queryFn: () => fetchTeam(supabase, athleteId) }) }
 export function useSearchCoaches() { return useMutation({ mutationFn: (q: string) => searchCoaches(supabase, q) }) }
-export function useAddAssistant(athleteId: string) { const qc = useQueryClient(); return useMutation({ mutationFn: (coachId: string) => addAssistant(supabase, { coachId, athleteId }), onSuccess: () => qc.invalidateQueries({ queryKey: ['team', athleteId] }) }) }
+export function usePendingCoCoaches(athleteId: string) { return useQuery({ queryKey: ['pending-co-coaches', athleteId], queryFn: () => fetchPendingCoCoaches(supabase, athleteId) }) }
+export function useRequestCoCoach(athleteId: string) { const qc = useQueryClient(); return useMutation({ mutationFn: (coachId: string) => requestCoCoach(supabase, { coachId, athleteId }), onSuccess: () => qc.invalidateQueries({ queryKey: ['pending-co-coaches', athleteId] }) }) }
+export function useCancelCoCoach(athleteId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (requestId: string) => { const { error } = await supabase.rpc('cancel_link_request', { p_id: requestId }); if (error) throw error },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['pending-co-coaches', athleteId] }),
+  })
+}
 export function useRemoveAssistant(athleteId: string) { const qc = useQueryClient(); return useMutation({ mutationFn: (coachId: string) => removeAssistant(supabase, { coachId, athleteId }), onSuccess: () => qc.invalidateQueries({ queryKey: ['team', athleteId] }) }) }

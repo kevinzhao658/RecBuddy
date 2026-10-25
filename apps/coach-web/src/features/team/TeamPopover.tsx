@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useTeam, useSearchCoaches, useAddAssistant, useRemoveAssistant, useSetCoachPermission, type CoachHit } from '../../lib/queries/team'
+import { useTeam, useSearchCoaches, useRequestCoCoach, usePendingCoCoaches, useCancelCoCoach, useRemoveAssistant, useSetCoachPermission, type CoachHit } from '../../lib/queries/team'
 import type { CoachPermission } from '../../lib/types'
 import { Avatar } from '../../components/ui/Avatar'
 
@@ -30,10 +30,13 @@ export function TeamPopover({ athleteId, isAdmin }: { athleteId: string; isAdmin
   const [results, setResults] = useState<CoachHit[]>([])
   const team = useTeam(athleteId)
   const search = useSearchCoaches()
-  const add = useAddAssistant(athleteId)
+  const request = useRequestCoCoach(athleteId)
+  const pending = usePendingCoCoaches(athleteId)
+  const cancel = useCancelCoCoach(athleteId)
   const remove = useRemoveAssistant(athleteId)
   const setPermission = useSetCoachPermission(athleteId)
   const members = team.data ?? []
+  const invited = pending.data ?? []
 
   const runSearch = (value: string) => {
     setQ(value)
@@ -47,7 +50,7 @@ export function TeamPopover({ athleteId, isAdmin }: { athleteId: string; isAdmin
         {/* Cap the visible stack at 3; the rest collapse into a +N chip. */}
         {members.slice(0, 3).map((m) => <Avatar key={m.coach_id} size="team" initials={m.coach?.initials ?? '?'} url={m.coach?.avatar_url} className="ring-1 ring-line" />)}
         {members.length > 3 && (
-          <span className="grid h-7 w-7 place-items-center rounded-[8px] bg-surface2 text-[10px] font-semibold text-text-mute ring-1 ring-line md:h-9 md:w-9 md:rounded-[10px] md:text-xs">
+          <span className="grid h-7 w-7 place-items-center rounded-full bg-surface2 text-[10px] font-semibold text-text-mute ring-1 ring-line md:h-9 md:w-9 md:text-xs">
             +{members.length - 3}
           </span>
         )}
@@ -69,10 +72,20 @@ export function TeamPopover({ athleteId, isAdmin }: { athleteId: string; isAdmin
               {m.relationship === 'assistant' && <button aria-label={`Remove ${m.coach?.name ?? 'coach'}`} onClick={() => remove.mutate(m.coach_id)} className="shrink-0 text-text-faint hover:text-text">✕</button>}
             </div>
           ))}
-          <input aria-label="Search coaches" value={q} onChange={(e) => runSearch(e.target.value)} placeholder="Add a co-coach by name or email…"
+          {invited.map((p) => (
+            <div key={p.id} className="flex items-center gap-2 py-1 opacity-70">
+              <Avatar initials={p.initials} url={p.avatar_url} />
+              <span className="min-w-0 flex-1 text-sm">
+                <span className="block truncate">{p.name}</span>
+                <span className="block text-xs text-text-mute">Invited · waiting for them to accept</span>
+              </span>
+              <button aria-label={`Withdraw invite to ${p.name}`} onClick={() => cancel.mutate(p.id)} className="shrink-0 text-text-faint hover:text-text">✕</button>
+            </div>
+          ))}
+          <input aria-label="Search coaches" value={q} onChange={(e) => runSearch(e.target.value)} placeholder="Invite a co-coach by name or email…"
             className="mt-2 w-full rounded-[10px] border border-line bg-surface2 px-3 py-2 text-sm text-text" />
-          {results.filter((r) => !members.some((m) => m.coach_id === r.id)).map((r) => (
-            <button key={r.id} onClick={() => { add.mutate(r.id); setQ(''); setResults([]) }}
+          {results.filter((r) => !members.some((m) => m.coach_id === r.id) && !invited.some((p) => p.coach_id === r.id)).map((r) => (
+            <button key={r.id} aria-label={`Invite ${r.name}`} onClick={() => { request.mutate(r.id); setQ(''); setResults([]) }}
               className="flex w-full items-center gap-2 py-1 text-left text-sm hover:text-accent">
               <Avatar initials={r.initials} url={r.avatar_url} /> <span className="flex-1">{r.name}<span className="block text-xs text-text-mute">{r.title}</span></span> +
             </button>

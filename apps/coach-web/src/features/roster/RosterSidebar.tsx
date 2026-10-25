@@ -10,6 +10,7 @@ import { UnreadBadge } from '../../components/ui/UnreadBadge'
 import { Wordmark } from '../../components/ui/Wordmark'
 import { NavIcon } from '../../components/ui/Icon'
 import { AddAthleteModal } from './AddAthleteModal'
+import { LinkRequests } from '../team/LinkRequests'
 import { SettingsModal } from '../settings/SettingsModal'
 import { supabase } from '../../lib/supabase'
 import { fmtShortDate } from '../../lib/week'
@@ -53,6 +54,8 @@ export function RosterSidebar({ selectedId, onSelect, messagesActive = false }: 
           </ViewToggle>
         </div>
       </div>
+
+      <LinkRequests />
 
       {/* Roster */}
       <div className="flex-1 overflow-y-auto px-3">

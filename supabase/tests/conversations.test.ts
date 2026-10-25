@@ -1,7 +1,7 @@
 import 'dotenv/config'
 import { describe, it, expect, beforeAll } from 'vitest'
 import { randomUUID } from 'node:crypto'
-import { admin, createAndSignIn } from './helpers'
+import { admin, createAndSignIn, addCoCoach } from './helpers'
 
 type U = { id: string; email: string; client: any }
 
@@ -469,13 +469,12 @@ describe('reach trust boundary', () => {
     expect(found).not.toContain(c.id)
   })
 
-  it('athletes can still remove their own coach, and an admin coach can still add a co-coach', async () => {
+  it('athletes can still remove their own coach, and an admin coach can still add a co-coach (with consent)', async () => {
     const head = await createAndSignIn({ role: 'coach', name: `Hd ${tag}`, title: 'Head Coach' })
     const asst = await createAndSignIn({ role: 'coach', name: `As ${tag}`, title: 'Assistant Coach' })
     const a = await createAndSignIn({ role: 'athlete', name: `Own ${tag}` })
     await admin().from('coach_athlete').insert({ coach_id: head.id, athlete_id: a.id, relationship: 'head', permission: 'admin' })
-    const add = await head.client.from('coach_athlete').insert({ coach_id: asst.id, athlete_id: a.id, relationship: 'assistant' })
-    expect(add.error).toBeNull()
+    await addCoCoach(head.client, a.id, asst)
     const del = await a.client.from('coach_athlete').delete().eq('coach_id', asst.id).eq('athlete_id', a.id).select()
     expect(del.data).toHaveLength(1)
   })

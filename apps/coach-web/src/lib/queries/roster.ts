@@ -40,7 +40,7 @@ export function useRemoveAthlete() {
 
 /** A match from the existing-athlete search (by name or exact email). Emails are
  *  never returned — only display fields + whether they're already on your roster. */
-export interface AthleteHit { id: string; name: string; initials: string; avatar_url: string | null; already_on_roster: boolean }
+export interface AthleteHit { id: string; name: string; initials: string; avatar_url: string | null; already_on_roster: boolean; requested?: boolean }
 
 export async function searchAthletes(client: SupabaseClient, query: string): Promise<AthleteHit[]> {
   const { data, error } = await client.rpc('search_athletes', { p_query: query })

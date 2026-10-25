@@ -73,3 +73,14 @@ export async function createAndSignIn(u: NewUser) {
   const client = await signIn(email, password)
   return { id, email, client }
 }
+
+/** An admin coach adds a co-coach the only way clients can: request, then the
+ *  added coach accepts. */
+export async function addCoCoach(head: SupabaseClient, athleteId: string, coach: { id: string; client: SupabaseClient }) {
+  const asked = await head.rpc('request_co_coach', { p_athlete_id: athleteId, p_coach_id: coach.id })
+  if (asked.error) throw asked.error
+  const { data } = await coach.client.rpc('my_link_requests')
+  const req = (data ?? []).find((r: any) => r.athlete_id === athleteId)
+  const ok = await coach.client.rpc('respond_link_request', { p_id: req.id, p_accept: true })
+  if (ok.error) throw ok.error
+}

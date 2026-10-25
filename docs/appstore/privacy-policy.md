@@ -6,7 +6,7 @@
 > top-level section (12 sections vs this file's 11) — content is identical.
 
 **Effective date:** July 31, 2026
-**Last updated:** October 21, 2026
+**Last updated:** October 24, 2026
 
 RecBuddy ("RecBuddy," "we," "us," or "our") provides a running-training app that
 connects athletes with their coaches. This Privacy Policy explains what we
@@ -64,7 +64,8 @@ your data.
 **Communications**
 - Messages, photos, workout cards, reactions, and replies in your conversations:
   your team chat, 1:1 chats, and group chats
-- Coach–athlete connections you create using invite codes
+- Coach–athlete connections you create using invite codes or by accepting a
+  coach's request
 - Photos and images you choose to share in chat
 
 **Safety and moderation**
@@ -98,7 +99,8 @@ We do not use your information for advertising, and we do not sell or rent it.
 - **With your coach or athlete.** RecBuddy is a two-sided coaching tool. When you
   connect with a coach (or an athlete connects with you), training data and
   messages relevant to that relationship are visible to the connected person.
-  This is the core purpose of the app. Reports are private: we never tell the
+  This is the core purpose of the app. A coach can ask to coach you, or to join a
+  team as a co-coach, but nothing is shared until you accept. Reports are private: we never tell the
   reported user who reported them. A user you block can no longer message you
   directly or see your private conversations with them; in a group chat you both
   belong to, you stop seeing their messages, but they can still see what you post
