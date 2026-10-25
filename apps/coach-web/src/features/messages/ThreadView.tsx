@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../../auth/AuthProvider'
-import { useMessages, useSendMessage, useSendImages, useSendVideo, useMarkThreadRead, useRealtimeThread, signedChatImageUrl, type StagedVideo } from '../../lib/queries/chat'
+import { useMessages, useSendMessage, useSendImages, useSendVideo, useMarkThreadRead, useRealtimeThread, useEditMessage, useDeleteMessage, signedChatImageUrl, type StagedVideo } from '../../lib/queries/chat'
 import { checkVideo, posterFrame, isVideoFile } from '../../lib/videoFile'
 import { fetchConversations, useRenameConversation, useThreadPeople } from '../../lib/queries/conversations'
 import { useReactions, useSetReaction } from '../../lib/queries/reactions'
@@ -30,6 +30,8 @@ const initialsOf = (name: string) =>
 const SESSION_GAP_MS = 2 * 60 * 60 * 1000
 // Most photos stageable in the composer at once (matches the iOS picker cap).
 const MAX_PHOTOS = 6
+/** Kinds whose text (or caption) the sender can edit; cards stay as logged. */
+const EDITABLE = new Set(['text', 'image', 'video'])
 const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString()
 function sessionLabel(iso: string): string {
   const d = new Date(iso)
@@ -94,6 +96,12 @@ export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialW
   // Replies: the message being answered; a workout attached from the results
   // view; the row flashed after jumping to an original from its quote.
   const [replyingTo, setReplyingTo] = useState<Message | null>(null)
+  // Editing one of my messages: the composer holds its text; what I was
+  // typing before comes back when the edit is saved or cancelled.
+  const [editing, setEditing] = useState<{ m: Message; draft: string } | null>(null)
+  const [deleting, setDeleting] = useState<Message | null>(null)
+  const editMessage = useEditMessage(threadId)
+  const deleteMessage = useDeleteMessage(threadId)
   const [workoutQuote, setWorkoutQuote] = useState(initialWorkout ?? null)
   const [highlightId, setHighlightId] = useState<string | null>(null)
 
@@ -107,6 +115,10 @@ export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialW
     if (img?.path || (img?.url && /^https:\/\//i.test(img.url))) {
       out.push({ key: 'copy-image', label: 'Copy Photo', icon: 'photo', doneLabel: 'Copied', onClick: async () =>
         copyImageToClipboard(img.path ? await signedChatImageUrl(img.path) : img.url!) })
+    }
+    if (m.from_user_id === meId) {
+      if (!readOnly && EDITABLE.has(m.kind)) out.push({ key: 'edit', label: 'Edit', icon: 'edit', onClick: () => startEdit(m) })
+      out.push({ key: 'delete', label: 'Delete', icon: 'trash', destructive: true, separated: true, onClick: () => setDeleting(m) })
     }
     if (m.from_user_id !== meId) {
       const name = senders[m.from_user_id]?.name ?? 'this person'
@@ -167,6 +179,16 @@ export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialW
   function startReply(m: Message) {
     setReplyingTo(m)
     taRef.current?.focus()
+  }
+  function startEdit(m: Message) {
+    setEditing((e) => ({ m, draft: e ? e.draft : text }))
+    setText(m.body ?? '')
+    setReplyingTo(null)
+    taRef.current?.focus()
+  }
+  function endEdit() {
+    setText(editing?.draft ?? '')
+    setEditing(null)
   }
   const authorOf = (m: Message) => m.from_user_id === meId ? 'You' : senders[m.from_user_id]?.name ?? 'Coach'
   const quoteFor = (m: Message) => {
@@ -243,6 +265,15 @@ export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialW
   const submit = () => {
     const body = text.trim()
     if (!threadId) return
+    if (editing) {
+      const { m } = editing
+      if (m.kind === 'text' && !body) return
+      endEdit()
+      if (body !== (m.body ?? '')) {
+        editMessage.mutate({ id: m.id, body }, { onError: failed(() => { setEditing({ m, draft: '' }); setText(text) }) })
+      }
+      return
+    }
     const reply = replyingTo
     setSendError(null)
     if (stagedVideo) {
@@ -360,8 +391,12 @@ export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialW
           <p className="border-t border-line px-4 py-4 text-center text-sm text-text-mute">This conversation is read-only.</p>
         ) : (<>
         {/* Reply / workout context — shown above the composer until sent or cleared */}
-        {(replyingTo || workoutQuote) && (
+        {(replyingTo || workoutQuote || editing) && (
           <div className="space-y-2 border-t border-line px-3 pt-3">
+            {editing && (
+              <ComposerContext title="Editing message" detail={quotePreview(editing.m)}
+                clearLabel="Cancel edit" onClear={endEdit} />
+            )}
             {replyingTo && (
               <ComposerContext title={`Replying to ${authorOf(replyingTo)}`} detail={quotePreview(replyingTo)}
                 clearLabel="Cancel reply" onClear={() => setReplyingTo(null)} />
@@ -411,7 +446,7 @@ export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialW
           <button
             aria-label="Attach photos or a video"
             onClick={() => fileInputRef.current?.click()}
-            disabled={sendImages.isPending || staged.length >= MAX_PHOTOS}
+            disabled={!!editing || sendImages.isPending || staged.length >= MAX_PHOTOS}
             className="shrink-0 text-text-faint hover:text-text-mute disabled:opacity-50"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width={20} height={20} aria-hidden="true">
@@ -429,16 +464,31 @@ export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialW
               e.preventDefault()
               void addFiles(files)
             }}
-            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit() } }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit() }
+              if (e.key === 'Escape' && editing) endEdit()
+            }}
             className="max-h-28 flex-1 resize-none overflow-y-auto rounded-[12px] border border-line bg-surface2 px-3 py-2 text-sm text-text placeholder:text-text-faint focus:border-text-mute focus:outline-none" />
-          <button aria-label="Send message" onClick={submit} disabled={(!text.trim() && !staged.length && !stagedVideo) || preparingVideo || send.isPending || sendImages.isPending || sendVideo.isPending}
-            className="rb-glow rounded-[12px] bg-accent px-4 py-2 text-sm font-semibold text-on-accent disabled:opacity-50">Send</button>
+          <button aria-label={editing ? 'Save edit' : 'Send message'} onClick={submit}
+            disabled={editing ? editing.m.kind === 'text' && !text.trim()
+              : (!text.trim() && !staged.length && !stagedVideo) || preparingVideo || send.isPending || sendImages.isPending || sendVideo.isPending}
+            className="rb-glow rounded-[12px] bg-accent px-4 py-2 text-sm font-semibold text-on-accent disabled:opacity-50">{editing ? 'Save' : 'Send'}</button>
         </div>
         {sendError && <p role="alert" className="px-4 pb-2 text-xs text-missed">{sendError}</p>}
         </>)}
         {modError && <p className="px-4 pb-2 text-xs text-missed">{modError}</p>}
         {reportTarget && <ReportDialog open target={reportTarget} onClose={() => setReportTarget(null)}
           onDone={(blocked) => { if (blocked) afterBlocked() }} />}
+        <ConfirmDialog open={!!deleting} confirmLabel="Delete" danger icon="trash"
+          title="Delete this message?" detail="It's removed for everyone in this conversation."
+          onCancel={() => setDeleting(null)}
+          onConfirm={() => {
+            const m = deleting!
+            setDeleting(null)
+            if (editing?.m.id === m.id) endEdit()
+            if (replyingTo?.id === m.id) setReplyingTo(null)
+            deleteMessage.mutate(m.id, { onError: () => setModError("Couldn't delete that message. Try again.") })
+          }} />
         <ConfirmDialog open={!!blockTarget} confirmLabel="Block" danger icon="block"
           title={blockTarget ? `Block ${blockTarget.userName}?` : ''}
           detail="They can't message you or add you to chats, and their messages are hidden from you."

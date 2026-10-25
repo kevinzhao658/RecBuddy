@@ -281,3 +281,60 @@ test('a staged video can be previewed before sending', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Hide preview' }))
   expect(screen.queryByTestId('staged-preview')).toBeNull()
 })
+
+const editHooks = () => {
+  const edit = { mutate: vi.fn(), isPending: false }
+  const del = { mutate: vi.fn(), isPending: false }
+  vi.spyOn(chat, 'useEditMessage').mockReturnValue(edit as any)
+  vi.spyOn(chat, 'useDeleteMessage').mockReturnValue(del as any)
+  return { edit, del }
+}
+
+test("your own messages offer Edit and Delete; other people's don't", () => {
+  setup(); editHooks()
+  wrap(<ThreadView threadId="th1" conversation={team} />)
+  openMenu('nice work')
+  expect(screen.getByRole('menuitem', { name: 'Edit' })).toBeInTheDocument()
+  expect(screen.getByRole('menuitem', { name: 'Delete' }).className).toMatch(/text-missed/)
+  fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' })
+  openMenu('hey coach')
+  expect(screen.queryByRole('menuitem', { name: 'Edit' })).toBeNull()
+  expect(screen.queryByRole('menuitem', { name: 'Delete' })).toBeNull()
+})
+
+test('Edit puts the text back in the composer; Send saves the change', () => {
+  const { send } = setup(); const { edit } = editHooks()
+  wrap(<ThreadView threadId="th1" conversation={team} />)
+  openMenu('nice work')
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Edit' }))
+  expect(screen.getByText('Editing message')).toBeInTheDocument()
+  const box = screen.getByLabelText('Message')
+  expect(box).toHaveValue('nice work')
+  fireEvent.change(box, { target: { value: 'great work' } })
+  fireEvent.click(screen.getByRole('button', { name: /save edit/i }))
+  expect(edit.mutate).toHaveBeenCalledWith({ id: 'm2', body: 'great work' }, expect.anything())
+  expect(send.mutate).not.toHaveBeenCalled()
+  expect(screen.queryByText('Editing message')).toBeNull()
+  expect(box).toHaveValue('')
+})
+
+test('cancelling an edit restores what you were typing', () => {
+  setup(); editHooks()
+  wrap(<ThreadView threadId="th1" conversation={team} />)
+  const box = screen.getByLabelText('Message')
+  fireEvent.change(box, { target: { value: 'half a thought' } })
+  openMenu('nice work')
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Edit' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel edit' }))
+  expect(box).toHaveValue('half a thought')
+})
+
+test('Delete asks first, then removes the message', () => {
+  setup(); const { del } = editHooks()
+  wrap(<ThreadView threadId="th1" conversation={team} />)
+  openMenu('nice work')
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Delete' }))
+  expect(screen.getByRole('alertdialog', { name: 'Delete this message?' })).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+  expect(del.mutate).toHaveBeenCalledWith('m2', expect.anything())
+})

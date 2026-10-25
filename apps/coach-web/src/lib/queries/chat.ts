@@ -223,14 +223,50 @@ export function useUnreadRealtime() {
   }, [qc])
 }
 
-/** Stream new messages for a thread into the cache. */
+/** Edit your own message's text or caption (the server checks it's yours). */
+export function useEditMessage(threadId: string | null) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (v: { id: string; body: string }) => {
+      const { error } = await supabase.rpc('edit_message', { p_message: v.id, p_body: v.body })
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['messages', threadId] })
+      qc.invalidateQueries({ queryKey: ['conversations'] })
+    },
+  })
+}
+
+/** Delete your own message for everyone. */
+export function useDeleteMessage(threadId: string | null) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.rpc('delete_message', { p_message: id })
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['messages', threadId] })
+      qc.invalidateQueries({ queryKey: ['conversations'] })
+    },
+  })
+}
+
+/** Stream a thread's new, edited and deleted messages into the cache. */
 export function useRealtimeThread(threadId: string | null) {
   const qc = useQueryClient()
   useEffect(() => {
     if (!threadId) return
+    const refresh = () => qc.invalidateQueries({ queryKey: ['messages', threadId] })
     const ch = supabase.channel(uniqueTopic(`messages:${threadId}`))
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: `thread_id=eq.${threadId}` },
-        () => qc.invalidateQueries({ queryKey: ['messages', threadId] }))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: `thread_id=eq.${threadId}` }, refresh)
+      // Delete events carry only the id and can't be filtered by thread: refresh
+      // when the deleted message is one this thread is showing.
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, (p) => {
+        const id = (p.old as { id?: string } | null)?.id
+        if (id && qc.getQueryData<Message[]>(['messages', threadId])?.some((m) => m.id === id)) refresh()
+      })
       .subscribe()
     return () => { supabase.removeChannel(ch) }
   }, [threadId, qc])

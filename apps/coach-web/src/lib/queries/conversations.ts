@@ -34,7 +34,8 @@ export function useConversations(meId: string | null) {
   useEffect(() => {
     if (!meId) return
     const ch = supabase.channel(uniqueTopic(`inbox:${meId}`))
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => invalidateInbox(qc))
+      // new, edited and deleted messages all change a chat's preview line
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => invalidateInbox(qc))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'thread_members', filter: `user_id=eq.${meId}` }, () => invalidateInbox(qc))
       .subscribe()
     return () => { supabase.removeChannel(ch) }
