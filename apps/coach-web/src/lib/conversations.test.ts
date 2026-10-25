@@ -1,4 +1,4 @@
-import { conversationTitle, previewLine } from './conversations'
+import { conversationTitle, previewLine, pendingConversation } from './conversations'
 
 const m = (user_id: string, name: string) => ({ user_id, name, initials: 'X', avatar_url: null })
 const base = { thread_id: 't', kind: 'chat', title: null, team_athlete_id: null, members: [] as any[],
@@ -19,4 +19,17 @@ test('preview line: You:, group sender prefix, and card kinds', () => {
   expect(previewLine({ ...base, members: [m('u2', 'Dani Brooks'), m('u3', 'Bea Lin')] } as any, 'me')).toBe('Dani: Meet at 7')
   expect(previewLine({ ...base, last_kind: 'image', last_body: null } as any, 'me')).toBe('📷 Photo')
   expect(previewLine({ ...base, last_kind: null, last_at: null } as any, 'me')).toBe('No messages yet')
+})
+
+test('pendingConversation builds a header row for a chat with no messages yet', () => {
+  const people = [
+    { user_id: 'me', name: 'Dani Brooks', initials: 'DB', avatar_url: null, title: null, current: true },
+    { user_id: 'a1', name: 'Maya Chen', initials: 'MC', avatar_url: null, title: null, current: true },
+    { user_id: 'a2', name: 'Left Person', initials: 'LP', avatar_url: null, title: null, current: false },
+  ]
+  expect(pendingConversation('t9', { kind: 'chat', title: 'Crew', read_only: false }, people, 'me')).toEqual({
+    thread_id: 't9', kind: 'chat', title: 'Crew', team_athlete_id: null,
+    members: [{ user_id: 'a1', name: 'Maya Chen', initials: 'MC', avatar_url: null }],
+    last_body: null, last_kind: null, last_from: null, last_at: null, unread: 0, read_only: false,
+  })
 })

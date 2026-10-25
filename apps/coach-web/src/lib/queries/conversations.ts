@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabase, uniqueTopic } from '../supabase'
 import type { ChatPerson, Conversation, ThreadPerson } from '../types'
+import { pendingConversation } from '../conversations'
 
 export async function fetchConversations(client: SupabaseClient): Promise<Conversation[]> {
   const { data, error } = await client.rpc('my_conversations')
@@ -45,6 +46,20 @@ export function useSearchPeople(query: string) {
 }
 export function useThreadPeople(threadId: string | null) {
   return useQuery({ queryKey: ['thread-people', threadId], queryFn: () => fetchThreadPeople(supabase, threadId!), enabled: !!threadId })
+}
+/** The open thread before it reaches the inbox (no messages yet): its name and people. */
+export function usePendingConversation(threadId: string | null, meId: string) {
+  const people = useThreadPeople(threadId)
+  const thread = useQuery({
+    queryKey: ['thread-meta', threadId],
+    enabled: !!threadId,
+    queryFn: async () => {
+      const { data, error } = await supabase.from('message_threads').select('kind, title, read_only').eq('id', threadId!).single()
+      if (error) throw error
+      return data as { kind: 'team' | 'chat'; title: string | null; read_only: boolean }
+    },
+  })
+  return threadId && thread.data && people.data ? pendingConversation(threadId, thread.data, people.data, meId) : null
 }
 export function useStartConversation() {
   const qc = useQueryClient()

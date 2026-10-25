@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthProvider'
-import { useConversations } from '../../lib/queries/conversations'
+import { useConversations, usePendingConversation } from '../../lib/queries/conversations'
 import type { Workout } from '../../lib/types'
 import { RosterSidebar } from '../roster/RosterSidebar'
 import { ConversationList } from './ConversationList'
@@ -23,7 +23,10 @@ export function MessagesPage() {
   const [infoOpen, setInfoOpen] = useState(false)
   const [rosterOpen, setRosterOpen] = useState(false)
   const rows = conversations.data ?? []
-  const open = threadId ? rows.find((c) => c.thread_id === threadId) ?? null : null
+  const listed = threadId ? rows.find((c) => c.thread_id === threadId) ?? null : null
+  // A chat with no messages yet isn't in the inbox; build its header from the thread.
+  const pending = usePendingConversation(threadId && conversations.isSuccess && !listed ? threadId : null, meId)
+  const open = listed ?? pending
   const workout = (location.state as NavState)?.workout ?? null
 
   const select = (id: string) => { setComposing(false); setInfoOpen(false); navigate(`/coach/messages/${id}`) }

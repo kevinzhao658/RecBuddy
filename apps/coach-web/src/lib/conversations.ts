@@ -1,4 +1,4 @@
-import type { ChatPerson, Conversation } from './types'
+import type { ChatPerson, Conversation, ThreadPerson } from './types'
 
 const first = (name: string) => name.split(' ')[0] || name
 
@@ -38,4 +38,17 @@ export function previewLine(c: Conversation, meId: string): string {
 /** Add or remove a person from a To: selection. */
 export function toggleIn(list: ChatPerson[], p: ChatPerson): ChatPerson[] {
   return list.some((x) => x.user_id === p.user_id) ? list.filter((x) => x.user_id !== p.user_id) : [...list, p]
+}
+
+/** The open thread's row before it's in the inbox (a chat with no messages
+ *  yet stays out of my_conversations), built from the thread and its people. */
+export function pendingConversation(threadId: string,
+  thread: { kind: 'team' | 'chat'; title: string | null; read_only: boolean },
+  people: ThreadPerson[], meId: string): Conversation {
+  return {
+    thread_id: threadId, kind: thread.kind, title: thread.title, team_athlete_id: null,
+    members: people.filter((p) => p.user_id !== meId && p.current !== false)
+      .map(({ user_id, name, initials, avatar_url }) => ({ user_id, name, initials, avatar_url })),
+    last_body: null, last_kind: null, last_from: null, last_at: null, unread: 0, read_only: thread.read_only,
+  }
 }

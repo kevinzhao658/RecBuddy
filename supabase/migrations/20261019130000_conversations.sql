@@ -33,7 +33,7 @@ create index on thread_members (user_id);
 alter table thread_members enable row level security;
 
 -- One team thread per athlete (replaces unique (athlete_id, coach_id)). Any
--- athlete with several threads keeps the oldest as team; the others become
+-- athlete with several threads keeps the least recently updated as team; the others become
 -- chats between that athlete and that thread's coach, so no history is lost
 -- and nothing becomes visible to other coaches. (Dev and prod had none on
 -- 2026-10-21; this only matters for local/test data.)

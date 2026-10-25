@@ -97,10 +97,13 @@ describe('conversation access', () => {
     expect(ins.error).not.toBeNull()
   })
 
-  it('members can see the member list; non-members cannot', async () => {
+  it('members see the member list (via thread_people) but not each other\'s read/hidden times; non-members see nothing', async () => {
     const id = await makeChat([{ id: athlete.id }, { id: other.id }])
-    expect((await athlete.client.from('thread_members').select('user_id').eq('thread_id', id)).data).toHaveLength(2)
+    expect((await athlete.client.rpc('thread_people', { p_thread: id })).data).toHaveLength(2)
+    const rows = (await athlete.client.from('thread_members').select('user_id, last_read_at, hidden_at').eq('thread_id', id)).data ?? []
+    expect(rows.map((r: any) => r.user_id)).toEqual([athlete.id])
     expect((await stranger.client.from('thread_members').select('user_id').eq('thread_id', id)).data ?? []).toEqual([])
+    expect((await stranger.client.rpc('thread_people', { p_thread: id })).data ?? []).toEqual([])
   })
 
   it('a readonly member can read but not post, and left/removed members cannot read', async () => {
@@ -239,6 +242,7 @@ describe('conversation RPCs', () => {
   it('start_conversation reuses an identical member set and unhides a hidden 1:1', async () => {
     const a = await athA.client.rpc('start_conversation', { p_user_ids: [coachB.id] })
     expect(a.error).toBeNull()
+    await athA.client.from('messages').insert({ thread_id: a.data, from_user_id: athA.id, kind: 'text', body: 'hey' })
     await athA.client.rpc('hide_conversation', { p_thread: a.data })
     let inbox = (await athA.client.rpc('my_conversations')).data as any[]
     expect(inbox.map((c) => c.thread_id)).not.toContain(a.data)
@@ -294,6 +298,16 @@ describe('conversation RPCs', () => {
     expect((await admin().from('thread_members').select('user_id').eq('thread_id', team)).data ?? []).toEqual([])
     // only the team can do this
     expect((await coachC.client.rpc('add_conversation_members', { p_thread: team, p_user_ids: [athD.id] })).error).not.toBeNull()
+  })
+
+  it('a chat with no messages stays out of the inbox until someone posts', async () => {
+    const fresh = await createAndSignIn({ role: 'athlete', name: `Quiet ${tag}` })
+    await link(coachA.id, fresh.id)
+    const g = (await coachA.client.rpc('start_conversation', { p_user_ids: [fresh.id, athB.id], p_title: 'Quiet' })).data
+    const inbox = async () => ((await coachA.client.rpc('my_conversations')).data ?? []).map((r: any) => r.thread_id)
+    expect(await inbox()).not.toContain(g)
+    await coachA.client.from('messages').insert({ thread_id: g, from_user_id: coachA.id, kind: 'text', body: 'hi' })
+    expect(await inbox()).toContain(g)
   })
 
   it('my_conversations lists the athlete team chat first and counts unread per thread', async () => {
@@ -396,6 +410,32 @@ describe('conversation lifecycle', () => {
     expect(await readOnly(one)).toBe(true)
     expect((await c.client.from('message_threads').select('id').eq('id', one)).data ?? []).toEqual([])
     expect((await a.client.from('message_threads').select('id').eq('id', one)).data).toHaveLength(1)
+  })
+
+  it('a coach who blocks their athlete stays in groups with them and stops seeing their messages', async () => {
+    const c = await createAndSignIn({ role: 'coach', name: `CBlk ${tag}`, title: 'Head Coach' })
+    const a1 = await createAndSignIn({ role: 'athlete', name: `CBlkA ${tag}` })
+    const a2 = await createAndSignIn({ role: 'athlete', name: `CBlkB ${tag}` })
+    await link(c.id, a1.id)
+    await link(c.id, a2.id)
+    const g = (await c.client.rpc('start_conversation', { p_user_ids: [a1.id, a2.id], p_title: 'Crew' })).data
+    await a1.client.from('messages').insert({ thread_id: g, from_user_id: a1.id, kind: 'text', body: 'from a1' })
+    expect((await c.client.rpc('block_user', { p_user_id: a1.id })).error).toBeNull()
+    expect(await status(g, c.id)).toBe('active')
+    expect(await status(g, a1.id)).toBe('active')
+    const seen = (await c.client.from('messages').select('body').eq('thread_id', g)).data!.map((m: any) => m.body)
+    expect(seen).not.toContain('from a1')
+  })
+
+  it('an athlete who blocks their coach still takes the coach out of their groups', async () => {
+    const c = await createAndSignIn({ role: 'coach', name: `ABlk ${tag}`, title: 'Head Coach' })
+    const a1 = await createAndSignIn({ role: 'athlete', name: `ABlkA ${tag}` })
+    const a2 = await createAndSignIn({ role: 'athlete', name: `ABlkB ${tag}` })
+    await link(c.id, a1.id)
+    await link(c.id, a2.id)
+    const g = (await c.client.rpc('start_conversation', { p_user_ids: [a1.id, a2.id], p_title: 'Crew' })).data
+    expect((await a1.client.rpc('block_user', { p_user_id: c.id })).error).toBeNull()
+    expect(await status(g, c.id)).toBe('removed')
   })
 
   it('in a shared group the blocker no longer sees the blocked person\'s messages', async () => {
