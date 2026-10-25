@@ -21,6 +21,9 @@ struct MessageRow: View {
     let senderName: String?
     var showAvatar: Bool = false
     var senderAvatarUrl: String? = nil
+    /// The sender's name for the avatar initial; `senderName` is only set on
+    /// the first message of a run, but the avatar sits on the last.
+    var avatarName: String? = nil
     var grouped: Bool = false
     /// A newer card for the same workout exists below — render as a compact
     /// rolled-up placeholder instead of a full card.
@@ -207,13 +210,18 @@ struct MessageRow: View {
         }
     }
 
+    static func avatarInitial(senderName: String?, avatarName: String?) -> String? {
+        let name = (avatarName ?? senderName)?.trimmingCharacters(in: .whitespaces)
+        return name?.first.map { String($0).uppercased() }
+    }
+
     private var avatarFallback: some View {
         ZStack {
             Circle()
                 .fill(RB.surface2)
                 .frame(width: 24, height: 24)
-            if let first = senderName?.first {
-                Text(String(first))
+            if let initial = Self.avatarInitial(senderName: senderName, avatarName: avatarName) {
+                Text(initial)
                     .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(.white)
             } else {
