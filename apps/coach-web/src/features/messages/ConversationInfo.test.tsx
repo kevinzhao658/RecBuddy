@@ -81,7 +81,7 @@ test('anyone in a group can remove someone after confirming', async () => {
   vi.spyOn(convMod, 'useRemoveMember').mockReturnValue(remove as any)
   wrap(<ConversationInfo conversation={conv([m('a1', 'Maya Chen'), m('c2', 'Marcus Hale')])} onClose={() => {}} onOpenThread={() => {}} />)
   fireEvent.click(screen.getByRole('button', { name: 'Remove Marcus Hale' }))
-  expect(screen.getByText(/Remove Marcus Hale from this conversation\?/)).toBeInTheDocument()
+  expect(screen.getByRole('alertdialog', { name: 'Remove Marcus Hale?' })).toHaveAccessibleDescription(/Anyone here can add them back/)
   fireEvent.click(screen.getByRole('button', { name: 'Remove' }))
   expect(remove.mutate).toHaveBeenCalledWith({ threadId: 't1', userId: 'c2' }, expect.anything())
 })

@@ -109,7 +109,8 @@ export function AthleteSettingsModal({ open, onClose, athlete, plan, onRemoved, 
         )}
       </div>
 
-      <ConfirmDialog open={confirmOpen} title={`Remove ${athlete.name} from your roster?`}
+      <ConfirmDialog open={confirmOpen} danger icon="personMinus" title={`Remove ${athlete.name} from your roster?`}
+        detail={`${athlete.name.split(' ')[0]} keeps their training plan and can add a new coach with a fresh invite code.`}
         onCancel={() => setConfirmOpen(false)}
         onConfirm={() => {
           setConfirmOpen(false)

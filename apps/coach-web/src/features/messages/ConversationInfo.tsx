@@ -102,16 +102,18 @@ export function ConversationInfo({ conversation, onClose, onOpenThread, onGone }
             : <button onClick={() => hide.mutate(id, { onSuccess: onGone })} className="text-sm font-semibold text-text-mute">Hide conversation</button>}
         </div>
       )}
-      <ConfirmDialog open={!!removing} confirmLabel="Remove"
-        title={removing ? `Remove ${removing.name} from this conversation? They'll stop getting its messages. Anyone here can add them back.` : ''}
+      <ConfirmDialog open={!!removing} confirmLabel="Remove" danger icon="personMinus"
+        title={removing ? `Remove ${removing.name}?` : ''}
+        detail="They'll stop getting this conversation's messages. Anyone here can add them back."
         onCancel={() => setRemoving(null)}
         onConfirm={() => {
           const who = removing!
           setRemoving(null)
           remove.mutate({ threadId: id, userId: who.user_id }, { onError: () => setError(`Couldn't remove ${who.name}. Try again.`) })
         }} />
-      <ConfirmDialog open={confirmLeave} confirmLabel="Leave"
-        title="Leave this conversation? You won't get new messages or see its history."
+      <ConfirmDialog open={confirmLeave} confirmLabel="Leave" danger icon="leave"
+        title="Leave this conversation?"
+        detail="You won't get new messages or see its history."
         onCancel={() => setConfirmLeave(false)}
         onConfirm={() => { setConfirmLeave(false); leave.mutate(id, { onSuccess: onGone }) }} />
     </aside>

@@ -352,8 +352,9 @@ export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialW
         {modError && <p className="px-4 pb-2 text-xs text-missed">{modError}</p>}
         {reportTarget && <ReportDialog open target={reportTarget} onClose={() => setReportTarget(null)}
           onDone={(blocked) => { if (blocked) afterBlocked() }} />}
-        <ConfirmDialog open={!!blockTarget} confirmLabel="Block"
-          title={blockTarget ? `Block ${blockTarget.userName}? They can't message you or add you to chats, and their messages are hidden from you.` : ''}
+        <ConfirmDialog open={!!blockTarget} confirmLabel="Block" danger icon="block"
+          title={blockTarget ? `Block ${blockTarget.userName}?` : ''}
+          detail="They can't message you or add you to chats, and their messages are hidden from you."
           onCancel={() => setBlockTarget(null)} onConfirm={() => blockTarget && doBlock(blockTarget)} />
     </section>
   )

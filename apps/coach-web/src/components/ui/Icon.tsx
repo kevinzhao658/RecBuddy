@@ -176,6 +176,20 @@ const MENU_GLYPH = {
       <path d="M9 9l6 6M15 9l-6 6" />
     </>
   ),
+  // person.badge.minus — remove someone
+  personMinus: (
+    <>
+      <circle cx="10" cy="8" r="3.5" />
+      <path d="M3.5 20a6.5 6.5 0 0113 0M16 11h5" />
+    </>
+  ),
+  // rectangle.portrait.and.arrow.right — leave
+  leave: (
+    <>
+      <path d="M14 4.5H7a2 2 0 00-2 2v11a2 2 0 002 2h7" />
+      <path d="M11 12h9.5M17 8.5l3.5 3.5-3.5 3.5" />
+    </>
+  ),
   person: (
     <>
       <circle cx="12" cy="8" r="3.5" />
