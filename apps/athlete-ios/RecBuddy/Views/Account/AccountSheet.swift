@@ -226,6 +226,11 @@ struct AccountSheet: View {
                 navRow(icon: "doc.text.fill", title: "Terms & Conditions", caption: nil)
             }
             .buttonStyle(.plain)
+
+            Link(destination: URL(string: "https://recbuddy.app/privacy")!) {
+                navRow(icon: "hand.raised.fill", title: "Privacy Policy", caption: "recbuddy.app/privacy")
+            }
+            .buttonStyle(.plain)
         }
     }
 

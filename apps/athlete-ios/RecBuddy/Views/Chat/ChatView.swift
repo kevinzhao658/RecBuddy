@@ -298,6 +298,7 @@ struct ChatView: View {
                                         showAvatar: showAvatar && m.fromUserId != profile.id,
                                         senderAvatarUrl: m.fromUserId != profile.id
                                             ? store.senders[m.fromUserId]?.avatarUrl : nil,
+                                        avatarName: store.senders[m.fromUserId]?.name,
                                         grouped: !startsBlock,
                                         superseded: supersededIds.contains(m.id),
                                         onJumpToLatest: m.workoutId.flatMap { w in
