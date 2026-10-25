@@ -1,15 +1,18 @@
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 
 /// The chat composer's text input. A UITextView instead of a SwiftUI TextField
-/// because TextField can't accept pasted images: pasting a photo here stages it
-/// as an attachment (onPasteImages), pasting text behaves normally.
+/// because TextField can't accept pasted images: pasting a photo or video here
+/// stages it as an attachment (onPasteImages / onPasteVideo), pasting text
+/// behaves normally.
 /// Grows from 1 to `maxLines` lines, then scrolls.
 struct ComposerTextView: UIViewRepresentable {
     @Binding var text: String
     @Binding var isFocused: Bool
     var maxLines: Int = 4
     var onPasteImages: ([UIImage]) -> Void
+    var onPasteVideo: (URL) -> Void = { _ in }
 
     func makeUIView(context: Context) -> PastingTextView {
         let tv = PastingTextView()
@@ -26,12 +29,14 @@ struct ComposerTextView: UIViewRepresentable {
         tv.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         tv.accessibilityLabel = "Message"
         tv.onPasteImages = { onPasteImages($0) }
+        tv.onPasteVideo = { onPasteVideo($0) }
         return tv
     }
 
     func updateUIView(_ tv: PastingTextView, context: Context) {
         context.coordinator.parent = self
         tv.onPasteImages = { onPasteImages($0) }
+        tv.onPasteVideo = { onPasteVideo($0) }
         if tv.text != text { tv.text = text }
         // Drive first-responder from the binding (async: avoids mutating
         // responder state during a SwiftUI update pass).
@@ -69,18 +74,32 @@ struct ComposerTextView: UIViewRepresentable {
     }
 }
 
-/// UITextView whose Paste stages images instead of dropping them.
+/// UITextView whose Paste stages images and videos instead of dropping them.
 final class PastingTextView: UITextView {
     var onPasteImages: (([UIImage]) -> Void)?
+    var onPasteVideo: ((URL) -> Void)?
+
+    /// Movie types we accept, most specific first.
+    private static let movieTypes: [UTType] = [.mpeg4Movie, .quickTimeMovie, .movie]
 
     override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
-        // hasImages doesn't read the pasteboard, so it never triggers the paste prompt.
-        if action == #selector(paste(_:)), UIPasteboard.general.hasImages { return true }
+        // hasImages / contains(pasteboardTypes:) don't read the pasteboard, so
+        // they never trigger the paste prompt.
+        if action == #selector(paste(_:)),
+           UIPasteboard.general.hasImages
+            || UIPasteboard.general.contains(pasteboardTypes: Self.movieTypes.map(\.identifier)) { return true }
         return super.canPerformAction(action, withSender: sender)
     }
 
     override func paste(_ sender: Any?) {
         let pb = UIPasteboard.general
+        for type in Self.movieTypes {
+            if let data = pb.data(forPasteboardType: type.identifier),
+               let url = try? VideoPrep.tempFile(data, type: type) {
+                onPasteVideo?(url)
+                return
+            }
+        }
         if pb.hasImages, let images = pb.images, !images.isEmpty {
             onPasteImages?(images)
             return

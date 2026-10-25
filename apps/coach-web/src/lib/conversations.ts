@@ -35,6 +35,7 @@ export function previewLine(c: Conversation, meId: string): string {
   switch (c.last_kind) {
     case null: return 'No messages yet'
     case 'image': content = c.last_body ? `📷 ${c.last_body}` : '📷 Photo'; break
+    case 'video': content = c.last_body ? `🎥 ${c.last_body}` : '🎥 Video'; break
     case 'runcard': content = 'Logged a run'; break
     case 'workout': content = 'Shared a workout'; break
     case 'adjust': content = 'Adjusted a workout'; break

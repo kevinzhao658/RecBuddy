@@ -193,6 +193,11 @@ struct AccountSheet: View {
                 .padding(.horizontal, 14)
                 .padding(.vertical, 14)
                 .rbCard()
+
+            ChatVideoStorageRow()
+                .padding(.horizontal, 14)
+                .padding(.vertical, 14)
+                .rbCard()
         }
     }
 
@@ -341,6 +346,49 @@ struct AccountSheet: View {
             await session.refreshProfile()
         } catch {
             uploadError = "Photo upload failed — try again."
+        }
+    }
+}
+
+/// How much space saved chat videos take on this iPhone, with a way to clear them.
+/// Cleared clips that the server has already deleted can't be watched again.
+private struct ChatVideoStorageRow: View {
+    @State private var bytes = VideoStore.shared.totalBytes()
+    @State private var confirming = false
+
+    /// "0 KB", "28 KB", "4.2 MB" (never "Zero KB").
+    private static func size(_ bytes: Int) -> String {
+        let f = ByteCountFormatter()
+        f.countStyle = .file
+        f.allowsNonnumericFormatting = false
+        return f.string(fromByteCount: Int64(bytes))
+    }
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Chat videos on this iPhone: \(Self.size(bytes))")
+                    .font(.subheadline)
+                    .foregroundStyle(.white)
+                Text("Clips older than 7 days can't be downloaded again.")
+                    .font(.caption)
+                    .foregroundStyle(RB.textFaint)
+            }
+            Spacer()
+            Button("Clear") { confirming = true }
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(bytes == 0 ? RB.textFaint : RB.accent)
+            .disabled(bytes == 0)
+        }
+        .onAppear { bytes = VideoStore.shared.totalBytes() }
+        .confirmationDialog("Clear chat videos from this iPhone?", isPresented: $confirming, titleVisibility: .visible) {
+            Button("Clear Videos", role: .destructive) {
+                try? VideoStore.shared.clear()
+                bytes = VideoStore.shared.totalBytes()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Videos older than 7 days are gone from the server too, so you won't be able to watch them again.")
         }
     }
 }

@@ -320,6 +320,19 @@ struct MessageRow: View {
                 }
             }
 
+        case "video":
+            VStack(alignment: mine ? .trailing : .leading, spacing: 4) {
+                VideoBubble(message: message)
+                if let body = message.body, !body.isEmpty {
+                    Text(body)
+                        .foregroundStyle(mine ? RB.onAccent : .white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(mine ? RB.accent : RB.surface)
+                        .clipShape(RoundedRectangle(cornerRadius: 18))
+                }
+            }
+
         case "image":
             VStack(alignment: mine ? .trailing : .leading, spacing: 4) {
                 imageCard

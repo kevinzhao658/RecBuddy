@@ -22,3 +22,8 @@ test('renders all seventeen sections with the support contact', () => {
   expect(screen.getByText(/in a group chat you both belong to, you stop seeing their messages/)).toBeInTheDocument()
   expect(screen.getByText(/messages and reactions you send in conversations, including group chats/)).toBeInTheDocument()
 })
+
+test('Your Content covers videos', () => {
+  render(<MemoryRouter><TermsPage /></MemoryRouter>)
+  expect(screen.getByText(/messages, notes, photos, videos, logged workouts/)).toBeInTheDocument()
+})

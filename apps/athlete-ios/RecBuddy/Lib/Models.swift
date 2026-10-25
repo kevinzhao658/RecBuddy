@@ -157,7 +157,7 @@ struct Message: Codable, Identifiable, Equatable {
     let id: String
     let threadId: String
     let fromUserId: String
-    let kind: String            // text|runcard|adjust|workout
+    let kind: String            // text|runcard|adjust|workout|image|video
     let body: String?
     let payload: [String: PayloadValue]?
     let workoutId: String?
@@ -165,8 +165,13 @@ struct Message: Codable, Identifiable, Equatable {
     var replyToId: String? = nil
     var read: Bool
     let createdAt: String       // ISO timestamp string (compared lexically, like the web)
+    /// Videos only: when the server copy is deleted, and when it was.
+    var expiresAt: String? = nil
+    var mediaPurgedAt: String? = nil
     enum CodingKeys: String, CodingKey {
         case id, kind, body, payload, read
+        case expiresAt = "expires_at"
+        case mediaPurgedAt = "media_purged_at"
         case threadId = "thread_id"
         case fromUserId = "from_user_id"
         case workoutId = "workout_id"

@@ -34,3 +34,10 @@ test('quote previews are one line per kind', () => {
   expect(quotePreview(msg('workout', null, { title: 'Long Run' }))).toBe('Workout · Long Run')
   expect(quotePreview(msg('adjust', null, { from: 'a', to: 'b' }))).toBe('Workout adjusted · b')
 })
+
+test('videos have no Copy and quote as 🎥', () => {
+  const v = msg('video', 'Nice form', { path: 't/v.mp4', poster: 't/p.jpg', w: 720, h: 1280, duration_s: 12 })
+  expect(copyText(v, 'mi')).toBeNull()
+  expect(quotePreview(v)).toBe('🎥 Nice form')
+  expect(quotePreview(msg('video', null, { path: 't/v.mp4' }))).toBe('🎥 Video')
+})

@@ -31,6 +31,8 @@ enum MessageText {
             var out = "Workout adjusted: \(m.payloadString("from") ?? "") → \(m.payloadString("to") ?? "")"
             if let r = m.payloadString("reason"), !r.isEmpty { out += "\n\(r)" }
             return out
+        case "video":
+            return nil // no Copy for videos
         default:
             return m.body
         }
@@ -42,6 +44,9 @@ enum MessageText {
         case "image":
             if let body = m.body, !body.isEmpty { return "📷 " + oneLine(body) }
             return "📷 Photo"
+        case "video":
+            if let body = m.body, !body.isEmpty { return "🎥 " + oneLine(body) }
+            return "🎥 Video"
         case "runcard": return "Logged run · \(m.payloadString("title") ?? "Run")"
         case "workout": return "Workout · \(m.payloadString("title") ?? "Workout")"
         case "adjust":  return "Workout adjusted · \(m.payloadString("to") ?? "")"

@@ -4,7 +4,7 @@ const EMAIL = <a href="mailto:support@recbuddy.app" className="font-semibold tex
 
 export default function PrivacyPage() {
   return (
-    <LegalPage title="Privacy Policy" updated="October 24, 2026">
+    <LegalPage title="Privacy Policy" updated="October 25, 2026">
       <p>
         RecBuddy (&ldquo;RecBuddy,&rdquo; &ldquo;we,&rdquo; &ldquo;us,&rdquo; or &ldquo;our&rdquo;) provides a
         running-training app that connects athletes with their coaches. This Privacy Policy explains
@@ -36,9 +36,9 @@ export default function PrivacyPage() {
         </ul>
         <p><strong>Communications</strong></p>
         <ul>
-          <li>Messages, photos, workout cards, reactions, and replies in your conversations: your team chat, 1:1 chats, and group chats</li>
+          <li>Messages, photos, videos, workout cards, reactions, and replies in your conversations: your team chat, 1:1 chats, and group chats</li>
           <li>Coach–athlete connections you create using invite codes or by accepting a coach&rsquo;s request</li>
-          <li>Photos and images you choose to share in chat</li>
+          <li>Photos, videos and images you choose to share in chat</li>
         </ul>
         <p><strong>Safety and moderation</strong></p>
         <ul>
@@ -89,7 +89,7 @@ export default function PrivacyPage() {
       </LegalSection>
 
       <LegalSection title="Data retention">
-        <p>We keep your information for as long as your account is active or as needed to provide the service. When you delete your account (see below), we delete your personal data, except where we are required to retain limited information for legal or security reasons. Reports about abusive content are kept after either account is deleted, so we can act on them and protect other users.</p>
+        <p>We keep your information for as long as your account is active or as needed to provide the service. Videos you send in chat are deleted from our servers about 7 days after they&rsquo;re sent, or later only while a report about them is under review. A still preview image of each video is kept with the conversation. Copies already saved on a participant&rsquo;s device stay on that device under their control. When you delete your account (see below), we delete your personal data, except where we are required to retain limited information for legal or security reasons. Reports about abusive content are kept after either account is deleted, so we can act on them and protect other users.</p>
       </LegalSection>
 
       <LegalSection title="Your choices and rights">

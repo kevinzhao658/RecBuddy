@@ -1,10 +1,13 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../../auth/AuthProvider'
-import { useMessages, useSendMessage, useSendImages, useMarkThreadRead, useRealtimeThread, signedChatImageUrl } from '../../lib/queries/chat'
+import { useMessages, useSendMessage, useSendImages, useSendVideo, useMarkThreadRead, useRealtimeThread, signedChatImageUrl, type StagedVideo } from '../../lib/queries/chat'
+import { checkVideo, posterFrame, isVideoFile } from '../../lib/videoFile'
 import { fetchConversations, useRenameConversation, useThreadPeople } from '../../lib/queries/conversations'
 import { useReactions, useSetReaction } from '../../lib/queries/reactions'
 import { summarize } from '../../lib/reactions'
 import { blockUser, invalidateAfterBlock } from '../../lib/queries/moderation'
+import { MenuIcon } from '../../components/ui/Icon'
+import { StagedVideoTile } from './StagedVideoTile'
 import { ReportDialog, type ReportTarget } from '../chat/ReportDialog'
 import { ConfirmDialog } from '../roster/ConfirmDialog'
 import { supabase } from '../../lib/supabase'
@@ -58,6 +61,7 @@ export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialW
   const messagesQ = useMessages(threadId)
   const send = useSendMessage(threadId)
   const sendImages = useSendImages(threadId)
+  const sendVideo = useSendVideo(threadId)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const taRef = useRef<HTMLTextAreaElement>(null)
   const markRead = useMarkThreadRead(threadId)
@@ -116,6 +120,9 @@ export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialW
   // Picked photos are STAGED here (with previews) so a caption can be added
   // before sending — nothing uploads until Send. Capped at MAX_PHOTOS.
   const [staged, setStaged] = useState<File[]>([])
+  // One video per message; it sends after any staged photos and carries the caption.
+  const [stagedVideo, setStagedVideo] = useState<StagedVideo | null>(null)
+  const [preparingVideo, setPreparingVideo] = useState(false)
   const stagedUrls = useMemo(() => staged.map((f) => URL.createObjectURL(f)), [staged])
   useEffect(() => () => { stagedUrls.forEach((u) => URL.revokeObjectURL(u)) }, [stagedUrls])
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -183,11 +190,74 @@ export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialW
       ? "That message includes language that isn't allowed."
       : "Couldn't send your message. Try again.")
   }
+  /** Pasted, dropped or picked files: photos stage as before; a video is checked
+   *  against the limits and gets a poster frame first. */
+  const addFiles = async (files: File[]) => {
+    const images = files.filter((f) => f.type.startsWith('image/'))
+    if (!images.length && !files.some(isVideoFile)) {
+      setSendError('You can attach photos, or an MP4 or MOV video.')
+      return
+    }
+    if (images.length) setStaged((prev) => [...prev, ...images].slice(0, MAX_PHOTOS))
+    const video = files.find(isVideoFile)
+    if (!video) return
+    setSendError(null)
+    setPreparingVideo(true)
+    try {
+      const check = await checkVideo(video)
+      if (!check.ok) { setSendError(check.error); return }
+      const poster = await posterFrame(video)
+      setStagedVideo({ file: video, duration: check.duration, w: check.w, h: check.h, poster: poster?.blob ?? null })
+    } finally {
+      setPreparingVideo(false)
+    }
+  }
+
+  // Drag a file anywhere in the window while a chat is open: the chat shows
+  // where it'll land, and a drop anywhere attaches to it (never navigates away).
+  const [dragging, setDragging] = useState(false)
+  const addFilesRef = useRef(addFiles)
+  useEffect(() => { addFilesRef.current = addFiles })
+  useEffect(() => {
+    if (readOnly) return
+    let depth = 0
+    const hasFiles = (e: DragEvent) => !!e.dataTransfer?.types?.includes('Files')
+    const enter = (e: DragEvent) => { if (hasFiles(e)) { depth++; setDragging(true) } }
+    const leave = (e: DragEvent) => { if (hasFiles(e) && --depth <= 0) { depth = 0; setDragging(false) } }
+    const over = (e: DragEvent) => { if (hasFiles(e)) e.preventDefault() }
+    const drop = (e: DragEvent) => {
+      if (!hasFiles(e)) return
+      e.preventDefault()
+      depth = 0; setDragging(false)
+      const files = Array.from(e.dataTransfer?.files ?? [])
+      if (files.length) void addFilesRef.current(files)
+    }
+    window.addEventListener('dragenter', enter); window.addEventListener('dragleave', leave)
+    window.addEventListener('dragover', over); window.addEventListener('drop', drop)
+    return () => {
+      window.removeEventListener('dragenter', enter); window.removeEventListener('dragleave', leave)
+      window.removeEventListener('dragover', over); window.removeEventListener('drop', drop)
+    }
+  }, [readOnly])
+
   const submit = () => {
     const body = text.trim()
     if (!threadId) return
     const reply = replyingTo
     setSendError(null)
+    if (stagedVideo) {
+      const video = stagedVideo, files = staged
+      setStagedVideo(null); setStaged([]); setText(''); setReplyingTo(null)
+      const restore = () => { setStagedVideo(video); setText(text); setReplyingTo(reply) }
+      const sendTheVideo = () => sendVideo.mutate(
+        { video, body: body || undefined, replyToId: files.length ? null : reply?.id ?? null },
+        { onError: () => { restore(); setSendError("Couldn't send that video — try again.") } })
+      if (!files.length) return sendTheVideo()
+      // Photos first (the reply rides on the first), then the captioned video.
+      sendImages.mutate({ files, replyToId: reply?.id ?? null },
+        { onSuccess: sendTheVideo, onError: failed(() => { setStaged(files); restore() }) })
+      return
+    }
     if (staged.length) {
       const files = staged
       setStaged([])
@@ -207,7 +277,20 @@ export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialW
   }
 
   return (
-    <section className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
+    <section className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
+        {dragging && (
+          <div aria-hidden className="pointer-events-none absolute inset-0 z-40 p-3 motion-safe:animate-rb-fade">
+            <div className="rb-glass grid h-full place-items-center rounded-[18px] border-2 border-dashed border-accent/60">
+              <div className="text-center">
+                <span className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-full bg-accent/15 text-accent">
+                  <MenuIcon name="photo" className="h-6 w-6" />
+                </span>
+                <p className="font-display text-[22px] font-bold leading-tight text-text">Drop to attach</p>
+                <p className="mt-1 text-sm text-text-mute">Photos, or one video up to 60 seconds</p>
+              </div>
+            </div>
+          </div>
+        )}
         <header className="flex items-center justify-between gap-2 border-b border-line px-4 py-3">
           {onBack && (
             <button aria-label="Back to messages" onClick={onBack}
@@ -291,9 +374,9 @@ export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialW
         )}
 
         {/* Staged attachment previews — shown above the composer until sent/removed */}
-        {staged.length > 0 && (
+        {(staged.length > 0 || stagedVideo || preparingVideo) && (
           <div className="border-t border-line px-3 pt-3">
-            <div className="flex items-center gap-3 overflow-x-auto pb-1">
+            <div className="flex items-end gap-3 overflow-x-auto pb-1 pt-2">
               {stagedUrls.map((url, i) => (
                 <div key={url} className="relative shrink-0">
                   <img src={url} alt={`Attached photo ${i + 1}`} className="h-16 w-16 rounded-[10px] object-cover" />
@@ -302,9 +385,12 @@ export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialW
                     className="absolute -right-2 -top-2 grid h-5 w-5 place-items-center rounded-full bg-surface2 text-xs text-text ring-1 ring-line hover:text-missed">✕</button>
                 </div>
               ))}
+              {preparingVideo && <span className="text-xs text-text-faint">Preparing…</span>}
+              {stagedVideo && <StagedVideoTile video={stagedVideo} onRemove={() => setStagedVideo(null)} />}
             </div>
             <p className="mt-1 text-xs text-text-faint">
-              {staged.length === 1 ? 'Photo attached' : `${staged.length} photos attached`} — add a caption below, then Send.
+              {[staged.length === 1 ? 'Photo attached' : staged.length ? `${staged.length} photos attached` : null,
+                stagedVideo ? 'Video attached' : null].filter(Boolean).join(' · ')} — add a caption below, then Send.
             </p>
           </div>
         )}
@@ -313,17 +399,17 @@ export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialW
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*"
+            accept="image/*,video/mp4,video/quicktime"
             multiple
             className="hidden"
             onChange={(e) => {
               const files = Array.from(e.target.files ?? [])
-              if (files.length) setStaged((prev) => [...prev, ...files].slice(0, MAX_PHOTOS))
+              if (files.length) void addFiles(files)
               e.target.value = ''
             }}
           />
           <button
-            aria-label="Attach photos"
+            aria-label="Attach photos or a video"
             onClick={() => fileInputRef.current?.click()}
             disabled={sendImages.isPending || staged.length >= MAX_PHOTOS}
             className="shrink-0 text-text-faint hover:text-text-mute disabled:opacity-50"
@@ -336,15 +422,16 @@ export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialW
             placeholder={staged.length ? 'Add a caption…' : 'Message…'}
             onChange={(e) => setText(e.target.value)}
             onPaste={(e) => {
-              // Pasted screenshots / copied photos stage as attachments; text pastes normally.
-              const files = imageFilesFromClipboard(e.clipboardData)
+              // Pasted screenshots, photos and videos stage as attachments; text pastes normally.
+              const files = [...imageFilesFromClipboard(e.clipboardData),
+                ...Array.from(e.clipboardData?.files ?? []).filter(isVideoFile)]
               if (!files.length) return
               e.preventDefault()
-              setStaged((prev) => [...prev, ...files].slice(0, MAX_PHOTOS))
+              void addFiles(files)
             }}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit() } }}
             className="max-h-28 flex-1 resize-none overflow-y-auto rounded-[12px] border border-line bg-surface2 px-3 py-2 text-sm text-text placeholder:text-text-faint focus:border-text-mute focus:outline-none" />
-          <button aria-label="Send message" onClick={submit} disabled={(!text.trim() && !staged.length) || send.isPending || sendImages.isPending}
+          <button aria-label="Send message" onClick={submit} disabled={(!text.trim() && !staged.length && !stagedVideo) || preparingVideo || send.isPending || sendImages.isPending || sendVideo.isPending}
             className="rb-glow rounded-[12px] bg-accent px-4 py-2 text-sm font-semibold text-on-accent disabled:opacity-50">Send</button>
         </div>
         {sendError && <p role="alert" className="px-4 pb-2 text-xs text-missed">{sendError}</p>}

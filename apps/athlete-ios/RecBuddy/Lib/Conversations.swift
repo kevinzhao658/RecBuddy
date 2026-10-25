@@ -58,6 +58,7 @@ struct Conversation: Decodable, Identifiable, Equatable {
         let content: String
         switch lastKind {
         case "image": content = (lastBody?.isEmpty == false) ? "📷 \(lastBody!)" : "📷 Photo"
+        case "video": content = (lastBody?.isEmpty == false) ? "🎥 \(lastBody!)" : "🎥 Video"
         case "runcard": content = "Logged a run"
         case "workout": content = "Shared a workout"
         case "adjust": content = "Adjusted a workout"

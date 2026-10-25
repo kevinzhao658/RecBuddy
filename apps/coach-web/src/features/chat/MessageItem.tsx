@@ -1,5 +1,5 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
-import type { Message, RunCard, AdjustCard, WorkoutCard, ImageCard, WorkoutQuote } from '../../lib/types'
+import type { Message, RunCard, AdjustCard, WorkoutCard, ImageCard, VideoCard, WorkoutQuote } from '../../lib/types'
 import { MessageMenu, type MessageAction } from './MessageMenu'
 import { ReactionChips } from './ReactionChips'
 import type { ReactionSummary } from '../../lib/reactions'
@@ -10,6 +10,8 @@ import { fmtDayDate } from '../../lib/week'
 import { useUnit } from '../../lib/useUnit'
 import { fmtDist, fmtPace } from '../../lib/units'
 import { useSignedImageUrl } from '../../lib/queries/chat'
+import { thumbSize } from '../../lib/thumbSize'
+import { VideoView } from './VideoView'
 
 export type Sender = { name: string; initials: string; avatarUrl?: string | null }
 /** Quote above a reply. available=false: the original was deleted or hidden. */
@@ -97,15 +99,12 @@ function ImageView({ p }: { p: ImageCard }) {
     href = p.url
   }
 
-  const aspectStyle = p.w && p.h ? { aspectRatio: `${p.w}/${p.h}` } as const : undefined
+  const size = thumbSize(p.w, p.h)
 
   // Show a placeholder while a path-based signed URL is still loading.
   if (p.path && !href) {
     return (
-      <div
-        style={aspectStyle}
-        className="block max-w-[70%] rounded-[14px] bg-surface2"
-      />
+      <div style={size} className="block max-w-full rounded-[14px] bg-surface2" />
     )
   }
 
@@ -118,8 +117,8 @@ function ImageView({ p }: { p: ImageCard }) {
         src={href}
         alt="Chat image"
         loading="lazy"
-        style={aspectStyle}
-        className="block max-w-[70%] rounded-[14px]"
+        style={size}
+        className="block max-w-full rounded-[14px] object-cover"
       />
     </a>
   )
@@ -195,6 +194,11 @@ export function MessageItem({ m, mine, sender, showName, showAvatar, grouped, su
       onOpen={onOpenWorkout && (m.payload as RunCard).date ? () => onOpenWorkout((m.payload as RunCard).date!, m.workout_id ?? undefined) : undefined} />
   ) : m.kind === 'workout' ? (
     <WorkoutCardView p={m.payload as WorkoutCard} onOpen={onOpenWorkout ? () => onOpenWorkout((m.payload as WorkoutCard).date, m.workout_id ?? undefined) : undefined} />
+  ) : m.kind === 'video' ? (
+    <div className={`flex max-w-[85%] flex-col gap-1 ${mine ? 'items-end' : 'items-start'}`}>
+      <VideoView messageId={m.id} p={m.payload as VideoCard} expiresAt={m.expires_at} purgedAt={m.media_purged_at} />
+      {m.body && <div className={`rounded-[14px] px-3 py-2 text-sm ${mine ? 'bg-accent text-on-accent' : 'bg-surface2 text-text'}`}>{m.body}</div>}
+    </div>
   ) : m.kind === 'image' ? (
     <div className={`flex max-w-[85%] flex-col gap-1 ${mine ? 'items-end' : 'items-start'}`}>
       <ImageView p={m.payload as ImageCard} />
@@ -212,7 +216,9 @@ export function MessageItem({ m, mine, sender, showName, showAvatar, grouped, su
       onContextMenu={(e) => e.preventDefault()}
       onPointerDown={(e) => {
         // React bubbles events up from the menu's portal; only the message itself counts.
-        if (e.button !== 0 || menuOpen || !e.currentTarget.contains(e.target as Node)) return
+        // A hold on a playing video is scrubbing its timeline, not asking for the menu.
+        if (e.button !== 0 || menuOpen || !e.currentTarget.contains(e.target as Node)
+          || (e.target as Element).closest('video')) return
         cancelHold(); setPressing(true)
         holdTimer.current = setTimeout(() => { setPressing(false); openMenu('pointer') }, HOLD_MS)
       }}

@@ -45,7 +45,7 @@ export type CoachPermission = 'read' | 'edit' | 'admin'
 /** `permission` is the SIGNED-IN coach's access to this athlete (read/edit/admin). */
 export interface RosterEntry { relationship: 'head' | 'assistant'; permission: CoachPermission; athlete: Profile; plans: Plan[] }
 
-export type MessageKind = 'text' | 'runcard' | 'adjust' | 'workout' | 'image'
+export type MessageKind = 'text' | 'runcard' | 'adjust' | 'workout' | 'image' | 'video'
 /** payload for kind='runcard' (a completed run the athlete logged). `date`
  *  (new shares) enables click-through to the day's results-vs-plan view;
  *  `type` drives the type icon so the card matches shared-workout cards. */
@@ -60,16 +60,23 @@ export interface WorkoutCard { date: string; type: WorkoutType; title: string; d
  *  it for a short-lived signed URL via the private bucket.
  *  `url` is legacy-read-only (old public-bucket rows); never written to new rows. */
 export interface ImageCard { path?: string; url?: string; w: number; h: number }
+/** payload for kind='video'. `path` is in the private chat-videos bucket and is
+ *  purged 7 days after sending; `poster` (a JPEG in chat-images) is kept.
+ *  null poster = the browser couldn't decode a frame when it was sent. */
+export interface VideoCard { path: string; poster: string | null; w: number; h: number; duration_s: number }
 /** payload for a kind='text' message about a workout ("Message … about this");
  *  the message's workout_id links the live row. */
 export interface WorkoutQuote { quote: 'workout'; title: string; date: string; type: WorkoutType }
 export interface Thread { id: string; athlete_id: string; coach_id: string }
 export interface Message {
   id: string; thread_id: string; from_user_id: string; kind: MessageKind
-  body: string | null; payload: RunCard | AdjustCard | WorkoutCard | ImageCard | WorkoutQuote | null
+  body: string | null; payload: RunCard | AdjustCard | WorkoutCard | ImageCard | VideoCard | WorkoutQuote | null
   workout_id: string | null; read: boolean; created_at: string
   /** Quote-reply target (same thread). */
   reply_to_id?: string | null
+  /** Videos only: when the server copy is deleted, and when it was. */
+  expires_at?: string | null
+  media_purged_at?: string | null
 }
 
 // ── Conversations + reactions (mirror iOS Lib/Conversations.swift) ──────────
