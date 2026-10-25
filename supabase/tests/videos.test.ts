@@ -25,6 +25,14 @@ const payload = (threadId: string, over: Record<string, unknown> = {}) => ({
   path: `${threadId}/${randomUUID()}.mp4`, poster: `${threadId}/${randomUUID()}.jpg`, w: 720, h: 1280, duration_s: 12, ...over,
 })
 
+/** Upload a video + poster as `u` (the server requires the sender's own files). */
+async function uploaded(u: U, threadId: string, over: Record<string, unknown> = {}) {
+  const p = payload(threadId, over)
+  await u.client.storage.from('chat-videos').upload(p.path, Buffer.from('mp4'), { contentType: 'video/mp4' })
+  await u.client.storage.from('chat-images').upload(p.poster, Buffer.from('jpg'), { contentType: 'image/jpeg' })
+  return p
+}
+
 describe('video messages', () => {
   let a: U, b: U, threadId: string
 
@@ -36,12 +44,12 @@ describe('video messages', () => {
 
   it('a member can post a video message row', async () => {
     const { error } = await a.client.from('messages')
-      .insert({ thread_id: threadId, from_user_id: a.id, kind: 'video', body: null, payload: payload(threadId) })
+      .insert({ thread_id: threadId, from_user_id: a.id, kind: 'video', body: null, payload: await uploaded(a, threadId) })
     expect(error).toBeNull()
   })
   it('expires_at is set by the server', async () => {
     const { data, error } = await a.client.from('messages')
-      .insert({ thread_id: threadId, from_user_id: a.id, kind: 'video', payload: payload(threadId), expires_at: '2099-01-01T00:00:00Z' })
+      .insert({ thread_id: threadId, from_user_id: a.id, kind: 'video', payload: await uploaded(a, threadId), expires_at: '2099-01-01T00:00:00Z' })
       .select('created_at, expires_at').single()
     expect(error).toBeNull()
     const gap = new Date(data.expires_at).getTime() - new Date(data.created_at).getTime()
@@ -50,7 +58,7 @@ describe('video messages', () => {
 
   it('refuses a 61-second clip', async () => {
     const { error } = await a.client.from('messages')
-      .insert({ thread_id: threadId, from_user_id: a.id, kind: 'video', payload: payload(threadId, { duration_s: 61 }) })
+      .insert({ thread_id: threadId, from_user_id: a.id, kind: 'video', payload: await uploaded(a, threadId, { duration_s: 61 }) })
     expect(error?.message).toMatch(/60 seconds/)
   })
 
@@ -66,7 +74,7 @@ describe('video messages', () => {
 
   it('a client cannot clear its own expiry', async () => {
     const { data } = await a.client.from('messages')
-      .insert({ thread_id: threadId, from_user_id: a.id, kind: 'video', payload: payload(threadId) }).select('id, expires_at').single()
+      .insert({ thread_id: threadId, from_user_id: a.id, kind: 'video', payload: await uploaded(a, threadId) }).select('id, expires_at').single()
     await a.client.from('messages').update({ expires_at: '2099-01-01T00:00:00Z', media_purged_at: null }).eq('id', data.id)
     const after = await admin().from('messages').select('expires_at').eq('id', data.id).single()
     expect(after.data!.expires_at).toBe(data.expires_at)
@@ -190,5 +198,59 @@ describe('admin removal of a reported video', () => {
     expect(spared.video).toBe(false)
     const still = ((await sql.storage.from('chat-videos').list(t)).data ?? []).map((o) => `${t}/${o.name}`)
     expect(still).toContain(theirs.path)
+  })
+})
+
+describe('a message can only expose its own sender\'s files', () => {
+  async function setup() {
+    const tag = randomUUID()
+    const s = await createAndSignIn({ role: 'athlete', name: `Own ${tag}` })
+    const m = await createAndSignIn({ role: 'athlete', name: `Repost ${tag}` })
+    const late = await createAndSignIn({ role: 'athlete', name: `Late2 ${tag}` })
+    const t = await makeChat([{ id: s.id }, { id: m.id }])
+    return { s, m, late, t }
+  }
+  const joinNow = (t: string, id: string) => admin().from('thread_members').insert({ thread_id: t, user_id: id, status: 'active' })
+
+  it('a video message must point at files its sender uploaded', async () => {
+    const { s, m, late, t } = await setup()
+    const p = payload(t)
+    await s.client.storage.from('chat-videos').upload(p.path, Buffer.from('mp4'), { contentType: 'video/mp4' })
+    await s.client.storage.from('chat-images').upload(p.poster, Buffer.from('jpg'), { contentType: 'image/jpeg' })
+    await s.client.from('messages').insert({ thread_id: t, from_user_id: s.id, kind: 'video', payload: p })
+    await joinNow(t, late.id)
+    const repost = await m.client.from('messages').insert({ thread_id: t, from_user_id: m.id, kind: 'video', payload: p })
+    expect(repost.error).not.toBeNull()
+    expect((await late.client.storage.from('chat-videos').createSignedUrl(p.path, 60)).error).not.toBeNull()
+  })
+
+  it('one video file backs only one message', async () => {
+    const { s, t } = await setup()
+    const p = payload(t)
+    await s.client.storage.from('chat-videos').upload(p.path, Buffer.from('mp4'), { contentType: 'video/mp4' })
+    await s.client.storage.from('chat-images').upload(p.poster, Buffer.from('jpg'), { contentType: 'image/jpeg' })
+    expect((await s.client.from('messages').insert({ thread_id: t, from_user_id: s.id, kind: 'video', payload: p })).error).toBeNull()
+    expect((await s.client.from('messages').insert({ thread_id: t, from_user_id: s.id, kind: 'video', payload: p })).error).not.toBeNull()
+  })
+
+  it('a re-posted photo path does not reach a late joiner', async () => {
+    const { s, m, late, t } = await setup()
+    const path = `${t}/${randomUUID()}.jpg`
+    await s.client.storage.from('chat-images').upload(path, Buffer.from('jpg'), { contentType: 'image/jpeg' })
+    await s.client.from('messages').insert({ thread_id: t, from_user_id: s.id, kind: 'image', payload: { path, w: 1, h: 1 } })
+    await joinNow(t, late.id)
+    await m.client.from('messages').insert({ thread_id: t, from_user_id: m.id, kind: 'image', payload: { path, w: 1, h: 1 } })
+    expect((await late.client.storage.from('chat-images').createSignedUrl(path, 60)).error).not.toBeNull()
+  })
+
+  it('a client cannot backdate a video to make it expire early', async () => {
+    const { s, t } = await setup()
+    const p = payload(t)
+    await s.client.storage.from('chat-videos').upload(p.path, Buffer.from('mp4'), { contentType: 'video/mp4' })
+    await s.client.storage.from('chat-images').upload(p.poster, Buffer.from('jpg'), { contentType: 'image/jpeg' })
+    const { data } = await s.client.from('messages')
+      .insert({ thread_id: t, from_user_id: s.id, kind: 'video', payload: p, created_at: '2026-01-01T00:00:00Z' })
+      .select('created_at, expires_at').single()
+    expect(new Date(data.expires_at).getTime()).toBeGreaterThan(Date.now() + 6 * 24 * 3600 * 1000)
   })
 })

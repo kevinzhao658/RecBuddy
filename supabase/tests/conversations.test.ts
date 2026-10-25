@@ -78,7 +78,8 @@ describe('conversation access', () => {
     const early = '2025-12-01T00:00:00Z'
     const id = await makeChat([{ id: athlete.id, joined_at: early }, { id: coach.id, joined_at: early }])
     const path = `${id}/${randomUUID()}.jpg`
-    const up = await admin().storage.from('chat-images').upload(path, Buffer.from('jpg'), { contentType: 'image/jpeg' })
+    // Uploaded by the sender: a message only exposes its own sender's files.
+    const up = await coach.client.storage.from('chat-images').upload(path, Buffer.from('jpg'), { contentType: 'image/jpeg' })
     expect(up.error).toBeNull()
     await admin().from('messages').insert({ thread_id: id, from_user_id: coach.id, kind: 'image', payload: { path, w: 1, h: 1 }, created_at: '2026-01-01T00:00:00Z' })
     await admin().from('thread_members').insert({ thread_id: id, user_id: other.id, status: 'active' })
