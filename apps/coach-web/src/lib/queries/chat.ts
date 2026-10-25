@@ -4,6 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabase, uniqueTopic } from '../supabase'
 import { compressImage } from '../compressImage'
 import type { Message, Thread, Workout, WorkoutQuote } from '../types'
+import { putVideo } from '../videoStore'
 
 /** A text send, optionally replying to a message and/or about a workout. */
 export type SendArgs = {
@@ -77,6 +78,43 @@ export function useSendImages(threadId: string | null) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (v: { files: File[]; body?: string; replyToId?: string | null }) => sendImageMessages(supabase, threadId!, v.files, v.body, v.replyToId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['messages', threadId] }),
+  })
+}
+
+/** A clip ready to send: checked by checkVideo, poster from posterFrame. */
+export interface StagedVideo { file: File; duration: number; w: number; h: number; poster: Blob | null }
+
+/** Upload a chat video (as-is; checked against the 60 s / 50 MB limits) and its
+ *  poster, then post kind='video'. Paths follow the photo convention
+ *  (<thread_id>/<uuid>.<ext>). The server sets expires_at (7 days). This browser
+ *  keeps its own copy under the new message id, so the sender never needs to
+ *  download it and can still play it after the server copy is purged. */
+export async function sendVideoMessage(client: SupabaseClient, threadId: string, v: StagedVideo, body?: string, replyToId?: string | null): Promise<string> {
+  const { data: me } = await client.auth.getUser()
+  const uid = me.user!.id
+  const ext = v.file.type === 'video/quicktime' ? 'mov' : 'mp4'
+  const path = `${threadId}/${crypto.randomUUID()}.${ext}`
+  let poster: string | null = null
+  if (v.poster) {
+    poster = `${threadId}/${crypto.randomUUID()}.jpg`
+    const { error } = await client.storage.from('chat-images').upload(poster, v.poster, { contentType: 'image/jpeg' })
+    if (error) throw error
+  }
+  const { error: upErr } = await client.storage.from('chat-videos').upload(path, v.file, { contentType: v.file.type })
+  if (upErr) throw upErr
+  const { data, error } = await client.from('messages')
+    .insert({ thread_id: threadId, from_user_id: uid, kind: 'video', body: body || null, reply_to_id: replyToId ?? null,
+              payload: { path, poster, w: v.w, h: v.h, duration_s: v.duration } })
+    .select('id').single()
+  if (error) throw error
+  await putVideo(data.id, v.file)
+  return data.id as string
+}
+export function useSendVideo(threadId: string | null) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (x: { video: StagedVideo; body?: string; replyToId?: string | null }) => sendVideoMessage(supabase, threadId!, x.video, x.body, x.replyToId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['messages', threadId] }),
   })
 }

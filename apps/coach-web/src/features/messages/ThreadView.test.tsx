@@ -6,6 +6,7 @@ import * as convMod from '../../lib/queries/conversations'
 import * as reactMod from '../../lib/queries/reactions'
 import * as modMod from '../../lib/queries/moderation'
 import * as authMod from '../../auth/AuthProvider'
+import * as videoFile from '../../lib/videoFile'
 
 function setup() {
   const send = { mutate: vi.fn(), isPending: false }
@@ -185,4 +186,35 @@ test('read-only: no Reply, but existing reactions still show (view-only)', () =>
   fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' })
   expect(screen.getByLabelText('Like, 1: You')).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: /^Like/ })).toBeNull()
+})
+
+test('pasting a video stages it with its length; Send uploads it with the caption', async () => {
+  setup()
+  vi.spyOn(chat, 'useSendImages').mockReturnValue({ mutate: vi.fn(), isPending: false } as any)
+  const sendVideo = { mutate: vi.fn(), isPending: false }
+  vi.spyOn(chat, 'useSendVideo').mockReturnValue(sendVideo as any)
+  vi.spyOn(videoFile, 'checkVideo').mockResolvedValue({ ok: true, duration: 30, w: 720, h: 1280 })
+  vi.spyOn(videoFile, 'posterFrame').mockResolvedValue(null)
+  Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:preview'), revokeObjectURL: vi.fn() })
+  wrap(<ThreadView threadId="th1" conversation={team} />)
+  const box = screen.getByLabelText('Message')
+  const clip = new File(['x'], 'clip.mp4', { type: 'video/mp4' })
+  fireEvent.paste(box, { clipboardData: { files: [clip], getData: () => '' } })
+  expect(await screen.findByText('0:30')).toBeInTheDocument()
+  expect(screen.getByText(/Video attached/)).toBeInTheDocument()
+  fireEvent.change(box, { target: { value: 'form check' } })
+  fireEvent.click(screen.getByRole('button', { name: /send message/i }))
+  expect(sendVideo.mutate).toHaveBeenCalledWith(
+    { video: { file: clip, duration: 30, w: 720, h: 1280, poster: null }, body: 'form check', replyToId: null }, expect.anything())
+})
+
+test('a video over the limit is refused and nothing is staged', async () => {
+  setup()
+  vi.spyOn(chat, 'useSendImages').mockReturnValue({ mutate: vi.fn(), isPending: false } as any)
+  vi.spyOn(chat, 'useSendVideo').mockReturnValue({ mutate: vi.fn(), isPending: false } as any)
+  vi.spyOn(videoFile, 'checkVideo').mockResolvedValue({ ok: false, error: 'Videos can be up to 60 seconds and 50 MB.' })
+  wrap(<ThreadView threadId="th1" conversation={team} />)
+  fireEvent.paste(screen.getByLabelText('Message'), { clipboardData: { files: [new File(['x'], 'long.mp4', { type: 'video/mp4' })], getData: () => '' } })
+  expect(await screen.findByText('Videos can be up to 60 seconds and 50 MB.')).toBeInTheDocument()
+  expect(screen.queryByText(/Video attached/)).toBeNull()
 })
