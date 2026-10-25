@@ -37,7 +37,12 @@ enum HealthMatcher {
     /// DETERMINISTIC choice so repeat passes always pick the same winner and
     /// the source-id dedup drops the rest. Back-to-back activities (one ends
     /// exactly as the next starts) never collapse.
-    static func dedupeOverlapping(_ samples: [ActivitySample]) -> [ActivitySample] {
+    ///
+    /// `handled` = copies already logged, dismissed, or waiting for the athlete.
+    /// A cluster holding one keeps THAT copy, not the richest: a richer copy
+    /// that lands in Health later (Coros syncing after the Watch) is the same
+    /// run, so it must not come back as an extra card or a second confirmation.
+    static func dedupeOverlapping(_ samples: [ActivitySample], handled: Set<String> = []) -> [ActivitySample] {
         var kept: [ActivitySample] = []
         for kind in [ActivityKind.running, .cycling, .swimming, .other] {
             let group = samples.filter { $0.kind == kind }.sorted { $0.startDate < $1.startDate }
@@ -48,14 +53,18 @@ enum HealthMatcher {
                     cluster.append(s)
                     clusterEnd = max(clusterEnd, s.endDate)
                 } else {
-                    kept.append(richest(of: cluster))
+                    kept.append(representative(of: cluster, handled: handled))
                     cluster = [s]
                     clusterEnd = s.endDate
                 }
             }
-            if !cluster.isEmpty { kept.append(richest(of: cluster)) }
+            if !cluster.isEmpty { kept.append(representative(of: cluster, handled: handled)) }
         }
         return kept.sorted { $0.startDate < $1.startDate }
+    }
+
+    private static func representative(of cluster: [ActivitySample], handled: Set<String>) -> ActivitySample {
+        cluster.filter { handled.contains($0.sourceId) }.min { $0.sourceId < $1.sourceId } ?? richest(of: cluster)
     }
 
     /// The most complete recording in an overlap cluster ("better" sorts
