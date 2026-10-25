@@ -4,6 +4,7 @@ import { useSignedImageUrl, downloadVideo } from '../../lib/queries/chat'
 import { getVideo, hasVideo, putVideo, requestPersistence } from '../../lib/videoStore'
 import { expiryLabel, videoState } from '../../lib/videoExpiry'
 import { fmtClipLength } from '../../lib/videoFile'
+import { thumbSize } from '../../lib/thumbSize'
 
 /** A chat video: poster + play button + length; Play swaps in a player right
  *  in the bubble (its own controls offer full screen). The clip is downloaded into
@@ -73,13 +74,12 @@ export function VideoView({ messageId, p, expiresAt, purgedAt }: {
     if (!b) { setFailed(true); return }
     setSrc(URL.createObjectURL(b))
   }
-  const aspect = p.w && p.h ? { aspectRatio: `${p.w}/${p.h}` } : undefined
   const note = failed ? "Couldn't load the video — tap to try again."
     : state === 'remote' && expiresAt ? expiryLabel(expiresAt, new Date(mountedAt)) : null
 
   return (
     <div ref={ref} className="flex max-w-[70%] flex-col gap-1">
-      <div data-testid="video-bubble" style={aspect} className="relative w-56 max-w-full overflow-hidden rounded-[14px] bg-black">
+      <div data-testid="video-bubble" style={thumbSize(p.w, p.h)} className="relative max-w-full overflow-hidden rounded-[14px] bg-black">
         {src ? (
           // object-contain inline and in full screen: the whole frame shows,
           // letterboxed, instead of zooming in to fill the screen.

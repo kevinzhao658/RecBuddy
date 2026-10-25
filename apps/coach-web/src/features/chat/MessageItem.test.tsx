@@ -73,7 +73,7 @@ test('renders an image message via signed URL when path is provided', () => {
     m={{ ...base, kind: 'image', body: null, payload: { path: 'thread-1/abc.jpg', w: 1280, h: 720 } } as any} />)
   const img = screen.getByRole('img')
   expect(img).toHaveAttribute('src', 'https://signed.example.com/img.jpg')
-  expect(img).toHaveStyle('aspect-ratio: 1280/720')
+  expect(img).toHaveStyle({ width: '240px', height: '135px' })   // 1280×720 at thumbnail size
   // The wrapping anchor must also point at the signed URL
   expect(screen.getByRole('link')).toHaveAttribute('href', 'https://signed.example.com/img.jpg')
 })
@@ -251,4 +251,12 @@ test('keyboard: the hidden options button opens the menu and focuses its first i
   expect(screen.getByRole('button', { name: 'Laugh' })).toBeInTheDocument()
   fireEvent.click(opts)
   expect(screen.getByRole('menuitem', { name: 'Copy' })).toHaveFocus()
+})
+
+test('a tall photo shows at thumbnail size, not full size', () => {
+  render(<MessageItem mine={false}
+    m={{ ...base, kind: 'image', body: null, payload: { url: 'https://x/p.jpg', w: 665, h: 1182 } } as any} />)
+  const img = screen.getByRole('img', { name: 'Chat image' })
+  expect(img.style.width).toBe('180px')
+  expect(img.style.height).toBe('320px')
 })

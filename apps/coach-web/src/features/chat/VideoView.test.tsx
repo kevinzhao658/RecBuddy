@@ -89,3 +89,11 @@ test('play before the download lands fetches it then plays; a failed download ca
   expect(await screen.findByTestId('video-player')).toHaveAttribute('src', 'blob:clip')
   expect(store.putVideo).toHaveBeenCalledWith('m4', blob)
 })
+
+test('a portrait clip shows at thumbnail size', async () => {
+  vi.spyOn(store, 'hasVideo').mockResolvedValue(true)
+  wrap(<VideoView messageId="m6" p={p} expiresAt={later} purgedAt={null} />)
+  const bubble = screen.getByTestId('video-bubble')
+  expect(bubble.style.width).toBe('180px')
+  expect(bubble.style.height).toBe('320px')
+})

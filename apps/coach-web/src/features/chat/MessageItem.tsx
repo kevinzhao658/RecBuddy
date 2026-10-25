@@ -10,6 +10,7 @@ import { fmtDayDate } from '../../lib/week'
 import { useUnit } from '../../lib/useUnit'
 import { fmtDist, fmtPace } from '../../lib/units'
 import { useSignedImageUrl } from '../../lib/queries/chat'
+import { thumbSize } from '../../lib/thumbSize'
 import { VideoView } from './VideoView'
 
 export type Sender = { name: string; initials: string; avatarUrl?: string | null }
@@ -98,15 +99,12 @@ function ImageView({ p }: { p: ImageCard }) {
     href = p.url
   }
 
-  const aspectStyle = p.w && p.h ? { aspectRatio: `${p.w}/${p.h}` } as const : undefined
+  const size = thumbSize(p.w, p.h)
 
   // Show a placeholder while a path-based signed URL is still loading.
   if (p.path && !href) {
     return (
-      <div
-        style={aspectStyle}
-        className="block max-w-[70%] rounded-[14px] bg-surface2"
-      />
+      <div style={size} className="block max-w-full rounded-[14px] bg-surface2" />
     )
   }
 
@@ -119,8 +117,8 @@ function ImageView({ p }: { p: ImageCard }) {
         src={href}
         alt="Chat image"
         loading="lazy"
-        style={aspectStyle}
-        className="block max-w-[70%] rounded-[14px]"
+        style={size}
+        className="block max-w-full rounded-[14px] object-cover"
       />
     </a>
   )
