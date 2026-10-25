@@ -31,3 +31,9 @@ test('nothing renders when there are no reactions and the message is not hovered
   const { container } = render(<ReactionChips items={[]} onToggle={() => {}} showAll={false} />)
   expect(container).toBeEmptyDOMElement()
 })
+
+test('view-only (no toggle): used reactions show as labels, not buttons', () => {
+  render(<ReactionChips items={items} showAll={false} />)
+  expect(screen.queryAllByRole('button')).toHaveLength(0)
+  expect(screen.getByLabelText('Like, 2: Maya Chen, Marcus Hale')).toBeInTheDocument()
+})

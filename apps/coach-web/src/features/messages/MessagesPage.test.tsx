@@ -78,3 +78,21 @@ test('phone: an open thread has a back button to the inbox', () => {
   fireEvent.click(screen.getByRole('button', { name: 'back' }))
   expect(screen.getByText('Select a conversation')).toBeInTheDocument()
 })
+
+test('a workout handed over in navigation state attaches once, then leaves history (no re-attach on reload / Back)', async () => {
+  const { useLocation } = await import('react-router-dom')
+  setup([row('t1', 'team')])
+  vi.spyOn(threadMod, 'ThreadView').mockImplementation(((p: any) => <div>thread:{p.threadId}:{p.initialWorkout?.title ?? 'none'}</div>) as any)
+  const Probe = () => <span>state:{JSON.stringify(useLocation().state)}</span>
+  const workout = { id: 'w1', date: '2026-10-21', type: 'easy', title: 'Easy 5' }
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <MemoryRouter initialEntries={[{ pathname: '/coach/messages/t1', state: { workout } }]}>
+        <Routes>
+          <Route path="/coach/messages/:threadId" element={<><MessagesPage /><Probe /></>} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>)
+  expect(screen.getByText('thread:t1:Easy 5')).toBeInTheDocument()
+  expect(screen.getByText('state:null')).toBeInTheDocument()
+})

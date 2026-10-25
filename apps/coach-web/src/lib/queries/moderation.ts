@@ -54,6 +54,7 @@ export function useUnblock() {
       const { error } = await supabase.from('user_blocks').delete().eq('blocker_id', me.user!.id).eq('blocked_id', userId)
       if (error) throw error
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['blocked'] }),
+    // Their chats, messages, and search results come back too.
+    onSuccess: () => invalidateAfterBlock(qc),
   })
 }

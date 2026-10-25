@@ -95,7 +95,8 @@ export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialW
 
   /** Per-message actions (hover bar / right-click / long-press). */
   const actionsFor = (m: Message): MessageAction[] => {
-    const out: MessageAction[] = [{ key: 'reply', label: 'Reply', onClick: () => startReply(m) }]
+    // No Reply where nothing can be sent.
+    const out: MessageAction[] = readOnly ? [] : [{ key: 'reply', label: 'Reply', onClick: () => startReply(m) }]
     const text = copyText(m, unit)
     if (text) out.push({ key: 'copy', label: 'Copy', doneLabel: 'Copied', onClick: () => copyTextToClipboard(text) })
     const img = m.kind === 'image' ? (m.payload as ImageCard | null) : null

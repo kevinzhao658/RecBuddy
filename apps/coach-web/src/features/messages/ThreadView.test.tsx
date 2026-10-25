@@ -171,3 +171,12 @@ test('a 1:1 or read-only thread cannot be renamed from the header', () => {
   fireEvent.doubleClick(screen.getByRole('heading', { name: 'Jordan Lee' }))
   expect(screen.queryByLabelText('Chat name')).toBeNull()
 })
+
+test('read-only: no Reply, but existing reactions still show (view-only)', () => {
+  setup()
+  wrap(<ThreadView threadId="th1" conversation={{ ...team, read_only: true }} />)
+  expect(screen.queryAllByRole('button', { name: 'Reply' })).toHaveLength(0)
+  expect(screen.getAllByRole('button', { name: 'Copy' }).length).toBeGreaterThan(0)
+  expect(screen.getByLabelText('Like, 1: You')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /^Like/ })).toBeNull()
+})

@@ -163,3 +163,13 @@ test('reactions: used chips show under the bubble; hovering reveals all five; cl
   fireEvent.mouseLeave(screen.getByText('tempo felt great').closest('.group\\/msg')!)
   expect(screen.queryByRole('button', { name: 'Laugh' })).toBeNull()
 })
+
+test('keyboard: tabbing into the message shows all five reactions so a first one can be added', () => {
+  const onReact = vi.fn()
+  render(<MessageItem mine={false} actions={[{ key: 'copy', label: 'Copy', onClick: vi.fn() }]} onReact={onReact}
+    m={{ ...base, kind: 'text', body: 'tab to me', payload: null } as any} />)
+  expect(screen.queryByRole('button', { name: 'Laugh' })).toBeNull()
+  fireEvent.focus(screen.getByRole('button', { name: 'Copy' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Laugh' }))
+  expect(onReact).toHaveBeenCalledWith('laugh')
+})

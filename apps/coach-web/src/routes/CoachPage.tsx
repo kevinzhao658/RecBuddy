@@ -30,7 +30,7 @@ import { supabase } from '../lib/supabase'
 import { UnreadBadge } from '../components/ui/UnreadBadge'
 import { useClipboard } from '../features/plan-grid/useClipboard'
 import { useRealtimePlan } from '../lib/useRealtimePlan'
-import { mondayOf, addDays, fmtShortDate, firstOfMonth, addMonths, fmtMonthYear, todayISO, localDayOf, weekDates, monthOf } from '../lib/week'
+import { mondayOf, addDays, fmtShortDate, firstOfMonth, addMonths, fmtMonthYear, todayISO, localDayOf, weekDates, monthOf, firstWorkoutOn } from '../lib/week'
 import type { VolumeMode } from '../lib/volume'
 
 /** Short one-line summary of a workout for chat adjust cards (from → to). */
@@ -62,6 +62,9 @@ export default function CoachPage() {
   const [selectedDate, setSelectedDate] = useState<string | null>(nav?.date ?? null)
   // Selected workout on that date; null + selectedDate = composing a NEW workout.
   const [selectedWorkoutId, setSelectedWorkoutId] = useState<string | null>(nav?.workoutId ?? null)
+  // An older chat card has a date but no workout id: open that day's first
+  // workout once the week loads (rather than a blank new-workout editor).
+  const [pickFirst, setPickFirst] = useState(!!nav?.date && !nav?.workoutId)
   const [toast, setToast] = useState<string | null>(null)
   const [rosterOpen, setRosterOpen] = useState(false)
   const clipboard = useClipboard()
@@ -80,7 +83,7 @@ export default function CoachPage() {
     <div className="flex min-h-screen">
       {/* Sidebar: hidden on phones, shown md+ as a static column */}
       <div className="hidden md:flex">
-        <RosterSidebar selectedId={selectedId} onSelect={(id) => { setSelectedId(id); setSelectedDate(null); setSelectedWorkoutId(null) }} />
+        <RosterSidebar selectedId={selectedId} onSelect={(id) => { setSelectedId(id); setSelectedDate(null); setSelectedWorkoutId(null); setPickFirst(false) }} />
       </div>
 
       {/* Mobile roster drawer (phones only) */}
@@ -88,7 +91,7 @@ export default function CoachPage() {
         <div className="fixed inset-0 z-40 md:hidden">
           <div className="absolute inset-0 bg-black/40" onClick={() => setRosterOpen(false)} />
           <div className="fixed inset-y-0 left-0 z-40">
-            <RosterSidebar selectedId={selectedId} onSelect={(id) => { setSelectedId(id); setSelectedDate(null); setSelectedWorkoutId(null) }} />
+            <RosterSidebar selectedId={selectedId} onSelect={(id) => { setSelectedId(id); setSelectedDate(null); setSelectedWorkoutId(null); setPickFirst(false) }} />
           </div>
         </div>
       )}
@@ -100,6 +103,7 @@ export default function CoachPage() {
             view={view} setView={setView}
             selectedDate={selectedDate} setSelectedDate={setSelectedDate}
             selectedWorkoutId={selectedWorkoutId} setSelectedWorkoutId={setSelectedWorkoutId}
+            pickFirst={pickFirst} onPickedFirst={() => setPickFirst(false)}
             clipboard={clipboard} sensors={sensors} flash={flash}
             onMenu={() => setRosterOpen(true)}
             onAthleteRemoved={() => { setSelectedId(null); flash('Athlete removed from roster') }} />
@@ -120,13 +124,14 @@ export default function CoachPage() {
   )
 }
 
-function AthleteDashboard({ athleteId, monday, setMonday, monthAnchor, setMonthAnchor, view, setView, selectedDate, setSelectedDate, selectedWorkoutId, setSelectedWorkoutId, clipboard, sensors, flash, onMenu, onAthleteRemoved }: {
+function AthleteDashboard({ athleteId, monday, setMonday, monthAnchor, setMonthAnchor, view, setView, selectedDate, setSelectedDate, selectedWorkoutId, setSelectedWorkoutId, pickFirst, onPickedFirst, clipboard, sensors, flash, onMenu, onAthleteRemoved }: {
   athleteId: string
   monday: string; setMonday: (m: string) => void
   monthAnchor: string; setMonthAnchor: (m: string) => void
   view: PlanView; setView: (v: PlanView) => void
   selectedDate: string | null; setSelectedDate: (d: string | null) => void
   selectedWorkoutId: string | null; setSelectedWorkoutId: (id: string | null) => void
+  pickFirst?: boolean; onPickedFirst?: () => void
   clipboard: ReturnType<typeof useClipboard>; sensors: ReturnType<typeof useSensors>; flash: (m: string) => void
   onMenu: () => void
   onAthleteRemoved: () => void
@@ -161,6 +166,10 @@ function AthleteDashboard({ athleteId, monday, setMonday, monthAnchor, setMonthA
 
   const entry = (roster.data ?? []).find((r) => r.athlete.id === athleteId)
   const week = planQ.data ?? EMPTY_WEEK
+  useEffect(() => {
+    if (!pickFirst || !planQ.isSuccess || !selectedDate) return
+    setSelectedWorkoutId(firstWorkoutOn(week, selectedDate)); onPickedFirst?.()
+  }, [pickFirst, planQ.isSuccess, selectedDate, week, setSelectedWorkoutId, onPickedFirst])
   // Bulk actuals power the actuals-based volume gauges (week + month).
   const weekIds = week.flat().map((w) => w.id)
   const monthIds = Object.values(monthQ.data ?? {}).flat().map((w) => w.id)

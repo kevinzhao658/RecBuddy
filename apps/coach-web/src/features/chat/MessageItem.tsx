@@ -179,8 +179,9 @@ export function MessageItem({ m, mine, sender, showName, showAvatar, grouped, su
   const holdTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const cancelHold = () => clearTimeout(holdTimer.current)
   useLayoutEffect(() => cancelHold, [])
-  const chips = onReact && !superseded
-    ? <ReactionChips items={reactions} onToggle={onReact} showAll={hovered || menuOpen} />
+  const [focused, setFocused] = useState(false)
+  const chips = !superseded && (onReact || reactions.length)
+    ? <ReactionChips items={reactions} onToggle={onReact} showAll={hovered || menuOpen || focused} />
     : null
   // A newer card for the same workout exists below — roll this one up into a
   // compact placeholder that jumps the chat to that newest card.
@@ -224,7 +225,10 @@ export function MessageItem({ m, mine, sender, showName, showAvatar, grouped, su
       onPointerUp={cancelHold} onPointerCancel={cancelHold}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => { cancelHold(); setMenuOpen(false); setHovered(false) }}
-      onKeyDown={(e) => { if (e.key === 'Escape') setMenuOpen(false) }}>
+      onKeyDown={(e) => { if (e.key === 'Escape') setMenuOpen(false) }}
+      // Keyboard: tabbing into the message's actions also reveals every reaction.
+      onFocus={() => setFocused(true)}
+      onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false) }}>
       <MessageActions ref={barRef} actions={actions} open={menuOpen} style={barStyle} />
       {quote && !superseded && <QuoteView q={quote} />}
       <div ref={bubbleRef} className={`flex w-full flex-col ${mine ? 'items-end' : 'items-start'}`}>{body}</div>

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthProvider'
 import { useConversations, usePendingConversation } from '../../lib/queries/conversations'
@@ -27,7 +27,18 @@ export function MessagesPage() {
   // A chat with no messages yet isn't in the inbox; build its header from the thread.
   const pending = usePendingConversation(threadId && conversations.isSuccess && !listed ? threadId : null, meId)
   const open = listed ?? pending
-  const workout = (location.state as NavState)?.workout ?? null
+  // "Message athlete about this workout": attach it to the thread it was
+  // handed to, once. Clearing the history entry stops reload / Back from
+  // attaching it again.
+  const [handoff, setHandoff] = useState(() => {
+    const w = (location.state as NavState)?.workout
+    return w && threadId ? { threadId, workout: w } : null
+  })
+  const workout = handoff && handoff.threadId === threadId ? handoff.workout : null
+  useEffect(() => { if (handoff && handoff.threadId !== threadId) setHandoff(null) }, [handoff, threadId])
+  useEffect(() => {
+    if ((location.state as NavState)?.workout) navigate(location.pathname, { replace: true, state: null })
+  }, [location.state, location.pathname, navigate])
 
   const select = (id: string) => { setComposing(false); setInfoOpen(false); navigate(`/coach/messages/${id}`) }
   // Workout cards in a team chat open that athlete's day on the plan.

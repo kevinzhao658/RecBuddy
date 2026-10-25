@@ -41,7 +41,6 @@ export async function sendMessage(client: SupabaseClient, threadId: string, args
     reply_to_id: replyToId ?? null, workout_id: workout?.id ?? null, payload,
   })
   if (error) throw error
-  await client.from('message_threads').update({ updated_at: new Date().toISOString() }).eq('id', threadId)
 }
 export function useSendMessage(threadId: string | null) {
   const qc = useQueryClient()
@@ -73,7 +72,6 @@ export async function sendImageMessages(client: SupabaseClient, threadId: string
                 reply_to_id: i === 0 ? replyToId ?? null : null })
     if (error) throw error
   }
-  await client.from('message_threads').update({ updated_at: new Date().toISOString() }).eq('id', threadId)
 }
 export function useSendImages(threadId: string | null) {
   const qc = useQueryClient()
@@ -115,7 +113,6 @@ export async function shareWorkoutToChat(client: SupabaseClient, athleteId: stri
   const { error } = await client.from('messages')
     .insert({ thread_id: thread.id, from_user_id: me.user!.id, kind: 'workout', workout_id: w.id, payload })
   if (error) throw error
-  await client.from('message_threads').update({ updated_at: new Date().toISOString() }).eq('id', thread.id)
 }
 export function useShareWorkout(athleteId: string) {
   const qc = useQueryClient()
@@ -132,7 +129,6 @@ export async function shareAdjustToChat(client: SupabaseClient, athleteId: strin
   const { error } = await client.from('messages')
     .insert({ thread_id: thread.id, from_user_id: me.user!.id, kind: 'adjust', payload: { from, to, reason } })
   if (error) throw error
-  await client.from('message_threads').update({ updated_at: new Date().toISOString() }).eq('id', thread.id)
 }
 export function useShareAdjust(athleteId: string) {
   const qc = useQueryClient()
