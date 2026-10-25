@@ -6,7 +6,7 @@
 > top-level section (12 sections vs this file's 11) — content is identical.
 
 **Effective date:** July 31, 2026
-**Last updated:** October 24, 2026
+**Last updated:** October 25, 2026
 
 RecBuddy ("RecBuddy," "we," "us," or "our") provides a running-training app that
 connects athletes with their coaches. This Privacy Policy explains what we
@@ -62,11 +62,11 @@ your data.
   other than our backend service provider (Supabase) acting on our behalf.
 
 **Communications**
-- Messages, photos, workout cards, reactions, and replies in your conversations:
+- Messages, photos, videos, workout cards, reactions, and replies in your conversations:
   your team chat, 1:1 chats, and group chats
 - Coach–athlete connections you create using invite codes or by accepting a
   coach's request
-- Photos and images you choose to share in chat
+- Photos, videos and images you choose to share in chat
 
 **Safety and moderation**
 - Reports you submit about a message or user: the reason, any details you add,
@@ -129,7 +129,7 @@ We keep your information for as long as your account is active or as needed to
 provide the service. When you delete your account (see below), we delete your
 personal data, except where we are required to retain limited information for
 legal or security reasons. Reports about abusive content are kept after either
-account is deleted, so we can act on them and protect other users.
+account is deleted, so we can act on them and protect other users. Videos you send in chat are deleted from our servers 7 days after they're sent. Copies already saved on a participant's device stay on that device under their control.
 
 ## Your choices and rights
 
