@@ -153,6 +153,21 @@ final class FakeSink: ActivityLogSink {
         #expect(state.pending.map(\.id) == ["r2"])
     }
 
+    @Test func aLaterSyncRefreshesAWaitingActivitysChoices() async {
+        // The plan changed after the first sync (a coach replaced w1, and w2 got
+        // logged by hand): the waiting run must offer today's workouts, not old ids.
+        let p = FakeProvider(); p.samples = [sample("r1")]
+        let s = FakeSink(); s.workouts = [workout("w1", type: "easy"), workout("w2", type: "tempo")]
+        let (c, state) = make(p, s)
+        _ = await c.sync()
+        s.workouts = [workout("w3", type: "easy"), workout("w2", type: "tempo"), workout("w4", type: "long")]
+        s.loggedIds = ["w2"]
+        let newPending = await c.sync()
+        #expect(newPending == 0)   // same activity, not a new one
+        #expect(state.pending.map(\.id) == ["r1"])
+        #expect(state.pending.first?.candidates.map(\.id) == ["w3", "w4"])
+    }
+
     @Test func duplicateRecordingsOfOneRunAutoLogOnce() async {
         // Coros + Watch both wrote the same run; only the richer copy imports.
         let p = FakeProvider()

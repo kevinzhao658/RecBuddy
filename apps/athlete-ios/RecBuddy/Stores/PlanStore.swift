@@ -16,6 +16,8 @@ final class PlanStore {
     private(set) var standaloneByDate: [String: [WorkoutActual]] = [:]
     private(set) var plan: Plan?
     private(set) var monthWorkouts: [String: [Workout]] = [:]
+    /// The month the grid last loaded; refresh() reloads it too.
+    private var loadedMonthAnchor: String?
     var weekMonday: String = Week.mondayOf(Week.todayISO())
 
     var weekDates: [String] { Week.weekDates(mondayIso: weekMonday) }
@@ -135,6 +137,10 @@ final class PlanStore {
             }, by: { Week.localDay(fromTimestamp: $0.recordedAt ?? "") ?? "" })
             phase = .idle
             publishTodaySnapshot()
+            // The month grid has its own cache: reload it too, or a workout
+            // marked done elsewhere (Health confirm, background sync, a coach)
+            // kept its plain dot there until the month changed.
+            if let loadedMonthAnchor { await loadMonth(anchor: loadedMonthAnchor) }
         } catch {
             // Debug builds carry the real reason — the friendly line alone
             // hid what was actually failing.
@@ -149,6 +155,7 @@ final class PlanStore {
     /// Fetch all workouts in the calendar grid for the month containing `anchor`.
     /// Updates monthWorkouts; silently ignores network errors (dots are best-effort).
     func loadMonth(anchor: String) async {
+        loadedMonthAnchor = anchor
         let dates = Week.monthGridDates(anchor: anchor)
         guard let first = dates.first, let last = dates.last else { return }
         do {
