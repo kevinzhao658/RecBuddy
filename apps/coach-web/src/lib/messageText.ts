@@ -35,6 +35,8 @@ export function copyText(m: Message, unit: Unit): string | null {
       const p = (m.payload ?? {}) as Partial<AdjustCard>
       return `Workout adjusted: ${p.from ?? ''} → ${p.to ?? ''}` + (p.reason ? `\n${p.reason}` : '')
     }
+    case 'video':
+      return null // no Copy for videos
     default:
       return m.body ?? null
   }
@@ -46,6 +48,7 @@ const oneLine = (s: string) => s.split(/\r?\n/).filter(Boolean).join(' ')
 export function quotePreview(m: Message): string {
   switch (m.kind) {
     case 'image': return m.body ? `📷 ${oneLine(m.body)}` : '📷 Photo'
+    case 'video': return m.body ? `🎥 ${oneLine(m.body)}` : '🎥 Video'
     case 'runcard': return `Logged run · ${(m.payload as RunCard | null)?.title ?? 'Run'}`
     case 'workout': return `Workout · ${(m.payload as WorkoutCard | null)?.title ?? 'Workout'}`
     case 'adjust': return `Workout adjusted · ${(m.payload as AdjustCard | null)?.to ?? ''}`

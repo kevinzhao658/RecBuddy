@@ -56,3 +56,8 @@ test('starred-only and unread-only filters', () => {
   expect(filterSortReports(rows, { starredOnly: true }, NOW)).toHaveLength(1)
   expect(filterSortReports(rows, { unreadOnly: true }, NOW)[0].starred).toBe(true)
 })
+
+test('videos read as [Video] with their caption', () => {
+  expect(describeMessage({ kind: 'video', body: 'look' })).toBe('[Video] look')
+  expect(describeMessage({ kind: 'video', body: null })).toBe('[Video]')
+})

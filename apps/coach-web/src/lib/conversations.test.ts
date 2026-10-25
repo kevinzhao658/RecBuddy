@@ -49,3 +49,8 @@ test('people can be removed only from a writable group of three or more', () => 
   expect(canRemoveMembers({ ...base, kind: 'team', members: three } as any)).toBe(false)
   expect(canRemoveMembers({ ...base, members: three, read_only: true } as any)).toBe(false)
 })
+
+test('inbox preview for a video', () => {
+  expect(previewLine({ ...base, last_kind: 'video', last_body: null } as any, 'me')).toBe('🎥 Video')
+  expect(previewLine({ ...base, last_kind: 'video', last_body: 'Nice form' } as any, 'me')).toBe('🎥 Nice form')
+})
