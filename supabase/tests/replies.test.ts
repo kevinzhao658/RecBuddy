@@ -107,3 +107,13 @@ describe('message immutability vs. RLS visibility', () => {
     expect(res.error?.message).toMatch(/only the read flag/)
   })
 })
+
+describe('message guard helpers', () => {
+  it("aren't callable through the API, so they can't be used to probe which ids exist", async () => {
+    const u = await createAndSignIn({ role: 'athlete', name: 'Prober' })
+    for (const fn of ['message_row_exists', 'workout_row_exists']) {
+      const { error } = await u.client.rpc(fn, { _id: randomUUID() })
+      expect(error).not.toBeNull()
+    }
+  })
+})
