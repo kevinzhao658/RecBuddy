@@ -57,6 +57,13 @@ final class ConversationsStore {
         await load()
     }
 
+    /// Take someone out of a group (they can be added back later).
+    func remove(threadId: String, userId: String) async throws {
+        try await Supa.shared.rpc("remove_conversation_member",
+                                  params: ["p_thread": threadId, "p_user": userId]).execute()
+        await load()
+    }
+
     func hide(threadId: String) async throws {
         try await Supa.shared.rpc("hide_conversation", params: ["p_thread": threadId]).execute()
         await load()

@@ -152,6 +152,22 @@ import Foundation
     }
 }
 
+@Suite struct ChatPeopleTests {
+    @Test func subtitleCountsEveryoneForTeamsAndGroups() {
+        #expect(ChatPeople.subtitle(isTeam: true, otherCount: 1) == "2 people")
+        #expect(ChatPeople.subtitle(isTeam: true, otherCount: 2) == "3 people")
+        #expect(ChatPeople.subtitle(isTeam: false, otherCount: 3) == "4 people")
+        #expect(ChatPeople.subtitle(isTeam: false, otherCount: 1) == "Private conversation")
+    }
+
+    @Test func onlyWritableGroupsOfThreeCanRemove() {
+        #expect(ChatPeople.canRemove(isTeam: false, otherCount: 2, readOnly: false))
+        #expect(!ChatPeople.canRemove(isTeam: false, otherCount: 1, readOnly: false))
+        #expect(!ChatPeople.canRemove(isTeam: true, otherCount: 3, readOnly: false))
+        #expect(!ChatPeople.canRemove(isTeam: false, otherCount: 3, readOnly: true))
+    }
+}
+
 @Suite struct ChatHeaderMenuTests {
     @Test func renameIsOfferedForTeamChatsAndGroupsNotOneToOnesOrReadOnly() {
         #expect(ChatHeaderMenu.actions(isTeam: true, otherCount: 1, readOnly: false) == [.rename, .details])

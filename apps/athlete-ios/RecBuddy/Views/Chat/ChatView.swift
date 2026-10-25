@@ -83,11 +83,7 @@ struct ChatView: View {
     }
 
     private var chatSubtitle: String {
-        if isChat {
-            let n = (conversation?.members.count ?? max(team.count, 1)) + 1
-            return n <= 2 ? "Private conversation" : "\(n) people"
-        }
-        return team.count > 1 ? "Your coaching team" : (team.first?.title ?? "Head Coach")
+        ChatPeople.subtitle(isTeam: !isChat, otherCount: isChat ? (conversation?.members.count ?? max(team.count, 1)) : team.count)
     }
 
     // ── Session-separator helpers ──────────────────────────────────────────
@@ -458,7 +454,7 @@ struct ChatView: View {
             Task { await store.refreshThread() }
         }) {
             if let id = store.thread?.id {
-                ConversationInfoView(threadId: id, title: chatTitle, me: profile.id,
+                ConversationInfoView(threadId: id, title: chatTitle, me: profile.id, meInitials: profile.initials,
                                      people: team, readOnly: readOnly,
                                      isGroup: isChat && (conversation?.members.count ?? team.count) >= 2,
                                      isTeam: !isChat, startedAt: store.thread?.createdAt,

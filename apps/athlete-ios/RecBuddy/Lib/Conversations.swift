@@ -208,6 +208,20 @@ struct ComposeSelection: Equatable {
 }
 
 /// What tapping a conversation's header (photos or names) offers.
+/// Who's in a conversation, as the header and Chat Details show it.
+enum ChatPeople {
+    /// Everyone counted, me included, for team chats and groups; a 1:1 is private.
+    static func subtitle(isTeam: Bool, otherCount: Int) -> String {
+        !isTeam && otherCount <= 1 ? "Private conversation" : "\(otherCount + 1) people"
+    }
+
+    /// Anyone in a writable group of three or more can remove someone. Team
+    /// chats follow coaching links; a 1:1 has nobody to remove.
+    static func canRemove(isTeam: Bool, otherCount: Int, readOnly: Bool) -> Bool {
+        !isTeam && !readOnly && otherCount >= 2
+    }
+}
+
 enum ChatHeaderMenu {
     enum Action: Equatable { case rename, details }
 
