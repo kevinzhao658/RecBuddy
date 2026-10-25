@@ -16,6 +16,19 @@ export function conversationTitle(c: Conversation): string {
   return firsts.length === 2 ? `${firsts[0]} & ${firsts[1]}` : `${firsts.slice(0, -1).join(', ')} & ${firsts[firsts.length - 1]}`
 }
 
+/** Header subtitle: how many people are in it, me included, for team chats
+ *  and groups alike; a 1:1 is a private conversation. */
+export function conversationSubtitle(c: Conversation): string {
+  const n = c.members.length + 1
+  return c.kind === 'chat' && n <= 2 ? 'Private conversation' : `${n} people`
+}
+
+/** Anyone in a writable group of three or more can remove someone. Team
+ *  chats follow coaching links; a 1:1 has nobody to remove. */
+export function canRemoveMembers(c: Conversation): boolean {
+  return c.kind === 'chat' && !c.read_only && c.members.length >= 2
+}
+
 /** Inbox subtitle, mirrors iOS Conversation.previewLine. */
 export function previewLine(c: Conversation, meId: string): string {
   let content: string

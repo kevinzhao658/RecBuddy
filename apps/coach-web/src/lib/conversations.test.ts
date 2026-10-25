@@ -1,4 +1,4 @@
-import { conversationTitle, previewLine, pendingConversation } from './conversations'
+import { conversationTitle, previewLine, pendingConversation, conversationSubtitle, canRemoveMembers } from './conversations'
 
 const m = (user_id: string, name: string) => ({ user_id, name, initials: 'X', avatar_url: null })
 const base = { thread_id: 't', kind: 'chat', title: null, team_athlete_id: null, members: [] as any[],
@@ -32,4 +32,20 @@ test('pendingConversation builds a header row for a chat with no messages yet', 
     members: [{ user_id: 'a1', name: 'Maya Chen', initials: 'MC', avatar_url: null }],
     last_body: null, last_kind: null, last_from: null, last_at: null, unread: 0, read_only: false,
   })
+})
+
+test('subtitle counts everyone, me included, for team chats and groups; a 1:1 is private', () => {
+  const two = [m('a', 'Dani Brooks')], three = [m('a', 'Dani Brooks'), m('b', 'Marcus Hale')]
+  expect(conversationSubtitle({ ...base, kind: 'team', members: two } as any)).toBe('2 people')
+  expect(conversationSubtitle({ ...base, kind: 'team', members: three } as any)).toBe('3 people')
+  expect(conversationSubtitle({ ...base, members: three } as any)).toBe('3 people')
+  expect(conversationSubtitle({ ...base, members: two } as any)).toBe('Private conversation')
+})
+
+test('people can be removed only from a writable group of three or more', () => {
+  const three = [m('a', 'Dani Brooks'), m('b', 'Marcus Hale')]
+  expect(canRemoveMembers({ ...base, members: three } as any)).toBe(true)
+  expect(canRemoveMembers({ ...base, members: [m('a', 'Dani Brooks')] } as any)).toBe(false)
+  expect(canRemoveMembers({ ...base, kind: 'team', members: three } as any)).toBe(false)
+  expect(canRemoveMembers({ ...base, members: three, read_only: true } as any)).toBe(false)
 })

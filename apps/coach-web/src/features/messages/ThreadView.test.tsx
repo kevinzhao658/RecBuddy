@@ -102,7 +102,7 @@ test('initialWorkout attaches the workout to the next message', () => {
 test('header shows the conversation title, and a read-only thread has no composer', () => {
   setup()
   const { container } = wrap(<ThreadView threadId="th1" conversation={{ ...team, read_only: true }} />)
-  expect(container.querySelector('header')).toHaveTextContent(/^Jordan LeeTeam chat/)
+  expect(container.querySelector('header')).toHaveTextContent(/^Jordan Lee2 people/)
   expect(screen.getByText('This conversation is read-only.')).toBeInTheDocument()
   expect(screen.queryByLabelText('Message')).toBeNull()
 })

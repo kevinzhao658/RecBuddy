@@ -9,7 +9,7 @@ import { ReportDialog, type ReportTarget } from '../chat/ReportDialog'
 import { ConfirmDialog } from '../roster/ConfirmDialog'
 import { supabase } from '../../lib/supabase'
 import { useQueryClient } from '@tanstack/react-query'
-import { conversationTitle } from '../../lib/conversations'
+import { conversationSubtitle, conversationTitle } from '../../lib/conversations'
 import { copyText, quotePreview } from '../../lib/messageText'
 import { copyTextToClipboard, copyImageToClipboard, imageFilesFromClipboard } from '../../lib/clipboard'
 import { useUnit } from '../../lib/useUnit'
@@ -143,8 +143,7 @@ export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialW
     if (next === (conversation?.title ?? '')) return
     rename.mutate({ threadId, title: next }, { onError: () => setModError("Couldn't rename the chat. Try again.") })
   }
-  const subtitle = conversation?.kind === 'team' ? 'Team chat'
-    : (conversation?.members.length ?? 0) > 1 ? `${(conversation?.members.length ?? 0) + 1} people` : 'Private conversation'
+  const subtitle = conversation ? conversationSubtitle(conversation) : ''
 
   // Mark the athlete's unread messages read once the thread opens.
   useEffect(() => { if (threadId) markRead.mutate() }, [threadId]) // eslint-disable-line react-hooks/exhaustive-deps

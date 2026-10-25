@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { Avatar } from '../../components/ui/Avatar'
-import { useAddMembers, useHideConversation, useLeaveConversation, useRenameConversation } from '../../lib/queries/conversations'
-import { conversationTitle, toggleIn } from '../../lib/conversations'
-import type { ChatPerson, Conversation } from '../../lib/types'
+import { useAddMembers, useHideConversation, useLeaveConversation, useRemoveMember, useRenameConversation } from '../../lib/queries/conversations'
+import { useMe } from '../../lib/queries/me'
+import { canRemoveMembers, conversationTitle, toggleIn } from '../../lib/conversations'
+import type { ChatPerson, Conversation, ConversationMember } from '../../lib/types'
 import { PeoplePicker } from './PeoplePicker'
 import { ConfirmDialog } from '../roster/ConfirmDialog'
 
-/** Members, group name (groups and team chats), add people, leave (groups) or hide (1:1). */
+/** Members (counted, me first), group name (groups and team chats), add or
+ *  remove people, leave (groups) or hide (1:1). */
 export function ConversationInfo({ conversation, onClose, onOpenThread, onGone }: {
   conversation: Conversation; onClose: () => void
   /** Adding people to a 1:1 or a team chat starts a NEW group — open it. */
@@ -22,6 +24,10 @@ export function ConversationInfo({ conversation, onClose, onOpenThread, onGone }
   const [picked, setPicked] = useState<ChatPerson[]>([])
   const [error, setError] = useState<string | null>(null)
   const [confirmLeave, setConfirmLeave] = useState(false)
+  const [removing, setRemoving] = useState<ConversationMember | null>(null)
+  const me = useMe().data
+  const remove = useRemoveMember()
+  const canRemove = canRemoveMembers(conversation)
   const rename = useRenameConversation()
   const add = useAddMembers()
   const leave = useLeaveConversation()
@@ -49,11 +55,19 @@ export function ConversationInfo({ conversation, onClose, onOpenThread, onGone }
           </div>
         )}
         <div>
-          <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-faint">People</p>
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-faint">{conversation.members.length + 1} people</p>
+          <div data-testid="person-row" className="flex items-center gap-2 py-1">
+            <Avatar initials={me?.initials ?? ''} url={me?.avatar_url} size="sm" />
+            <span className="text-sm text-text">You</span>
+          </div>
           {conversation.members.map((m) => (
-            <div key={m.user_id} className="flex items-center gap-2 py-1">
+            <div key={m.user_id} data-testid="person-row" className="group/person flex items-center gap-2 py-1">
               <Avatar initials={m.initials} url={m.avatar_url} size="sm" />
-              <span className="text-sm text-text">{m.name}</span>
+              <span className="min-w-0 flex-1 truncate text-sm text-text">{m.name}</span>
+              {canRemove && (
+                <button onClick={() => setRemoving(m)} aria-label={`Remove ${m.name}`}
+                  className="text-xs font-semibold text-text-faint transition hover:text-missed focus-visible:text-missed">Remove</button>
+              )}
             </div>
           ))}
           {!readOnly && !adding && (
@@ -88,6 +102,14 @@ export function ConversationInfo({ conversation, onClose, onOpenThread, onGone }
             : <button onClick={() => hide.mutate(id, { onSuccess: onGone })} className="text-sm font-semibold text-text-mute">Hide conversation</button>}
         </div>
       )}
+      <ConfirmDialog open={!!removing} confirmLabel="Remove"
+        title={removing ? `Remove ${removing.name} from this conversation? They'll stop getting its messages. Anyone here can add them back.` : ''}
+        onCancel={() => setRemoving(null)}
+        onConfirm={() => {
+          const who = removing!
+          setRemoving(null)
+          remove.mutate({ threadId: id, userId: who.user_id }, { onError: () => setError(`Couldn't remove ${who.name}. Try again.`) })
+        }} />
       <ConfirmDialog open={confirmLeave} confirmLabel="Leave"
         title="Leave this conversation? You won't get new messages or see its history."
         onCancel={() => setConfirmLeave(false)}

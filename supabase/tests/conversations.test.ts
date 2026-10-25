@@ -275,6 +275,41 @@ describe('conversation RPCs', () => {
     expect((await athB.client.rpc('leave_conversation', { p_thread: one })).error?.message).toMatch(/hide/)
   })
 
+  it('any member can remove someone from a group; the removed person loses access, the group continues', async () => {
+    const g = (await coachA.client.rpc('start_conversation', { p_user_ids: [athA.id, athB.id, coachB.id], p_title: 'Removers' })).data
+    await coachA.client.from('messages').insert({ thread_id: g, from_user_id: coachA.id, kind: 'text', body: 'before' })
+    // an athlete (not the creator) removes a coach
+    expect((await athB.client.rpc('remove_conversation_member', { p_thread: g, p_user: coachB.id })).error).toBeNull()
+    expect((await coachB.client.from('messages').select('id').eq('thread_id', g)).data ?? []).toEqual([])
+    expect((await coachB.client.from('messages').insert({ thread_id: g, from_user_id: coachB.id, kind: 'text', body: 'hi' })).error).not.toBeNull()
+    const people = (await athA.client.rpc('thread_people', { p_thread: g })).data ?? []
+    expect(people.find((p: any) => p.user_id === coachB.id)?.current).toBe(false)
+    expect((await athA.client.from('messages').insert({ thread_id: g, from_user_id: athA.id, kind: 'text', body: 'still here' })).error).toBeNull()
+  })
+
+  it('removing is refused for outsiders, for yourself, in a 1:1, in a team chat, and below three people', async () => {
+    const g = (await coachA.client.rpc('start_conversation', { p_user_ids: [athA.id, athB.id], p_title: 'Three' })).data
+    expect((await coachC.client.rpc('remove_conversation_member', { p_thread: g, p_user: athA.id })).error).not.toBeNull()
+    expect((await athA.client.rpc('remove_conversation_member', { p_thread: g, p_user: athA.id })).error?.message).toMatch(/leave/)
+    expect((await athA.client.rpc('remove_conversation_member', { p_thread: g, p_user: athB.id })).error).toBeNull()
+    // two left: that's a conversation between two people now
+    expect((await athA.client.rpc('remove_conversation_member', { p_thread: g, p_user: coachA.id })).error?.message).toMatch(/two people/)
+    const one = (await athB.client.rpc('start_conversation', { p_user_ids: [coachA.id] })).data
+    expect((await athB.client.rpc('remove_conversation_member', { p_thread: one, p_user: coachA.id })).error?.message).toMatch(/two people/)
+    const team = (await athA.client.rpc('team_thread_id', { p_athlete: athA.id })).data
+    expect((await coachA.client.rpc('remove_conversation_member', { p_thread: team, p_user: coachB.id })).error?.message).toMatch(/team/)
+  })
+
+  it('a removed person can be added back and sees only messages from after they rejoin', async () => {
+    const g = (await coachA.client.rpc('start_conversation', { p_user_ids: [athA.id, athB.id], p_title: 'Again' })).data
+    await athA.client.rpc('remove_conversation_member', { p_thread: g, p_user: athB.id })
+    await coachA.client.from('messages').insert({ thread_id: g, from_user_id: coachA.id, kind: 'text', body: 'while away' })
+    const back = await coachA.client.rpc('add_conversation_members', { p_thread: g, p_user_ids: [athB.id] })
+    expect(back.error).toBeNull()
+    expect(back.data).toBe(g)
+    expect((await athB.client.from('messages').select('body').eq('thread_id', g)).data ?? []).toEqual([])
+  })
+
   it('an added member does not see messages from before they joined; adding to a 1:1 starts a new group', async () => {
     const g = (await coachA.client.rpc('start_conversation', { p_user_ids: [athA.id, athB.id], p_title: 'History' })).data
     await coachA.client.from('messages').insert({ thread_id: g, from_user_id: coachA.id, kind: 'text', body: 'early' })

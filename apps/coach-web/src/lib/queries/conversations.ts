@@ -94,6 +94,16 @@ function threadAction(rpc: 'leave_conversation' | 'hide_conversation') {
 }
 export const useLeaveConversation = threadAction('leave_conversation')
 export const useHideConversation = threadAction('hide_conversation')
+export function useRemoveMember() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (v: { threadId: string; userId: string }) => {
+      const { error } = await supabase.rpc('remove_conversation_member', { p_thread: v.threadId, p_user: v.userId })
+      if (error) throw error
+    },
+    onSuccess: () => { invalidateInbox(qc); qc.invalidateQueries({ queryKey: ['thread-people'] }) },
+  })
+}
 export function useRenameConversation() {
   const qc = useQueryClient()
   return useMutation({
