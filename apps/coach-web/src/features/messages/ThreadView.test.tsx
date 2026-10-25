@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, within } from '@testing-library/react'
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query'
 import { ThreadView } from './ThreadView'
 import * as chat from '../../lib/queries/chat'
@@ -36,6 +36,10 @@ function wrap(ui: React.ReactNode) {
   return render(<QueryClientProvider client={new QueryClient()}>{ui}</QueryClientProvider>)
 }
 
+/** Open a message's press-and-hold menu (via its keyboard options button). */
+const openMenu = (text: string) =>
+  fireEvent.click(within(screen.getByText(text).closest('.group\\/msg') as HTMLElement).getByRole('button', { name: 'Message options' }))
+
 test('renders the conversation and sends a typed message', () => {
   const { send, markRead } = setup()
   wrap(<ThreadView threadId="th1" conversation={team} />)
@@ -68,16 +72,16 @@ test('messages get a Copy action that writes the text to the clipboard', async (
   const writeText = vi.fn().mockResolvedValue(undefined)
   Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
   wrap(<ThreadView threadId="th1" conversation={team} />)
-  fireEvent.contextMenu(screen.getByText('hey coach'))
-  fireEvent.click(screen.getAllByRole('button', { name: 'Copy' })[0])
+  openMenu('hey coach')
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Copy' }))
   expect(writeText).toHaveBeenCalledWith('hey coach')
 })
 
 test('Reply: shows the reply bar and sends with reply_to_id, then clears', () => {
   const { send } = setup()
   wrap(<ThreadView threadId="th1" conversation={team} />)
-  fireEvent.contextMenu(screen.getByText('hey coach'))
-  fireEvent.click(screen.getAllByRole('button', { name: 'Reply' })[0])
+  openMenu('hey coach')
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Reply' }))
   expect(screen.getByText('Replying to Jordan Lee')).toBeInTheDocument()
   fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'on it' } })
   fireEvent.click(screen.getByRole('button', { name: /send message/i }))
@@ -115,9 +119,9 @@ test("other people's messages offer Report and Block; Block confirms then blocks
   setup()
   const block = vi.spyOn(modMod, 'blockUser').mockResolvedValue(undefined)
   wrap(<ThreadView threadId="th1" conversation={team} />)
-  fireEvent.contextMenu(screen.getByText('hey coach'))
-  expect(screen.getAllByRole('button', { name: 'Report' }).length).toBeGreaterThan(0)
-  fireEvent.click(screen.getAllByRole('button', { name: 'Block Jordan Lee' })[0])
+  openMenu('hey coach')
+  expect(screen.getByRole('menuitem', { name: 'Report message' })).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Block Jordan Lee' }))
   fireEvent.click(screen.getByRole('button', { name: 'Block' }))
   await vi.waitFor(() => expect(block).toHaveBeenCalledWith(expect.anything(), 'a1'))
 })
@@ -130,8 +134,8 @@ test('blocking the athlete in their team chat refreshes the roster and closes th
   const invalidate = vi.spyOn(qc, 'invalidateQueries')
   const onGone = vi.fn()
   render(<QueryClientProvider client={qc}><ThreadView threadId="th1" conversation={team} onGone={onGone} /></QueryClientProvider>)
-  fireEvent.contextMenu(screen.getByText('hey coach'))
-  fireEvent.click(screen.getAllByRole('button', { name: 'Block Jordan Lee' })[0])
+  openMenu('hey coach')
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Block Jordan Lee' }))
   fireEvent.click(screen.getByRole('button', { name: 'Block' }))
   await vi.waitFor(() => expect(onGone).toHaveBeenCalled())
   const keys = invalidate.mock.calls.map((c) => (c[0] as any).queryKey[0])
@@ -175,8 +179,10 @@ test('a 1:1 or read-only thread cannot be renamed from the header', () => {
 test('read-only: no Reply, but existing reactions still show (view-only)', () => {
   setup()
   wrap(<ThreadView threadId="th1" conversation={{ ...team, read_only: true }} />)
-  expect(screen.queryAllByRole('button', { name: 'Reply' })).toHaveLength(0)
-  expect(screen.getAllByRole('button', { name: 'Copy' }).length).toBeGreaterThan(0)
+  openMenu('hey coach')
+  expect(screen.queryByRole('menuitem', { name: 'Reply' })).toBeNull()
+  expect(screen.getByRole('menuitem', { name: 'Copy' })).toBeInTheDocument()
+  fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' })
   expect(screen.getByLabelText('Like, 1: You')).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: /^Like/ })).toBeNull()
 })

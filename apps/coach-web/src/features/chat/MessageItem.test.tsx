@@ -94,30 +94,106 @@ test('renders nothing for a legacy javascript: url (XSS guard)', () => {
   expect(screen.queryByRole('link')).toBeNull()
 })
 
-test('action bar: only press-and-hold opens it, and Copy runs the action', async () => {
+const hold = (el: Element) => { fireEvent.pointerDown(el); act(() => { vi.advanceTimersByTime(500) }) }
+
+test('menu: only press-and-hold opens it; the bubble presses in, then pops into focus', () => {
   vi.useFakeTimers()
-  const onClick = vi.fn()
-  render(<MessageItem mine={false} actions={[{ key: 'copy', label: 'Copy', doneLabel: 'Copied', onClick }]}
+  render(<MessageItem mine={false} actions={[{ key: 'copy', label: 'Copy', onClick: vi.fn() }]}
     m={{ ...base, kind: 'text', body: 'copy me', payload: null } as any} />)
-  const bar = screen.getByRole('toolbar', { name: 'Message actions' })
   const bubble = screen.getByText('copy me')
+  const wrap = bubble.closest('.group\\/msg')!
   // hover, right-click, and a quick click don't open it
   fireEvent.mouseEnter(bubble)
   fireEvent.contextMenu(bubble)
-  fireEvent.pointerDown(bubble); act(() => { vi.advanceTimersByTime(200) }); fireEvent.pointerUp(bubble)
+  fireEvent.pointerDown(bubble)
+  expect(wrap.getAttribute('data-pressing')).toBe('true')
+  act(() => { vi.advanceTimersByTime(200) }); fireEvent.pointerUp(bubble)
+  expect(wrap.getAttribute('data-pressing')).toBeNull()
   act(() => { vi.advanceTimersByTime(1000) })
-  expect(bar.className).toMatch(/opacity-0/)
-  expect(bar.className).not.toMatch(/group-hover/)
-  // holding does
-  fireEvent.pointerDown(bubble); act(() => { vi.advanceTimersByTime(500) })
-  expect(bar.className).toMatch(/opacity-100/)
-  // jsdom lays nothing out, so there's no room beside: it overlaps the top edge.
-  expect(bar.style.top).toBe('-12px')
-  fireEvent.pointerUp(bubble)
+  expect(screen.queryByRole('menu')).toBeNull()
+  // holding does: a dimmed backdrop, a lifted copy of the bubble, and the menu
+  hold(bubble)
+  expect(screen.getByRole('menu', { name: 'Message actions' })).toBeInTheDocument()
+  expect(screen.getByTestId('message-focus-backdrop')).toBeInTheDocument()
+  expect(screen.getByTestId('message-focus-preview')).toHaveTextContent('copy me')
   vi.useRealTimers()
-  fireEvent.click(screen.getByRole('button', { name: 'Copy' }))
-  expect(onClick).toHaveBeenCalled()
-  expect(await screen.findByRole('button', { name: 'Copied' })).toBeInTheDocument()
+})
+
+test('menu: an item runs its action and closes; Copy shows Copied first', async () => {
+  vi.useFakeTimers()
+  const reply = vi.fn(), copy = vi.fn()
+  render(<MessageItem mine={false} actions={[
+    { key: 'reply', label: 'Reply', icon: 'reply', onClick: reply },
+    { key: 'copy', label: 'Copy', icon: 'copy', doneLabel: 'Copied', onClick: copy },
+  ]} m={{ ...base, kind: 'text', body: 'hold me', payload: null } as any} />)
+  hold(screen.getByText('hold me'))
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Reply' }))
+  expect(reply).toHaveBeenCalled()
+  expect(screen.queryByRole('menu')).toBeNull()
+  hold(screen.getByText('hold me'))
+  await act(async () => { fireEvent.click(screen.getByRole('menuitem', { name: 'Copy' })) })
+  expect(copy).toHaveBeenCalled()
+  expect(screen.getByRole('menuitem', { name: 'Copied' })).toBeInTheDocument()
+  act(() => { vi.advanceTimersByTime(1000) })
+  expect(screen.queryByRole('menu')).toBeNull()
+  vi.useRealTimers()
+})
+
+test('menu: clicking the backdrop or pressing Escape closes it', () => {
+  vi.useFakeTimers()
+  render(<MessageItem mine={false} actions={[{ key: 'reply', label: 'Reply', onClick: vi.fn() }]}
+    m={{ ...base, kind: 'text', body: 'close me', payload: null } as any} />)
+  hold(screen.getByText('close me'))
+  fireEvent.click(screen.getByTestId('message-focus-backdrop'))
+  expect(screen.queryByRole('menu')).toBeNull()
+  hold(screen.getByText('close me'))
+  fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' })
+  expect(screen.queryByRole('menu')).toBeNull()
+  vi.useRealTimers()
+})
+
+test('menu: the emoji row reacts, mine are marked, and Remove rows take mine off', () => {
+  vi.useFakeTimers()
+  const onReact = vi.fn()
+  const reactions = [{ kind: 'like', emoji: '👍', label: 'Like', count: 1, mine: true, names: ['You'] }] as any
+  render(<MessageItem mine={false} actions={[{ key: 'reply', label: 'Reply', onClick: vi.fn() }]}
+    reactions={reactions} onReact={onReact}
+    m={{ ...base, kind: 'text', body: 'react to me', payload: null } as any} />)
+  hold(screen.getByText('react to me'))
+  const row = screen.getByRole('group', { name: 'Reactions' })
+  expect(row.querySelectorAll('button')).toHaveLength(5)
+  expect(screen.getByRole('button', { name: 'Like' })).toHaveAttribute('aria-pressed', 'true')
+  fireEvent.click(screen.getByRole('button', { name: 'Laugh' }))
+  expect(onReact).toHaveBeenCalledWith('laugh')
+  expect(screen.queryByRole('menu')).toBeNull()
+  hold(screen.getByText('react to me'))
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Remove 👍' }))
+  expect(onReact).toHaveBeenLastCalledWith('like')
+  vi.useRealTimers()
+})
+
+test('menu: using it does not leave all five chips open under the bubble', () => {
+  vi.useFakeTimers()
+  render(<MessageItem mine={false} actions={[{ key: 'reply', label: 'Reply', onClick: vi.fn() }]} onReact={vi.fn()}
+    m={{ ...base, kind: 'text', body: 'stay tidy', payload: null } as any} />)
+  hold(screen.getByText('stay tidy'))
+  fireEvent.focus(screen.getByRole('menuitem', { name: 'Reply' }))
+  fireEvent.click(screen.getByTestId('message-focus-backdrop'))
+  expect(screen.queryByRole('button', { name: 'Laugh' })).toBeNull()
+  vi.useRealTimers()
+})
+
+test('menu: destructive items are marked and a divider sets off the report group', () => {
+  vi.useFakeTimers()
+  render(<MessageItem mine={false} actions={[
+    { key: 'reply', label: 'Reply', onClick: vi.fn() },
+    { key: 'report', label: 'Report message', separated: true, onClick: vi.fn() },
+    { key: 'block', label: 'Block Maya', destructive: true, onClick: vi.fn() },
+  ]} m={{ ...base, kind: 'text', body: 'mod me', payload: null } as any} />)
+  hold(screen.getByText('mod me'))
+  expect(screen.getAllByRole('separator')).toHaveLength(1)
+  expect(screen.getByRole('menuitem', { name: 'Block Maya' }).className).toMatch(/text-missed/)
+  vi.useRealTimers()
 })
 
 test('no action bar on rolled-up placeholders or when there are no actions', () => {
@@ -164,12 +240,15 @@ test('reactions: used chips show under the bubble; hovering reveals all five; cl
   expect(screen.queryByRole('button', { name: 'Laugh' })).toBeNull()
 })
 
-test('keyboard: tabbing into the message shows all five reactions so a first one can be added', () => {
+test('keyboard: the hidden options button opens the menu and focuses its first item', () => {
   const onReact = vi.fn()
   render(<MessageItem mine={false} actions={[{ key: 'copy', label: 'Copy', onClick: vi.fn() }]} onReact={onReact}
     m={{ ...base, kind: 'text', body: 'tab to me', payload: null } as any} />)
   expect(screen.queryByRole('button', { name: 'Laugh' })).toBeNull()
-  fireEvent.focus(screen.getByRole('button', { name: 'Copy' }))
-  fireEvent.click(screen.getByRole('button', { name: 'Laugh' }))
-  expect(onReact).toHaveBeenCalledWith('laugh')
+  const opts = screen.getByRole('button', { name: 'Message options' })
+  fireEvent.focus(opts)
+  // focusing the message also reveals all five chips under it
+  expect(screen.getByRole('button', { name: 'Laugh' })).toBeInTheDocument()
+  fireEvent.click(opts)
+  expect(screen.getByRole('menuitem', { name: 'Copy' })).toHaveFocus()
 })

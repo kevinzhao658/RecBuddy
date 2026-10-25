@@ -1,6 +1,6 @@
-import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
+import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import type { Message, RunCard, AdjustCard, WorkoutCard, ImageCard, WorkoutQuote } from '../../lib/types'
-import { MessageActions, actionBarPosition, type MessageAction } from './MessageActions'
+import { MessageMenu, type MessageAction } from './MessageMenu'
 import { ReactionChips } from './ReactionChips'
 import type { ReactionSummary } from '../../lib/reactions'
 import type { ReactionKind } from '../../lib/types'
@@ -147,7 +147,7 @@ export function MessageItem({ m, mine, sender, showName, showAvatar, grouped, su
   m: Message; mine: boolean; sender?: Sender; showName?: boolean; showAvatar?: boolean
   grouped?: boolean; superseded?: boolean; domId?: string
   onJumpToLatest?: () => void; onOpenWorkout?: (date: string, workoutId?: string) => void
-  /** Copy / Reply / … — shown in a hover bar, or on right-click / long-press. */
+  /** Reply / Copy / Report … — the press-and-hold menu. */
   actions?: MessageAction[]
   quote?: Quote
   /** Briefly true after jumping here from a reply quote. */
@@ -156,32 +156,23 @@ export function MessageItem({ m, mine, sender, showName, showAvatar, grouped, su
   reactions?: ReactionSummary[]
   onReact?: (kind: ReactionKind) => void
 }) {
-  const [menuOpen, setMenuOpen] = useState(false)
+  // The open menu and the bubble it lifts; 'keyboard' puts focus on its first item.
+  const [menu, setMenu] = useState<null | { by: 'pointer' | 'keyboard'; source: HTMLElement }>(null)
+  const openMenu = (by: 'pointer' | 'keyboard') => { if (bubbleRef.current) setMenu({ by, source: bubbleRef.current }) }
+  const menuOpen = menu !== null
+  const closeMenu = useCallback(() => setMenu(null), [])
   const [hovered, setHovered] = useState(false)
-  // The bar is placed against the bubble itself (not the far edge of the
-  // panel), so measure both once it's about to show.
-  const wrapRef = useRef<HTMLDivElement>(null)
   const bubbleRef = useRef<HTMLDivElement>(null)
-  const barRef = useRef<HTMLDivElement>(null)
-  const [barStyle, setBarStyle] = useState<CSSProperties>()
-  useLayoutEffect(() => {
-    const wrap = wrapRef.current, bubble = bubbleRef.current?.firstElementChild, bar = barRef.current
-    if (!menuOpen || !wrap || !bubble || !bar) return
-    const w = wrap.getBoundingClientRect(), b = bubble.getBoundingClientRect(), r = bar.getBoundingClientRect()
-    setBarStyle(actionBarPosition({
-      wrapperWidth: w.width,
-      bubble: { left: b.left - w.left, right: b.right - w.left, top: b.top - w.top, height: b.height },
-      bar: { width: r.width, height: r.height },
-      mine,
-    }))
-  }, [menuOpen, mine])
-  // Press and hold (mouse or touch) opens the bar; a quick click doesn't.
+  const optionsRef = useRef<HTMLButtonElement>(null)
+  // Press and hold (mouse or touch) opens the menu; a quick click doesn't. The
+  // bubble sinks a little while held, then pops out into focus.
+  const [pressing, setPressing] = useState(false)
   const holdTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  const cancelHold = () => clearTimeout(holdTimer.current)
-  useLayoutEffect(() => cancelHold, [])
+  const cancelHold = () => { clearTimeout(holdTimer.current); setPressing(false) }
+  useLayoutEffect(() => () => clearTimeout(holdTimer.current), [])
   const [focused, setFocused] = useState(false)
   const chips = !superseded && (onReact || reactions.length)
-    ? <ReactionChips items={reactions} onToggle={onReact} showAll={hovered || menuOpen || focused} />
+    ? <ReactionChips items={reactions} onToggle={onReact} showAll={!menuOpen && (hovered || focused)} />
     : null
   // A newer card for the same workout exists below — roll this one up into a
   // compact placeholder that jumps the chat to that newest card.
@@ -213,26 +204,37 @@ export function MessageItem({ m, mine, sender, showName, showAvatar, grouped, su
     <AdjustCardView p={m.payload as AdjustCard} />
   )
 
-  // Bubble + its action bar. Pressing and holding the message opens the bar;
-  // leaving the message (or Escape) closes it.
+  // Bubble + its press-and-hold menu. Holding the message opens it; Escape or
+  // a click outside closes it.
   const withActions = actions.length && !superseded ? (
-    <div ref={wrapRef} className={`group/msg relative flex w-full flex-col ${mine ? 'items-end' : 'items-start'}`}
+    <div className={`group/msg relative flex w-full flex-col ${mine ? 'items-end' : 'items-start'}`}
+      data-pressing={pressing || undefined}
       onContextMenu={(e) => e.preventDefault()}
       onPointerDown={(e) => {
-        if (e.button !== 0 || (e.target as Element).closest('[role="toolbar"]')) return
-        cancelHold(); holdTimer.current = setTimeout(() => setMenuOpen(true), HOLD_MS)
+        // React bubbles events up from the menu's portal; only the message itself counts.
+        if (e.button !== 0 || menuOpen || !e.currentTarget.contains(e.target as Node)) return
+        cancelHold(); setPressing(true)
+        holdTimer.current = setTimeout(() => { setPressing(false); openMenu('pointer') }, HOLD_MS)
       }}
       onPointerUp={cancelHold} onPointerCancel={cancelHold}
       onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => { cancelHold(); setMenuOpen(false); setHovered(false) }}
-      onKeyDown={(e) => { if (e.key === 'Escape') setMenuOpen(false) }}
-      // Keyboard: tabbing into the message's actions also reveals every reaction.
-      onFocus={() => setFocused(true)}
+      onMouseLeave={() => { cancelHold(); setHovered(false) }}
+      // Keyboard: tabbing into the message reveals every reaction and the options button.
+      onFocus={(e) => { if (e.currentTarget.contains(e.target as Node)) setFocused(true) }}
       onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false) }}>
-      <MessageActions ref={barRef} actions={actions} open={menuOpen} style={barStyle} />
+      <button ref={optionsRef} type="button" aria-label="Message options" onClick={() => openMenu('keyboard')}
+        className={`sr-only focus:not-sr-only focus:absolute focus:top-0 focus:z-10 focus:rounded-full focus:border focus:border-line focus:bg-surface2 focus:px-2.5 focus:py-1 focus:text-xs focus:text-text
+          ${mine ? 'focus:left-0' : 'focus:right-0'}`}>•••</button>
       {quote && !superseded && <QuoteView q={quote} />}
-      <div ref={bubbleRef} className={`flex w-full flex-col ${mine ? 'items-end' : 'items-start'}`}>{body}</div>
+      <div ref={bubbleRef}
+        style={menuOpen ? { visibility: 'hidden' } : undefined}
+        className={`flex w-full flex-col transition-transform duration-[450ms] ease-out motion-reduce:transition-none ${mine ? 'items-end origin-right' : 'items-start origin-left'} ${pressing ? 'scale-[0.97]' : ''}`}>{body}</div>
       {chips}
+      {menu && (
+        <MessageMenu source={menu.source} actions={actions} reactions={reactions} onReact={onReact} mine={mine}
+          focusFirst={menu.by === 'keyboard'}
+          onClose={() => { const back = menu.by === 'keyboard'; closeMenu(); if (back) optionsRef.current?.focus() }} />
+      )}
     </div>
   ) : (
     <>

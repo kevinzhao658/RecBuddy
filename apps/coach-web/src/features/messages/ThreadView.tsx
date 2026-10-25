@@ -14,7 +14,7 @@ import { copyText, quotePreview } from '../../lib/messageText'
 import { copyTextToClipboard, copyImageToClipboard, imageFilesFromClipboard } from '../../lib/clipboard'
 import { useUnit } from '../../lib/useUnit'
 import type { Conversation, Message, ImageCard, Workout } from '../../lib/types'
-import type { MessageAction } from '../chat/MessageActions'
+import type { MessageAction } from '../chat/MessageMenu'
 import { latestCardIds, supersededCardIds } from '../../lib/runcardRollup'
 import { MessageItem, type Sender } from '../chat/MessageItem'
 import { ArrowLeftIcon } from '../../components/ui/FormIcons'
@@ -93,21 +93,21 @@ export function ThreadView({ threadId, conversation, onOpenDay, onInfo, initialW
   const [workoutQuote, setWorkoutQuote] = useState(initialWorkout ?? null)
   const [highlightId, setHighlightId] = useState<string | null>(null)
 
-  /** Per-message actions (hover bar / right-click / long-press). */
+  /** Per-message actions for the press-and-hold menu, in the iOS menu's order and wording. */
   const actionsFor = (m: Message): MessageAction[] => {
     // No Reply where nothing can be sent.
-    const out: MessageAction[] = readOnly ? [] : [{ key: 'reply', label: 'Reply', onClick: () => startReply(m) }]
+    const out: MessageAction[] = readOnly ? [] : [{ key: 'reply', label: 'Reply', icon: 'reply', onClick: () => startReply(m) }]
     const text = copyText(m, unit)
-    if (text) out.push({ key: 'copy', label: 'Copy', doneLabel: 'Copied', onClick: () => copyTextToClipboard(text) })
+    if (text) out.push({ key: 'copy', label: 'Copy', icon: 'copy', doneLabel: 'Copied', onClick: () => copyTextToClipboard(text) })
     const img = m.kind === 'image' ? (m.payload as ImageCard | null) : null
     if (img?.path || (img?.url && /^https:\/\//i.test(img.url))) {
-      out.push({ key: 'copy-image', label: 'Copy image', doneLabel: 'Copied', onClick: async () =>
+      out.push({ key: 'copy-image', label: 'Copy Photo', icon: 'photo', doneLabel: 'Copied', onClick: async () =>
         copyImageToClipboard(img.path ? await signedChatImageUrl(img.path) : img.url!) })
     }
     if (m.from_user_id !== meId) {
       const name = senders[m.from_user_id]?.name ?? 'this person'
-      out.push({ key: 'report', label: 'Report', onClick: () => setReportTarget({ userId: m.from_user_id, userName: name, messageId: m.id }) })
-      out.push({ key: 'block', label: `Block ${name}`, onClick: () => setBlockTarget({ userId: m.from_user_id, userName: name }) })
+      out.push({ key: 'report', label: 'Report message', icon: 'report', separated: true, onClick: () => setReportTarget({ userId: m.from_user_id, userName: name, messageId: m.id }) })
+      out.push({ key: 'block', label: `Block ${name}`, icon: 'block', destructive: true, onClick: () => setBlockTarget({ userId: m.from_user_id, userName: name }) })
     }
     return out
   }
