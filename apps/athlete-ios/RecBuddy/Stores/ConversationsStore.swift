@@ -74,7 +74,8 @@ final class ConversationsStore {
     func subscribe(me: String) async {
         await unsubscribe()
         let ch = Supa.shared.channel("inbox:\(me)")
-        let messages = ch.postgresChange(InsertAction.self, schema: "public", table: "messages")
+        // New, edited and deleted messages all change a chat's preview line.
+        let messages = ch.postgresChange(AnyAction.self, schema: "public", table: "messages")
         let membership = ch.postgresChange(AnyAction.self, schema: "public", table: "thread_members",
                                            filter: .eq("user_id", value: me))
         try? await ch.subscribeWithError()

@@ -77,6 +77,8 @@ export interface Message {
   /** Videos only: when the server copy is deleted, and when it was. */
   expires_at?: string | null
   media_purged_at?: string | null
+  /** Set when the sender edited the text or caption. */
+  edited_at?: string | null
 }
 
 // ── Conversations + reactions (mirror iOS Lib/Conversations.swift) ──────────

@@ -50,6 +50,10 @@ struct ChatView: View {
     // calendar ("Message coach about this"), and the row briefly highlighted
     // after jumping to an original from its quote.
     @State private var replyingTo: Message?
+    /// Editing one of my messages: the composer holds its text; `draft` is what
+    /// I was typing before, restored when the edit is saved or cancelled.
+    @State private var editing: (message: Message, draft: String)?
+    @State private var pendingDelete: Message?
     @State private var workoutQuote: WorkoutQuote?
     @State private var highlightedId: String?
     @State private var reactionsFor: String?          // message id whose who-reacted sheet is open
@@ -318,6 +322,9 @@ struct ChatView: View {
                         .padding(.top, 8)
                         .padding(.bottom, 12)
                     }
+                    // Short threads sit at the bottom, so older messages slide
+                    // down when a newer one is deleted.
+                    .defaultScrollAnchor(.bottom)
                     .refreshable { await reopen() }
                     // Drag follows the finger to tuck the keyboard away; a plain
                     // tap on the thread dismisses it too. Buttons inside message
@@ -325,6 +332,12 @@ struct ChatView: View {
                     .scrollDismissesKeyboard(.interactively)
                     .onTapGesture { composerFocused = false }
                     .onChange(of: store.messages.count) {
+                        if let last = store.messages.last?.id {
+                            withAnimation { proxy.scrollTo(last, anchor: .bottom) }
+                        }
+                    }
+                    // Editing my last message adds its "Edited" tag below the bubble.
+                    .onChange(of: store.messages.last?.editedAt) {
                         if let last = store.messages.last?.id {
                             withAnimation { proxy.scrollTo(last, anchor: .bottom) }
                         }
@@ -384,6 +397,15 @@ struct ChatView: View {
         }
         .sheet(item: $reportTarget) { target in
             ReportSheet(target: target) { await afterBlock() }
+        }
+        .confirmationDialog("Delete this message?",
+            isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
+            titleVisibility: .visible, presenting: pendingDelete
+        ) { m in
+            Button("Delete", role: .destructive) { Task { await deleteMessage(m) } }
+            Button("Cancel", role: .cancel) {}
+        } message: { _ in
+            Text("It's removed for everyone in this conversation.")
         }
         .confirmationDialog(
             pendingBlock.map { "Block \($0.userName)?" } ?? "",
@@ -551,12 +573,19 @@ struct ChatView: View {
 
     /// Nothing to send: no staged photos and an empty draft.
     private var sendDisabled: Bool {
-        busy || preparingVideo
+        if let editing { return busy || !MessageMenu.canSaveEdit(kind: editing.message.kind, draft: draft) }
+        return busy || preparingVideo
             || (staged.isEmpty && stagedVideo == nil && draft.trimmingCharacters(in: .whitespaces).isEmpty)
     }
 
     private var inputBar: some View {
         VStack(alignment: .leading, spacing: 8) {
+            if let editing {
+                composerContext(
+                    title: "Editing message",
+                    detail: MessageText.quotePreview(editing.message, unit: unit),
+                    clearLabel: "Cancel edit") { endEdit() }
+            }
             if let replyingTo {
                 composerContext(
                     title: "Replying to \(authorName(replyingTo))",
@@ -650,7 +679,7 @@ struct ChatView: View {
                         .font(.system(size: 20))
                         .foregroundStyle(busy || staged.count >= Self.maxPhotos ? RB.textFaint : RB.textMute)
                 }
-                .disabled(busy || staged.count >= Self.maxPhotos)
+                .disabled(busy || editing != nil || staged.count >= Self.maxPhotos)
                 .accessibilityLabel("Attach photos or a video")
 
                 ComposerTextView(text: $draft, isFocused: $composerFocused,
@@ -680,13 +709,13 @@ struct ChatView: View {
                         Circle()
                             .fill(sendDisabled ? RB.surface2 : RB.accent)
                             .frame(width: 36, height: 36)
-                        Image(systemName: "arrow.up")
+                        Image(systemName: editing == nil ? "arrow.up" : "checkmark")
                             .font(.system(size: 14, weight: .bold))
                             .foregroundStyle(sendDisabled ? RB.textMute : RB.onAccent)
                     }
                 }
                 .disabled(sendDisabled)
-                .accessibilityLabel("Send message")
+                .accessibilityLabel(editing == nil ? "Send message" : "Save edit")
             }
         }
     }
@@ -733,6 +762,14 @@ struct ChatView: View {
             } label: {
                 Label("Copy Photo", systemImage: "photo.on.rectangle")
             }
+        }
+        if MessageMenu.showsEdit(kind: m.kind, mine: m.fromUserId == profile.id, readOnly: readOnly) {
+            Button { startEdit(m) } label: { Label("Edit", systemImage: "pencil") }
+        }
+        if MessageMenu.showsDelete(mine: m.fromUserId == profile.id) {
+            Divider()
+            Button(role: .destructive) { pendingDelete = m } label: { Label("Delete", systemImage: "trash") }
+                .tint(.red)   // the app-wide lime accent would tint the icon
         }
         // Report / Block (App Store 1.2) for other people's messages.
         if m.fromUserId != profile.id {
@@ -798,7 +835,41 @@ struct ChatView: View {
 
     // ── Send action ────────────────────────────────────────────────────────
 
+    private func startEdit(_ m: Message) {
+        editing = (m, editing?.draft ?? draft)
+        draft = m.body ?? ""
+        replyingTo = nil
+        composerFocused = true
+    }
+
+    private func endEdit() {
+        draft = editing?.draft ?? ""
+        editing = nil
+    }
+
+    private func deleteMessage(_ m: Message) async {
+        if editing?.message.id == m.id { endEdit() }
+        if replyingTo?.id == m.id { replyingTo = nil }
+        do { try await store.delete(messageId: m.id) }
+        catch { sendError = "Couldn't delete that message — try again." }
+    }
+
     private func send() async {
+        if let editing {
+            let body = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard MessageMenu.canSaveEdit(kind: editing.message.kind, draft: body) else { return }
+            busy = true
+            defer { busy = false }
+            do {
+                if body != (editing.message.body ?? "") {
+                    try await store.edit(messageId: editing.message.id, body: body)
+                }
+                endEdit()
+            } catch {
+                sendError = "Couldn't save your edit — try again."
+            }
+            return
+        }
         let body = draft.trimmingCharacters(in: .whitespaces)
         busy = true
         sendError = nil

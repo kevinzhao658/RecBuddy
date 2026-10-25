@@ -260,3 +260,8 @@ test('a tall photo shows at thumbnail size, not full size', () => {
   expect(img.style.width).toBe('180px')
   expect(img.style.height).toBe('320px')
 })
+
+test('an edited message says so', () => {
+  render(<MessageItem mine m={{ ...base, kind: 'text', body: 'fixed typo', payload: null, edited_at: '2026-06-01T10:05:00Z' } as any} />)
+  expect(screen.getByText('Edited')).toBeInTheDocument()
+})

@@ -168,8 +168,11 @@ struct Message: Codable, Identifiable, Equatable {
     /// Videos only: when the server copy is deleted, and when it was.
     var expiresAt: String? = nil
     var mediaPurgedAt: String? = nil
+    /// Set when the sender edited the text or caption.
+    var editedAt: String? = nil
     enum CodingKeys: String, CodingKey {
         case id, kind, body, payload, read
+        case editedAt = "edited_at"
         case expiresAt = "expires_at"
         case mediaPurgedAt = "media_purged_at"
         case threadId = "thread_id"

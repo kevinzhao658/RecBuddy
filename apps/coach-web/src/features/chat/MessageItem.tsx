@@ -134,6 +134,10 @@ function AdjustCardView({ p }: { p: AdjustCard }) {
   )
 }
 
+function EditedTag({ mine }: { mine: boolean }) {
+  return <span className={`mt-0.5 px-1 text-[10px] text-text-faint ${mine ? 'self-end' : 'self-start'}`}>Edited</span>
+}
+
 /** One message row.
  *  - `mine` (signed-in coach): right-aligned lime bubble, no avatar/name.
  *  - others: avatar to the LEFT (on the last message of a run) + name ABOVE
@@ -235,6 +239,7 @@ export function MessageItem({ m, mine, sender, showName, showAvatar, grouped, su
       <div ref={bubbleRef}
         style={menuOpen ? { visibility: 'hidden' } : undefined}
         className={`flex w-full flex-col transition-transform duration-[450ms] ease-out motion-reduce:transition-none ${mine ? 'items-end origin-right' : 'items-start origin-left'} ${pressing ? 'scale-[0.97]' : ''}`}>{body}</div>
+      {m.edited_at && !superseded && <EditedTag mine={mine} />}
       {chips}
       {menu && (
         <MessageMenu source={menu.source} actions={actions} reactions={reactions} onReact={onReact} mine={mine}
@@ -246,6 +251,7 @@ export function MessageItem({ m, mine, sender, showName, showAvatar, grouped, su
     <>
       {quote && !superseded && <QuoteView q={quote} />}
       {body}
+      {m.edited_at && !superseded && <EditedTag mine={mine} />}
     </>
   )
   const flash = highlighted ? 'rounded-[12px] bg-accent/15' : 'bg-transparent'

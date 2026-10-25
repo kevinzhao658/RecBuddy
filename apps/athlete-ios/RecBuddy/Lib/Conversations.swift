@@ -258,6 +258,17 @@ enum MessageMenu {
     /// No Reply where nothing can be sent.
     static func showsReply(readOnly: Bool) -> Bool { !readOnly }
 
+    /// Your own text, or a photo/video caption; logged-run and workout cards stay as they are.
+    static func showsEdit(kind: String, mine: Bool, readOnly: Bool) -> Bool {
+        mine && !readOnly && ["text", "image", "video"].contains(kind)
+    }
+    /// Only the sender can delete a message (for everyone, any time).
+    static func showsDelete(mine: Bool) -> Bool { mine }
+    /// A text message needs words; a caption can be cleared.
+    static func canSaveEdit(kind: String, draft: String) -> Bool {
+        kind != "text" || !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     /// Block confirmation: blocking a coach also ends coaching; anyone else
     /// is just muted and kept out of your chats.
     static func blockMessage(name: String, isCoach: Bool) -> String {
