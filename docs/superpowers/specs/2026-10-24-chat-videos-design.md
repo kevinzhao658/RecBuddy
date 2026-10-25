@@ -2,7 +2,7 @@
 
 **Date:** 2026-10-24
 **Branch:** `feat/chat-videos` (off `feat/chat-enhancements`, PR #68)
-**Status:** draft for Kevin's review
+**Status:** approved by Kevin 2026-10-24
 
 ## Why
 
@@ -72,7 +72,7 @@ Athletes and coaches want to send short clips in chat, like a stride, a drill or
 - A daily `pg_cron` job (enable the extension in a migration) uses `pg_net` to call a new edge function, `purge-chat-videos`, with the service-role key.
 - The function finds video messages where `expires_at < now()` and `media_purged_at is null`, deletes their files through the Storage API (not a SQL delete, which would leave the files behind), and sets `media_purged_at`.
 - It handles 500 messages per run and repeats until none are left.
-- **Report hold:** a video on a message with an **open** report is skipped until the report is resolved, so admins still have the evidence. *(My call.)*
+- **Report hold:** a video on a message with an **open** report is skipped until the report is resolved, so admins still have the evidence. *(Kevin: hold them.)*
 - `admin-action`'s "remove message" deletes the video and poster files the same way it handles photos today (`admin-action/index.ts:62`), and makes the same owner check, extended to `chat-videos`.
 - `notify-report/render.ts` shows `[Video: chat-videos/<path>]` plus the caption.
 - **Local vs prod:** the cron schedule lives in a migration. The function URL and key come from Vault secrets, which must be set per environment; list this in the PR deploy notes. Locally, the builder runs the function by hand in tests.
@@ -83,7 +83,7 @@ Athletes and coaches want to send short clips in chat, like a stride, a drill or
   - Clips are stored in `Application Support/ChatVideos/<message_id>.mp4`, excluded from iCloud backup. Not `Caches`: iOS can empty that folder under storage pressure, which would make a watched clip vanish.
   - **When it downloads:** when the bubble scrolls into view, not on tap, so opening the chat within 7 days is enough. *(My call.)* Downloads run on any network; a 60s 720p clip is about 5–10 MB.
   - The sender's compressed file goes into the store under the new message id right after it sends, so it's never downloaded again.
-  - **Cleanup:** clips for threads the user has left or hidden can be deleted. Settings shows "Chat videos on this iPhone: N MB" with a Clear button. *(My call. Kevin may prefer no Clear button.)*
+  - **Cleanup:** clips for threads the user has left or hidden can be deleted. Settings shows "Chat videos on this iPhone: N MB" with a Clear button. *(Kevin: keep it.)*
 - **Web**
   - Played or sent clips are kept in IndexedDB, keyed by message id, using the same scroll-into-view download.
   - Browsers can evict this storage, so the web copy is best effort. The app calls `navigator.storage.persist()` once to make eviction less likely. *(My call. The web can't promise a permanent copy, and coaches on the web are the likeliest to see "Video expired" on a new browser.)*
@@ -163,7 +163,7 @@ Athletes and coaches want to send short clips in chat, like a stride, a drill or
 - How the iOS video store is split into types, as long as the store is unit-testable without AVFoundation.
 - The cron time of day.
 
-## Open for Kevin
+## Kevin's answers (2026-10-24)
 
-- **The Settings "Clear" button:** keep it, or drop it so a watched clip can only go away with the app?
-- **Report hold:** keep reported videos past 7 days until the report is resolved (my default), or delete on schedule regardless?
+- **Settings "Clear chat videos" button:** keep it.
+- **Reported videos:** keep them past 7 days until the report is resolved.
