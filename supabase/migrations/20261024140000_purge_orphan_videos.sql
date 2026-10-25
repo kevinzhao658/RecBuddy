@@ -2,7 +2,9 @@
 -- expired_videos() finds files through their messages, so a file outlived its
 -- message forever when the message went away first: the sender deleted their
 -- account (messages cascade), a thread was deleted, or an upload succeeded but
--- the send failed. Those files go once they're older than the 7-day window.
+-- the send failed. Those files go once they're older than the 7-day window,
+-- unless an open report still points at them (its content_snapshot keeps the
+-- path after the message is gone), so moderators keep the evidence.
 create or replace function orphan_video_files(p_older_than interval default interval '7 days', p_limit int default 500)
 returns table (name text)
 language sql stable security invoker set search_path = public, storage, pg_temp as $$
@@ -10,6 +12,9 @@ language sql stable security invoker set search_path = public, storage, pg_temp 
   from storage.objects o
   where o.bucket_id = 'chat-videos' and o.created_at < now() - p_older_than
     and not exists (select 1 from public.messages m where m.kind = 'video' and m.payload->>'path' = o.name)
+    and not exists (select 1 from public.content_reports r
+                    where r.status = 'open' and r.content_snapshot->>'kind' = 'video'
+                      and r.content_snapshot->'payload'->>'path' = o.name)
   order by o.created_at
   limit greatest(1, least(p_limit, 1000));
 $$;

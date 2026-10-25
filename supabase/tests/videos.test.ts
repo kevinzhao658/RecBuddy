@@ -276,3 +276,22 @@ describe('orphaned video files', () => {
     expect((await u.client.rpc('orphan_video_files', { p_older_than: '0 seconds', p_limit: 5 })).error).not.toBeNull()
   })
 })
+
+describe('report hold survives the message going away', () => {
+  it('keeps an orphaned video while an open report still points at it', async () => {
+    const sql = admin()
+    const s = await createAndSignIn({ role: 'athlete', name: `Held ${randomUUID()}` })
+    const t = await makeChat([{ id: s.id }])
+    const p = await uploaded(s, t)
+    const { data: m } = await s.client.from('messages').insert({ thread_id: t, from_user_id: s.id, kind: 'video', payload: p }).select('id').single()
+    const { data: r } = await sql.from('content_reports').insert({ reporter_id: s.id, message_id: m.id, reason: 'spam',
+      content_snapshot: { kind: 'video', body: null, payload: p } }).select('id').single()
+    await sql.from('messages').delete().eq('id', m.id) // e.g. the sender deleted their account
+    await purgeExpiredVideos(sql, 500, '0 seconds')
+    const names = async () => ((await sql.storage.from('chat-videos').list(t)).data ?? []).map((o) => `${t}/${o.name}`)
+    expect(await names()).toContain(p.path)
+    await sql.from('content_reports').update({ status: 'dismissed' }).eq('id', r!.id)
+    await purgeExpiredVideos(sql, 500, '0 seconds')
+    expect(await names()).not.toContain(p.path)
+  })
+})
