@@ -19,6 +19,7 @@ final class ChatStore {
     private var channel: RealtimeChannelV2?
     private var subscriptionTask: Task<Void, Never>?
     private var reactionTask: Task<Void, Never>?
+    private var deleteTask: Task<Void, Never>?
 
     /// Open the athlete's team thread (Calendar share paths, legacy entry).
     func openTeam(athleteId: String) async {
@@ -92,6 +93,19 @@ final class ChatStore {
 
     /// Toggle one reaction kind for me (adding it again removes it; other kinds stay). Optimistic, then reconciled
     /// by realtime / reload.
+    /// Change your own message's text or caption (the server checks it's yours).
+    func edit(messageId: String, body: String) async throws {
+        try await Supa.shared.rpc("edit_message", params: ["p_message": messageId, "p_body": body]).execute()
+        if let thread { try? await load(threadId: thread.id) }
+    }
+
+    /// Delete your own message for everyone.
+    func delete(messageId: String) async throws {
+        try await Supa.shared.rpc("delete_message", params: ["p_message": messageId]).execute()
+        messages.removeAll { $0.id == messageId }
+        if let thread { try? await load(threadId: thread.id) }
+    }
+
     func react(messageId: String, kind: ReactionKind) async throws {
         guard let thread else { return }
         struct Params: Encodable { let p_message: String; let p_kind: String }
@@ -204,8 +218,18 @@ final class ChatStore {
                                         filter: .eq("thread_id", value: threadId))
         let reactionChanges = ch.postgresChange(AnyAction.self, schema: "public", table: "message_reactions",
                                                 filter: .eq("thread_id", value: threadId))
+        // Deletes carry only the id and can't be filtered by thread: reload
+        // when the deleted message is one this thread is showing.
+        let deletes = ch.postgresChange(DeleteAction.self, schema: "public", table: "messages")
         try? await ch.subscribeWithError()
         channel = ch
+        deleteTask = Task { [weak self] in
+            for await d in deletes {
+                guard let self else { break }
+                let id = d.oldRecord["id"]?.stringValue
+                if let id, self.messages.contains(where: { $0.id == id }) { try? await self.load(threadId: threadId) }
+            }
+        }
         subscriptionTask = Task { [weak self] in
             for await _ in changes {
                 guard let self else { break }
@@ -224,6 +248,7 @@ final class ChatStore {
     func close() async {
         subscriptionTask?.cancel(); subscriptionTask = nil
         reactionTask?.cancel(); reactionTask = nil
+        deleteTask?.cancel(); deleteTask = nil
         if let channel { await Supa.shared.removeChannel(channel) }
         channel = nil
     }

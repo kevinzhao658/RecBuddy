@@ -73,6 +73,7 @@ struct MessageRow: View {
                 VStack(alignment: .trailing, spacing: 2) {
                     quoteView
                     reactable(content)
+                    editedTag
                 }
             } else {
                 avatarColumn
@@ -84,6 +85,7 @@ struct MessageRow: View {
                     }
                     quoteView
                     reactable(content)
+                    editedTag
                 }
                 Spacer(minLength: 52)
             }
@@ -95,6 +97,15 @@ struct MessageRow: View {
                 .padding(.horizontal, -6)
                 .animation(.easeOut(duration: 0.35), value: highlighted)
         )
+    }
+
+    @ViewBuilder private var editedTag: some View {
+        if message.editedAt != nil && !superseded {
+            Text("Edited")
+                .font(.caption2)
+                .foregroundStyle(RB.textFaint)
+                .padding(.horizontal, 4)
+        }
     }
 
     // ── Reactions: corner badge (top-leading on mine, top-trailing on theirs) ──
