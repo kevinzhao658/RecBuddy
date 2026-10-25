@@ -176,6 +176,7 @@ struct ChatsView: View {
                 AsyncImage(url: url) { $0.resizable().scaledToFill() } placeholder: {
                     Text(m.initials).font(.system(size: size * 0.32, weight: .bold)).foregroundStyle(.white)
                 }
+                .frame(width: size, height: size)
                 .clipShape(Circle())
             } else {
                 Text(m.initials).font(.system(size: size * 0.32, weight: .bold)).foregroundStyle(.white)
