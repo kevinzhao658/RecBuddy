@@ -58,7 +58,7 @@ export function TeamPopover({ athleteId, isAdmin }: { athleteId: string; isAdmin
           className="ml-3 grid h-7 w-7 place-items-center rounded-full border border-dashed border-line text-sm text-text-mute hover:border-text-mute hover:text-text md:h-9 md:w-9">+</button>}
       </div>
       {open && isAdmin && (
-        <div className="rb-card absolute right-0 z-40 mt-2 w-72 p-3">
+        <div className="rb-glass absolute right-0 z-40 mt-2 w-72 rounded-[14px] p-3">
           <div className="mb-2 font-display text-[11px] font-bold uppercase tracking-[0.18em] text-text-mute">Coaching team</div>
           {members.map((m) => (
             <div key={m.coach_id} className="flex items-center gap-2 py-1">

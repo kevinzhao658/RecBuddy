@@ -112,13 +112,13 @@ export function MessageMenu({ source, actions, reactions = [], onReact, mine, fo
         className="pointer-events-none absolute drop-shadow-[0_12px_28px_rgba(0,0,0,0.55)] motion-safe:animate-rb-pop" />
       {onReact && (
         <div ref={paletteRef} role="group" aria-label="Reactions" style={place(frame?.palette)}
-          className={`absolute flex gap-0.5 rounded-full border border-line bg-surface2 p-1 shadow-xl motion-safe:animate-rb-menu
+          className={`rb-glass absolute flex gap-0.5 rounded-full p-1 motion-safe:animate-rb-menu
             ${mine ? 'origin-bottom-right' : 'origin-bottom-left'}`}>
           {REACTIONS.map((r) => {
             const on = mineReactions.some((m) => m.kind === r.kind)
             return (
               <button key={r.kind} type="button" onClick={() => react(r.kind)} aria-label={r.label} aria-pressed={on} title={r.label}
-                className={`grid h-10 w-10 place-items-center rounded-full text-xl transition hover:scale-110 hover:bg-surface
+                className={`grid h-10 w-10 place-items-center rounded-full text-xl transition hover:scale-110 hover:bg-chip
                   ${on ? 'bg-accent/20 ring-1 ring-accent' : ''}`}>
                 <span aria-hidden>{r.emoji}</span>
               </button>
@@ -127,7 +127,7 @@ export function MessageMenu({ source, actions, reactions = [], onReact, mine, fo
         </div>
       )}
       <div ref={menuRef} role="menu" aria-label="Message actions" style={place(frame?.menu)}
-        className={`absolute w-60 overflow-hidden rounded-[14px] border border-line bg-surface2 py-1 shadow-2xl motion-safe:animate-rb-menu
+        className={`rb-glass absolute w-60 overflow-hidden rounded-[14px] py-1 motion-safe:animate-rb-menu
           ${mine ? 'origin-top-right' : 'origin-top-left'}`}>
         {onReact && mineReactions.map((r) => (
           <MenuItem key={`rm-${r.kind}`} label={`Remove ${r.emoji}`} icon="remove" onClick={() => react(r.kind)} />
@@ -148,7 +148,7 @@ export function MessageMenu({ source, actions, reactions = [], onReact, mine, fo
 function MenuItem({ label, icon, destructive, onClick }: { label: string; icon?: MenuIconName; destructive?: boolean; onClick: () => void }) {
   return (
     <button type="button" role="menuitem" onClick={onClick}
-      className={`flex w-full items-center justify-between gap-3 px-3.5 py-2 text-left text-sm outline-none transition hover:bg-surface focus-visible:bg-surface
+      className={`flex w-full items-center justify-between gap-3 px-3.5 py-2 text-left text-sm outline-none transition hover:bg-chip focus-visible:bg-chip
         ${destructive ? 'text-missed' : 'text-text'}`}>
       <span className="truncate">{label}</span>
       {icon && <MenuIcon name={icon} className={destructive ? '' : 'text-text-mute'} />}

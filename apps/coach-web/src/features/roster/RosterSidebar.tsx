@@ -114,11 +114,11 @@ export function RosterSidebar({ selectedId, onSelect, messagesActive = false }: 
           <button aria-label="Coach menu" onClick={() => setMenuOpen((o) => !o)}
             className="grid h-7 w-7 place-items-center rounded-full text-text-faint hover:bg-chip hover:text-text">⋯</button>
           {menuOpen && (
-            <div className="rb-card absolute bottom-full right-0 z-30 mb-2 w-36 p-1">
+            <div className="rb-glass absolute bottom-full right-0 z-30 mb-2 w-36 rounded-[14px] p-1">
               <button onClick={() => { setMenuOpen(false); setSettingsOpen(true) }}
-                className="w-full rounded-[10px] px-3 py-2 text-left text-sm text-text hover:bg-surface2">Settings</button>
+                className="w-full rounded-[10px] px-3 py-2 text-left text-sm text-text hover:bg-chip">Settings</button>
               <button onClick={() => supabase.auth.signOut()}
-                className="w-full rounded-[10px] px-3 py-2 text-left text-sm text-text hover:bg-surface2">Log out</button>
+                className="w-full rounded-[10px] px-3 py-2 text-left text-sm text-missed hover:bg-chip">Log out</button>
             </div>
           )}
         </div>
