@@ -88,3 +88,8 @@ export function localDayOf(ts: string): string {
   const d = new Date(ts)
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
+
+/** The first workout on `date` in a loaded week, or null. */
+export function firstWorkoutOn(week: { id: string; date: string }[][], date: string): string | null {
+  return week.flat().find((w) => w.date === date)?.id ?? null
+}

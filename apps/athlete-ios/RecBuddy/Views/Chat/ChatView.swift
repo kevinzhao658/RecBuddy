@@ -4,12 +4,24 @@ import UIKit
 
 struct ChatView: View {
     let profile: Profile
+    /// The conversation to open; nil = the athlete's team chat.
+    var threadId: String? = nil
+    /// Inbox row for this thread (title / members), when pushed from ChatsView.
+    var conversation: Conversation? = nil
     @Environment(SessionStore.self) private var session
+    @Environment(\.dismiss) private var dismiss
+    @State private var infoOpen = false
+    /// A new group started from Chat Details; opened once its sheet is gone.
+    @State private var openAfterInfo: String?
+    // Tap the header's photos or names: Rename Chat / Chat Details.
+    @State private var renaming = false
+    @State private var newName = ""
+    @State private var renameError: String?
     @State private var store = ChatStore()
     @State private var draft = ""
     // Keyboard is visible only while composing: scrolling the thread dismisses
     // it interactively, and tapping anywhere in the thread drops focus.
-    @FocusState private var composerFocused: Bool
+    @State private var composerFocused = false
     @State private var busy = false
     @State private var sendError: String?
     @State private var imageItems: [PhotosPickerItem] = []
@@ -27,6 +39,15 @@ struct ChatView: View {
     // Report / block (App Store guideline 1.2) — long-press a coach's message.
     @State private var reportTarget: ReportSheet.Target?
     @State private var pendingBlock: ReportSheet.Target?
+
+    // Replies: the message being answered, a workout attached from the
+    // calendar ("Message coach about this"), and the row briefly highlighted
+    // after jumping to an original from its quote.
+    @State private var replyingTo: Message?
+    @State private var workoutQuote: WorkoutQuote?
+    @State private var highlightedId: String?
+    @State private var reactionsFor: String?          // message id whose who-reacted sheet is open
+    private let router = AppRouter.shared
     @AppStorage("unit") private var unitRaw = "mi"
     private var unit: Unit { Unit(rawValue: unitRaw) ?? .mi }
 
@@ -37,11 +58,21 @@ struct ChatView: View {
 
     // ── Coaching team (head first, via get_team) ───────────────────────────
 
-    private var team: [ChatSender] { store.team }
+    private var team: [ThreadPerson] { store.team }
 
     /// Chat title = the other members' names (never the athlete's own):
     /// "Sarah" / "Sarah & Mike" / "Sarah, Mike & Dana".
+    private var isChat: Bool { store.thread.map { !$0.isTeam } ?? (conversation.map { !$0.isTeam } ?? false) }
+    private var readOnly: Bool { store.thread?.readOnly ?? conversation?.readOnly ?? false }
+
+    private func reopen() async {
+        if let threadId { await store.open(threadId: threadId, me: profile.id) }
+        else { await store.openTeam(athleteId: profile.id) }
+    }
+
     private var chatTitle: String {
+        if let title = store.thread?.title, !title.isEmpty { return title }
+        if isChat, let conversation { return conversation.displayTitle }
         let names = team.map(\.name)
         switch names.count {
         case 0:  return "Coach"
@@ -52,7 +83,7 @@ struct ChatView: View {
     }
 
     private var chatSubtitle: String {
-        team.count > 1 ? "Your coaching team" : (team.first?.title ?? "Head Coach")
+        ChatPeople.subtitle(isTeam: !isChat, otherCount: isChat ? (conversation?.members.count ?? max(team.count, 1)) : team.count)
     }
 
     // ── Session-separator helpers ──────────────────────────────────────────
@@ -138,6 +169,35 @@ struct ChatView: View {
             if latest["\(m.kind):\(w)"] != m.id { out.insert(m.id) }
         }
         return out
+    }
+
+    private var messagesById: [String: Message] {
+        Dictionary(store.messages.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+    }
+
+    private func authorName(_ m: Message) -> String {
+        m.fromUserId == profile.id ? "You" : (store.senders[m.fromUserId]?.name ?? "Coach")
+    }
+
+    /// Quote shown above a reply; tapping it scrolls to (and flashes) the original.
+    private func quote(for m: Message, proxy: ScrollViewProxy) -> MessageRow.Quote? {
+        guard let id = m.replyToId else { return nil }
+        guard let original = messagesById[id] else {
+            return MessageRow.Quote(author: "", text: "", available: false)
+        }
+        return MessageRow.Quote(
+            author: authorName(original),
+            text: MessageText.quotePreview(original, unit: unit),
+            onTap: { jump(to: id, proxy: proxy) })
+    }
+
+    private func jump(to id: String, proxy: ScrollViewProxy) {
+        withAnimation { proxy.scrollTo(id, anchor: .center) }
+        highlightedId = id
+        Task {
+            try? await Task.sleep(for: .seconds(1.2))
+            if highlightedId == id { highlightedId = nil }
+        }
     }
 
     private var chatItems: [ChatItem] {
@@ -235,23 +295,15 @@ struct ChatView: View {
                                                 { withAnimation { proxy.scrollTo(target, anchor: .center) } }
                                             }
                                         },
-                                        onOpenWorkout: { id in Task { await openTrace(id) } }
+                                        onOpenWorkout: { id in Task { await openTrace(id) } },
+                                        quote: quote(for: m, proxy: proxy),
+                                        highlighted: highlightedId == m.id,
+                                        reactionKinds: ReactionSummary.badges(store.reactions, messageId: m.id),
+                                        reactionCount: ReactionSummary.count(store.reactions, messageId: m.id),
+                                        reactedByMe: !ReactionSummary.mine(store.reactions, messageId: m.id, me: profile.id).isEmpty,
+                                        onTapReactions: { reactionsFor = m.id }
                                     )
-                                    .contextMenu {
-                                        if m.fromUserId != profile.id {
-                                            let name = store.senders[m.fromUserId]?.name ?? "this coach"
-                                            Button {
-                                                reportTarget = .init(userId: m.fromUserId, userName: name, messageId: m.id)
-                                            } label: {
-                                                Label("Report message", systemImage: "exclamationmark.bubble")
-                                            }
-                                            Button(role: .destructive) {
-                                                pendingBlock = .init(userId: m.fromUserId, userName: name)
-                                            } label: {
-                                                Label("Block \(name)", systemImage: "hand.raised")
-                                            }
-                                        }
-                                    }
+                                    .contextMenu { messageMenu(m) }
                                     .id(m.id)
                                 }
                             }
@@ -260,7 +312,7 @@ struct ChatView: View {
                         .padding(.top, 8)
                         .padding(.bottom, 12)
                     }
-                    .refreshable { await store.open(athleteId: profile.id) }
+                    .refreshable { await reopen() }
                     // Drag follows the finger to tuck the keyboard away; a plain
                     // tap on the thread dismisses it too. Buttons inside message
                     // rows still win over the tap gesture.
@@ -288,21 +340,42 @@ struct ChatView: View {
                         .padding(.bottom, 2)
                 }
 
-                inputBar
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                    .background(RB.bg)
-                    .overlay(
-                        Rectangle().fill(RB.line).frame(height: 1),
-                        alignment: .top
-                    )
+                Group {
+                    if readOnly {
+                        Text("This conversation is read-only.")
+                            .font(.footnote)
+                            .foregroundStyle(RB.textMute)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                    } else {
+                        inputBar
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 10)
+                    }
+                }
+                .background(RB.bg)
+                .overlay(
+                    Rectangle().fill(RB.line).frame(height: 1),
+                    alignment: .top
+                )
                 }
             }
         }
         // Re-opens when a coach is added/removed (hasCoach flips) so the
         // no-coach empty state and a fresh thread appear without a relaunch.
-        .task(id: session.hasCoach) { await store.open(athleteId: profile.id) }
-        .onDisappear { Task { await store.close() } }
+        .task(id: session.hasCoach) { await reopen() }
+        .onChange(of: store.thread?.id, initial: true) { _, id in AppRouter.shared.viewingThreadId = id }
+        .onDisappear {
+            if AppRouter.shared.viewingThreadId == store.thread?.id { AppRouter.shared.viewingThreadId = nil }
+            Task { await store.close() }
+        }
+        .sheet(isPresented: Binding(get: { reactionsFor != nil }, set: { if !$0 { reactionsFor = nil } })) {
+            if let id = reactionsFor {
+                ReactionsDetailSheet(rows: ReactionSummary.names(store.reactions, messageId: id) { uid in
+                    uid == profile.id ? "You" : (store.senders[uid]?.name ?? "Someone")
+                })
+            }
+        }
         .sheet(item: $reportTarget) { target in
             ReportSheet(target: target) { await afterBlock() }
         }
@@ -315,11 +388,20 @@ struct ChatView: View {
             Button("Block", role: .destructive) { Task { await block(target) } }
             Button("Cancel", role: .cancel) {}
         } message: { target in
-            Text("\(target.userName) will be removed from your team, can't message you or see your chat, and can't reconnect unless you unblock them in Settings → Coaches. Their messages are hidden.")
+            Text(MessageMenu.blockMessage(name: target.userName,
+                                          isCoach: store.senders[target.userId]?.title != nil))
         }
         .sheet(item: $traceWorkout) { w in
             WorkoutDetailSheet(workout: w, store: tracePlanStore, unit: unit,
                                fetchedActual: traceActual)
+        }
+        // "Message coach about this" from a workout sheet.
+        .onChange(of: router.pendingWorkoutQuote, initial: true) { _, q in
+            // Only the team chat takes a workout from the calendar.
+            guard let q, !isChat else { return }
+            workoutQuote = q
+            router.pendingWorkoutQuote = nil
+            composerFocused = true
         }
         .onChange(of: imageItems) { _, newItems in
             guard !newItems.isEmpty else { return }
@@ -331,7 +413,7 @@ struct ChatView: View {
 
     /// One member avatar — photo when set (public avatars bucket), else
     /// initials. A bg-colored ring separates avatars in the overlap stack.
-    private func memberAvatar(_ m: ChatSender) -> some View {
+    private func memberAvatar(_ m: ThreadPerson) -> some View {
         ZStack {
             Circle()
                 .fill(RB.surface2)
@@ -353,6 +435,82 @@ struct ChatView: View {
 
     private var chatHeader: some View {
         HStack(spacing: 12) {
+            if threadId != nil {
+                Button { dismiss() } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(RB.accent)
+                        .frame(width: 28, height: 36)
+                }
+                .accessibilityLabel("Back to chats")
+            }
+            headerMenu
+
+            Spacer()
+        }
+        .sheet(isPresented: $infoOpen, onDismiss: {
+            // Replacing the stack while the sheet is still up gets undone, so wait for it to close.
+            if let id = openAfterInfo { openAfterInfo = nil; AppRouter.shared.openThreadId = id; return }
+            Task { await store.refreshThread() }
+        }) {
+            if let id = store.thread?.id {
+                ConversationInfoView(threadId: id, title: chatTitle, me: profile.id, meInitials: profile.initials,
+                                     people: team, readOnly: readOnly,
+                                     isGroup: isChat && (conversation?.members.count ?? team.count) >= 2,
+                                     isTeam: !isChat, startedAt: store.thread?.createdAt,
+                                     onOpenThread: { id in openAfterInfo = id; infoOpen = false }) {
+                    infoOpen = false
+                    dismiss()
+                }
+            }
+        }
+        .alert("Rename Chat", isPresented: $renaming) {
+            TextField("Chat name", text: $newName)
+            Button("Save") { Task { await saveName() } }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Everyone in this chat sees the new name. Leave it empty to show members' names.")
+        }
+        .alert("Couldn't rename", isPresented: Binding(get: { renameError != nil }, set: { if !$0 { renameError = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(renameError ?? "")
+        }
+    }
+
+    private var headerActions: [ChatHeaderMenu.Action] {
+        ChatHeaderMenu.actions(isTeam: !isChat, otherCount: conversation?.members.count ?? team.count, readOnly: readOnly)
+    }
+
+    /// Photos + names. Tapping offers Rename Chat (team chats and groups) and
+    /// Chat Details; a 1:1 opens its details directly.
+    @ViewBuilder private var headerMenu: some View {
+        if store.thread == nil {
+            headerIdentity
+        } else if headerActions.contains(.rename) {
+            Menu {
+                Button { newName = store.thread?.title ?? ""; renaming = true } label: {
+                    Label("Rename Chat", systemImage: "pencil")
+                }
+                Button { infoOpen = true } label: {
+                    Label("Chat Details", systemImage: "info.circle")
+                }
+            } label: { headerIdentity }
+            .accessibilityLabel("\(chatTitle), chat options")
+        } else {
+            Button { infoOpen = true } label: { headerIdentity }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(chatTitle), chat details")
+        }
+    }
+
+    private func saveName() async {
+        do { try await store.rename(newName) }
+        catch { renameError = Moderation.filterMessage(error) ?? "Try again." }
+    }
+
+    private var headerIdentity: some View {
+        HStack(spacing: 12) {
             // Overlapping avatar stack — every team member (up to three shown)
             HStack(spacing: -10) {
                 if team.isEmpty {
@@ -361,7 +519,7 @@ struct ChatView: View {
                         Text("?").font(.caption.weight(.bold)).foregroundStyle(.white)
                     }
                 } else {
-                    ForEach(team.prefix(3), id: \.coachId) { m in
+                    ForEach(team.prefix(3), id: \.userId) { m in
                         memberAvatar(m)
                     }
                 }
@@ -378,11 +536,8 @@ struct ChatView: View {
                     .font(.caption)
                     .foregroundStyle(RB.accent)
             }
-
-            Spacer()
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(chatTitle), \(chatSubtitle)")
+        .contentShape(Rectangle())
     }
 
     // ── Input bar ─────────────────────────────────────────────────────────
@@ -394,6 +549,18 @@ struct ChatView: View {
 
     private var inputBar: some View {
         VStack(alignment: .leading, spacing: 8) {
+            if let replyingTo {
+                composerContext(
+                    title: "Replying to \(authorName(replyingTo))",
+                    detail: MessageText.quotePreview(replyingTo, unit: unit),
+                    clearLabel: "Cancel reply") { self.replyingTo = nil }
+            }
+            if let workoutQuote {
+                composerContext(
+                    title: "About a workout",
+                    detail: "\(workoutQuote.title) · \(Week.fmtDayDate(workoutQuote.date))",
+                    clearLabel: "Remove workout") { self.workoutQuote = nil }
+            }
             // Staged photo previews — remove any, caption once, then send
             if !staged.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -437,12 +604,17 @@ struct ChatView: View {
                 .disabled(busy || staged.count >= Self.maxPhotos)
                 .accessibilityLabel("Attach photos")
 
-                TextField(staged.isEmpty ? "Message your coach…" : "Add a caption…",
-                          text: $draft, axis: .vertical)
-                    .focused($composerFocused)
-                    .lineLimit(1...4)
-                    .foregroundStyle(.white)
-                    .tint(RB.accent)
+                ComposerTextView(text: $draft, isFocused: $composerFocused) { images in
+                    stageImages(images)
+                }
+                    .overlay(alignment: .topLeading) {
+                        if draft.isEmpty {
+                            Text(staged.isEmpty ? (isChat ? "Message" : "Message your coach…") : "Add a caption…")
+                                .foregroundStyle(RB.textFaint)
+                                .allowsHitTesting(false)
+                                .accessibilityHidden(true)
+                        }
+                    }
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
                     .background(RB.surface2)
@@ -470,6 +642,104 @@ struct ChatView: View {
         }
     }
 
+    // ── Long-press menu ────────────────────────────────────────────────────
+
+    /// Actions for one message. Copy for any message with text; Copy Photo for
+    /// images. (Report / Block for coach messages live here too.)
+    @ViewBuilder
+    private func messageMenu(_ m: Message) -> some View {
+        if !readOnly {
+            ControlGroup {
+                ForEach(ReactionKind.allCases) { k in
+                    Button { react(m, k) } label: { Text(k.emoji) }
+                        .accessibilityLabel(k.label)
+                }
+            }
+            .controlGroupStyle(.palette)
+            .menuActionDismissBehavior(.enabled)   // close the menu after reacting, like Messages
+            ForEach(ReactionSummary.mine(store.reactions, messageId: m.id, me: profile.id)) { k in
+                Button { react(m, k) } label: {
+                    Label("Remove \(k.emoji)", systemImage: "xmark.circle")
+                }
+            }
+        }
+        if MessageMenu.showsReply(readOnly: readOnly) {
+            Button {
+                replyingTo = m
+                composerFocused = true
+            } label: {
+                Label("Reply", systemImage: "arrowshape.turn.up.left")
+            }
+        }
+        if let text = MessageText.copyText(m, unit: unit) {
+            Button {
+                UIPasteboard.general.string = text
+            } label: {
+                Label("Copy", systemImage: "doc.on.doc")
+            }
+        }
+        if m.kind == "image" {
+            Button {
+                Task { await copyPhoto(m) }
+            } label: {
+                Label("Copy Photo", systemImage: "photo.on.rectangle")
+            }
+        }
+        // Report / Block (App Store 1.2) for other people's messages.
+        if m.fromUserId != profile.id {
+            let name = store.senders[m.fromUserId]?.name ?? "this person"
+            Divider()
+            Button {
+                reportTarget = .init(userId: m.fromUserId, userName: name, messageId: m.id)
+            } label: {
+                Label("Report message", systemImage: "exclamationmark.bubble")
+            }
+            Button(role: .destructive) {
+                pendingBlock = .init(userId: m.fromUserId, userName: name)
+            } label: {
+                Label("Block \(name)", systemImage: "hand.raised")
+            }
+        }
+    }
+
+    private func react(_ m: Message, _ k: ReactionKind) {
+        Task {
+            do { try await store.react(messageId: m.id, kind: k) }
+            catch { sendError = "Couldn't add that reaction — try again." }
+        }
+    }
+
+    private func copyPhoto(_ m: Message) async {
+        sendError = nil
+        if let image = await ChatImageLoader.image(for: m) {
+            UIPasteboard.general.image = image
+        } else {
+            sendError = "Couldn't copy that photo — try again."
+        }
+    }
+
+    /// "Replying to …" / "About a workout" bar above the composer.
+    private func composerContext(title: String, detail: String, clearLabel: String,
+                                 clear: @escaping () -> Void) -> some View {
+        HStack(spacing: 10) {
+            RoundedRectangle(cornerRadius: 1.5).fill(RB.accent).frame(width: 3)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title).font(.caption.weight(.bold)).foregroundStyle(RB.accent)
+                Text(detail).font(.caption).foregroundStyle(RB.textMute).lineLimit(1)
+            }
+            Spacer(minLength: 8)
+            Button(action: clear) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 18))
+                    .symbolRenderingMode(.palette)
+                    .foregroundStyle(.white, RB.surface2)
+            }
+            .accessibilityLabel(clearLabel)
+        }
+        .padding(.top, 6)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
     // ── Send action ────────────────────────────────────────────────────────
 
     private func send() async {
@@ -482,18 +752,23 @@ struct ChatView: View {
                 // Photos upload sequentially; the caption rides on the LAST one
                 // so it reads beneath the batch. Sent photos leave the tray as
                 // they go — a mid-batch failure keeps only the unsent ones.
+                // The reply rides on the FIRST photo (it answers the quoted message).
                 let batch = staged
                 for (i, photo) in batch.enumerated() {
                     let caption = i == batch.count - 1 && !body.isEmpty ? body : nil
                     try await store.sendImage(photo.data, width: photo.w, height: photo.h,
-                                              from: profile.id, body: caption)
+                                              from: profile.id, body: caption,
+                                              replyTo: i == 0 ? replyingTo?.id : nil)
                     staged.removeAll { $0.id == photo.id }
+                    if i == 0 { replyingTo = nil }
                 }
                 draft = ""
             } else {
                 guard !body.isEmpty else { return }
-                try await store.send(body, from: profile.id)
+                try await store.send(body, from: profile.id, replyTo: replyingTo?.id, workout: workoutQuote)
                 draft = ""  // clear only on success — a failed send keeps the text
+                replyingTo = nil
+                workoutQuote = nil
             }
         } catch {
             sendError = Moderation.filterMessage(error) ?? "Couldn't send — try again."
@@ -514,7 +789,7 @@ struct ChatView: View {
     /// the profile (hasCoach may flip to the no-coach state) and the thread.
     private func afterBlock() async {
         await session.refreshProfile()
-        await store.open(athleteId: profile.id)
+        await reopen()
     }
 
     /// Fetch the referenced workout (and its logged actual, if any) and open
@@ -538,12 +813,27 @@ struct ChatView: View {
     private func stageImagesFromPicker(_ items: [PhotosPickerItem]) async {
         sendError = nil
         defer { imageItems = [] }
+        var images: [UIImage] = []
         var failed = 0
         for item in items {
-            guard staged.count < Self.maxPhotos else { break }
-            guard let rawData = try? await item.loadTransferable(type: Data.self),
-                  let uiImage = UIImage(data: rawData),
-                  let (jpegData, w, h) = ImageShrink.jpegForChat(uiImage),
+            if let rawData = try? await item.loadTransferable(type: Data.self),
+               let uiImage = UIImage(data: rawData) {
+                images.append(uiImage)
+            } else {
+                failed += 1
+            }
+        }
+        stageImages(images, alreadyFailed: failed)
+    }
+
+    /// Downscale photos (picked or pasted) into the composer tray, up to maxPhotos.
+    private func stageImages(_ images: [UIImage], alreadyFailed: Int = 0) {
+        if alreadyFailed == 0 { sendError = nil }
+        var failed = alreadyFailed
+        var dropped = 0
+        for uiImage in images {
+            guard staged.count < Self.maxPhotos else { dropped += 1; continue }
+            guard let (jpegData, w, h) = ImageShrink.jpegForChat(uiImage),
                   let preview = UIImage(data: jpegData) else {
                 failed += 1
                 continue
@@ -553,6 +843,8 @@ struct ChatView: View {
         if failed > 0 {
             sendError = failed == 1 ? "Couldn't process one of the images."
                                     : "Couldn't process \(failed) of the images."
+        } else if dropped > 0 {
+            sendError = "You can attach up to \(Self.maxPhotos) photos at a time."
         }
     }
 }

@@ -60,9 +60,34 @@ export interface WorkoutCard { date: string; type: WorkoutType; title: string; d
  *  it for a short-lived signed URL via the private bucket.
  *  `url` is legacy-read-only (old public-bucket rows); never written to new rows. */
 export interface ImageCard { path?: string; url?: string; w: number; h: number }
+/** payload for a kind='text' message about a workout ("Message … about this");
+ *  the message's workout_id links the live row. */
+export interface WorkoutQuote { quote: 'workout'; title: string; date: string; type: WorkoutType }
 export interface Thread { id: string; athlete_id: string; coach_id: string }
 export interface Message {
   id: string; thread_id: string; from_user_id: string; kind: MessageKind
-  body: string | null; payload: RunCard | AdjustCard | WorkoutCard | ImageCard | null
+  body: string | null; payload: RunCard | AdjustCard | WorkoutCard | ImageCard | WorkoutQuote | null
   workout_id: string | null; read: boolean; created_at: string
+  /** Quote-reply target (same thread). */
+  reply_to_id?: string | null
 }
+
+// ── Conversations + reactions (mirror iOS Lib/Conversations.swift) ──────────
+export interface ConversationMember { user_id: string; name: string; initials: string; avatar_url: string | null }
+/** One inbox row (my_conversations). */
+export interface Conversation {
+  thread_id: string; kind: 'team' | 'chat'; title: string | null; team_athlete_id: string | null
+  members: ConversationMember[]; last_body: string | null; last_kind: MessageKind | null
+  last_from: string | null; last_at: string | null; unread: number; read_only: boolean
+}
+/** search_chat_people row. */
+export interface ChatPerson {
+  user_id: string; name: string; initials: string; avatar_url: string | null
+  person_kind: 'coach' | 'athlete'; context: string
+}
+/** thread_people row: anyone who can appear as a sender in a thread. */
+/** thread_people row; current = still in the conversation (people who left keep a name on old messages). */
+export interface ThreadPerson { user_id: string; name: string; initials: string; avatar_url: string | null; title: string | null; current?: boolean }
+export type ReactionKind = 'like' | 'emphasize' | 'question' | 'laugh' | 'congrats'
+/** message_reactions row: one per person per kind; active false = removed. */
+export interface Reaction { message_id: string; user_id: string; kind: ReactionKind; active?: boolean }

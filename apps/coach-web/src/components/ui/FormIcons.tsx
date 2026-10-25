@@ -103,3 +103,12 @@ export function CloseIcon({ className = '' }: P) {
 export function CheckIcon({ className = '' }: P) {
   return <Glyph className={className}><path d="m5 12.5 4.5 4.5L19 7.5" /></Glyph>
 }
+
+/** Three-line menu (opens the roster drawer on phones). */
+export function HamburgerIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
+    </svg>
+  )
+}

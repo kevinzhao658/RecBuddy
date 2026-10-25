@@ -43,7 +43,7 @@ export function Dropdown({ trigger, label, children, align = 'right', width = 'w
       </button>
       {open && (
         <div ref={menu} role="menu" aria-label={label}
-          className={`rb-surface2 absolute top-[calc(100%+8px)] z-30 ${align === 'right' ? 'right-0' : 'left-0'} ${width} rounded-[14px] border border-line p-1.5 shadow-[0_18px_40px_rgba(0,0,0,0.55)]`}>
+          className={`rb-glass absolute top-[calc(100%+8px)] z-30 ${align === 'right' ? 'right-0' : 'left-0'} ${width} rounded-[14px] p-1.5`}>
           {children(() => setOpen(false))}
         </div>
       )}

@@ -122,3 +122,88 @@ export function SportIcon({ sport, className = '' }: { sport: 'run' | 'ride' | '
     </svg>
   )
 }
+
+/** Coach view switch, mirroring the athlete app's tab bar SF Symbols:
+ *  plans = calendar, messages = bubble.left. Uncolored. */
+const NAV_GLYPH: Record<'plans' | 'messages', React.ReactNode> = {
+  plans: (
+    <>
+      <rect x="3.5" y="5" width="17" height="15.5" rx="2.5" />
+      <path d="M3.5 10h17M8 3v4M16 3v4" />
+    </>
+  ),
+  messages: <path d="M6 4.5h12a3 3 0 0 1 3 3v6.5a3 3 0 0 1-3 3h-7.5L6 20.5V17a3 3 0 0 1-3-3V7.5a3 3 0 0 1 3-3z" />,
+}
+
+export function NavIcon({ name, className = '' }: { name: 'plans' | 'messages'; className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={`h-[18px] w-[18px] ${className}`} aria-hidden
+      fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      {NAV_GLYPH[name]}
+    </svg>
+  )
+}
+
+/** Message-menu glyphs, matching the iOS context menu's SF Symbols as line art:
+ *  arrowshape.turn.up.left, doc.on.doc, photo.on.rectangle,
+ *  exclamationmark.bubble, hand.raised, xmark.circle. */
+const MENU_GLYPH = {
+  reply: <path d="M9.5 6L4 11.5 9.5 17M4.5 11.5H14a6 6 0 016 6V19" />,
+  copy: (
+    <>
+      <rect x="8.5" y="8.5" width="11" height="12" rx="2" />
+      <path d="M15.5 8.5V5.5a2 2 0 00-2-2h-7a2 2 0 00-2 2v10a2 2 0 002 2h2" />
+    </>
+  ),
+  photo: (
+    <>
+      <rect x="3.5" y="5" width="17" height="14" rx="2.5" />
+      <circle cx="9" cy="10" r="1.6" />
+      <path d="M4 17l5-4.5 3.5 3 3-2.5 4.5 4" />
+    </>
+  ),
+  report: (
+    <>
+      <path d="M6 4.5h12a3 3 0 013 3v6.5a3 3 0 01-3 3h-7.5L6 20.5V17a3 3 0 01-3-3V7.5a3 3 0 013-3z" />
+      <path d="M12 8v3.5" />
+      <circle cx="12" cy="14" r="0.5" fill="currentColor" />
+    </>
+  ),
+  block: <path d="M8 12.5V6a1.25 1.25 0 012.5 0v5M10.5 11V4.5a1.25 1.25 0 012.5 0V11M13 11V5.5a1.25 1.25 0 012.5 0V12M15.5 12V8a1.25 1.25 0 012.5 0v6a7 7 0 01-7 7h-.5a6 6 0 01-4.6-2.2L5 15.5a1.3 1.3 0 012-1.6l1 1.1" />,
+  remove: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M9 9l6 6M15 9l-6 6" />
+    </>
+  ),
+  // person.badge.minus — remove someone
+  personMinus: (
+    <>
+      <circle cx="10" cy="8" r="3.5" />
+      <path d="M3.5 20a6.5 6.5 0 0113 0M16 11h5" />
+    </>
+  ),
+  // rectangle.portrait.and.arrow.right — leave
+  leave: (
+    <>
+      <path d="M14 4.5H7a2 2 0 00-2 2v11a2 2 0 002 2h7" />
+      <path d="M11 12h9.5M17 8.5l3.5 3.5-3.5 3.5" />
+    </>
+  ),
+  person: (
+    <>
+      <circle cx="12" cy="8" r="3.5" />
+      <path d="M5 20a7 7 0 0114 0" />
+    </>
+  ),
+} satisfies Record<string, React.ReactNode>
+export type MenuIconName = keyof typeof MENU_GLYPH
+
+export function MenuIcon({ name, className = '' }: { name: MenuIconName; className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={`h-[17px] w-[17px] shrink-0 ${className}`} aria-hidden
+      fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      {MENU_GLYPH[name]}
+    </svg>
+  )
+}

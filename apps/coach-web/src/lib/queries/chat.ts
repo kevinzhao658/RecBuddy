@@ -1,22 +1,22 @@
 import { useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { supabase } from '../supabase'
+import { supabase, uniqueTopic } from '../supabase'
 import { compressImage } from '../compressImage'
-import type { Message, Thread, Workout } from '../types'
+import type { Message, Thread, Workout, WorkoutQuote } from '../types'
 
-/** Get (or create) the coach↔athlete thread. RLS surfaces the head coach's
- *  thread to assistants, so we reuse an existing one before creating. */
+/** A text send, optionally replying to a message and/or about a workout. */
+export type SendArgs = {
+  body: string
+  replyToId?: string | null
+  workout?: Pick<Workout, 'id' | 'date' | 'type' | 'title'> | null
+}
+
+/** The athlete's TEAM thread (get-or-create server-side via team_thread_id). */
 export async function fetchThread(client: SupabaseClient, athleteId: string): Promise<Thread> {
-  const { data: existing, error } = await client.from('message_threads')
-    .select('id, athlete_id, coach_id').eq('athlete_id', athleteId).limit(1).maybeSingle()
+  const { data: id, error } = await client.rpc('team_thread_id', { p_athlete: athleteId })
   if (error) throw error
-  if (existing) return existing as Thread
-  const { data: me } = await client.auth.getUser()
-  const { data: created, error: insErr } = await client.from('message_threads')
-    .insert({ athlete_id: athleteId, coach_id: me.user!.id }).select('id, athlete_id, coach_id').single()
-  if (insErr) throw insErr
-  return created as Thread
+  return { id: id as string, athlete_id: athleteId, coach_id: '' }
 }
 export function useThread(athleteId: string | null) {
   return useQuery({ queryKey: ['thread', athleteId], queryFn: () => fetchThread(supabase, athleteId!), enabled: !!athleteId })
@@ -31,16 +31,21 @@ export function useMessages(threadId: string | null) {
   return useQuery({ queryKey: ['messages', threadId], queryFn: () => fetchMessages(supabase, threadId!), enabled: !!threadId })
 }
 
-export async function sendMessage(client: SupabaseClient, threadId: string, body: string): Promise<void> {
+export async function sendMessage(client: SupabaseClient, threadId: string, args: SendArgs): Promise<void> {
   const { data: me } = await client.auth.getUser()
-  const { error } = await client.from('messages').insert({ thread_id: threadId, from_user_id: me.user!.id, kind: 'text', body })
+  const { body, replyToId, workout } = args
+  const payload: WorkoutQuote | null = workout
+    ? { quote: 'workout', title: workout.title, date: workout.date, type: workout.type } : null
+  const { error } = await client.from('messages').insert({
+    thread_id: threadId, from_user_id: me.user!.id, kind: 'text', body,
+    reply_to_id: replyToId ?? null, workout_id: workout?.id ?? null, payload,
+  })
   if (error) throw error
-  await client.from('message_threads').update({ updated_at: new Date().toISOString() }).eq('id', threadId)
 }
 export function useSendMessage(threadId: string | null) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (body: string) => sendMessage(supabase, threadId!, body),
+    mutationFn: (args: SendArgs) => sendMessage(supabase, threadId!, args),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['messages', threadId] }),
   })
 }
@@ -49,7 +54,7 @@ export function useSendMessage(threadId: string | null) {
  *  <thread_id>/<uuid>.jpg — first segment is the thread_id, which the storage
  *  policy uses to scope access to thread participants.  The path (not a public URL)
  *  is stored in the payload; callers exchange it for a signed URL at render time. */
-export async function sendImageMessages(client: SupabaseClient, threadId: string, files: File[], body?: string): Promise<void> {
+export async function sendImageMessages(client: SupabaseClient, threadId: string, files: File[], body?: string, replyToId?: string | null): Promise<void> {
   const { data: me } = await client.auth.getUser()
   const uid = me.user!.id
   for (let i = 0; i < files.length; i++) {
@@ -62,17 +67,25 @@ export async function sendImageMessages(client: SupabaseClient, threadId: string
     // The caption rides on the LAST image so it reads beneath the batch.
     const caption = i === files.length - 1 ? body || null : null
     const { error } = await client.from('messages')
-      .insert({ thread_id: threadId, from_user_id: uid, kind: 'image', body: caption, payload: { path, w, h } })
+      // The reply rides on the FIRST photo (it answers the quoted message).
+      .insert({ thread_id: threadId, from_user_id: uid, kind: 'image', body: caption, payload: { path, w, h },
+                reply_to_id: i === 0 ? replyToId ?? null : null })
     if (error) throw error
   }
-  await client.from('message_threads').update({ updated_at: new Date().toISOString() }).eq('id', threadId)
 }
 export function useSendImages(threadId: string | null) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (v: { files: File[]; body?: string }) => sendImageMessages(supabase, threadId!, v.files, v.body),
+    mutationFn: (v: { files: File[]; body?: string; replyToId?: string | null }) => sendImageMessages(supabase, threadId!, v.files, v.body, v.replyToId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['messages', threadId] }),
   })
+}
+
+/** One-off signed URL for a chat image (Copy image). */
+export async function signedChatImageUrl(path: string): Promise<string> {
+  const { data, error } = await supabase.storage.from('chat-images').createSignedUrl(path, 300)
+  if (error) throw error
+  return data.signedUrl
 }
 
 /** Fetch a short-lived signed URL for a private chat-image path.
@@ -100,7 +113,6 @@ export async function shareWorkoutToChat(client: SupabaseClient, athleteId: stri
   const { error } = await client.from('messages')
     .insert({ thread_id: thread.id, from_user_id: me.user!.id, kind: 'workout', workout_id: w.id, payload })
   if (error) throw error
-  await client.from('message_threads').update({ updated_at: new Date().toISOString() }).eq('id', thread.id)
 }
 export function useShareWorkout(athleteId: string) {
   const qc = useQueryClient()
@@ -117,7 +129,6 @@ export async function shareAdjustToChat(client: SupabaseClient, athleteId: strin
   const { error } = await client.from('messages')
     .insert({ thread_id: thread.id, from_user_id: me.user!.id, kind: 'adjust', payload: { from, to, reason } })
   if (error) throw error
-  await client.from('message_threads').update({ updated_at: new Date().toISOString() }).eq('id', thread.id)
 }
 export function useShareAdjust(athleteId: string) {
   const qc = useQueryClient()
@@ -127,19 +138,19 @@ export function useShareAdjust(athleteId: string) {
   })
 }
 
-/** Mark the other party's unread messages in this thread as read. */
-export async function markThreadRead(client: SupabaseClient, threadId: string, meId: string): Promise<void> {
-  const { error } = await client.from('messages').update({ read: true })
-    .eq('thread_id', threadId).eq('read', false).neq('from_user_id', meId)
+/** Mark this thread read for me (chat: last_read_at; team: per-message flag). */
+export async function markThreadRead(client: SupabaseClient, threadId: string): Promise<void> {
+  const { error } = await client.rpc('mark_thread_read', { p_thread: threadId })
   if (error) throw error
 }
 export function useMarkThreadRead(threadId: string | null) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (meId: string) => markThreadRead(supabase, threadId!, meId),
+    mutationFn: () => markThreadRead(supabase, threadId!),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['messages', threadId] })
       qc.invalidateQueries({ queryKey: ['unread'] })
+      qc.invalidateQueries({ queryKey: ['conversations'] })
     },
   })
 }
@@ -159,7 +170,7 @@ export function useUnreadCounts() {
 export function useUnreadRealtime() {
   const qc = useQueryClient()
   useEffect(() => {
-    const ch = supabase.channel('unread')
+    const ch = supabase.channel(uniqueTopic('unread'))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' },
         () => qc.invalidateQueries({ queryKey: ['unread'] }))
       .subscribe()
@@ -172,7 +183,7 @@ export function useRealtimeThread(threadId: string | null) {
   const qc = useQueryClient()
   useEffect(() => {
     if (!threadId) return
-    const ch = supabase.channel(`messages:${threadId}`)
+    const ch = supabase.channel(uniqueTopic(`messages:${threadId}`))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: `thread_id=eq.${threadId}` },
         () => qc.invalidateQueries({ queryKey: ['messages', threadId] }))
       .subscribe()

@@ -6,7 +6,7 @@
 > top-level section (12 sections vs this file's 11) — content is identical.
 
 **Effective date:** July 31, 2026
-**Last updated:** October 18, 2026
+**Last updated:** October 24, 2026
 
 RecBuddy ("RecBuddy," "we," "us," or "our") provides a running-training app that
 connects athletes with their coaches. This Privacy Policy explains what we
@@ -62,8 +62,10 @@ your data.
   other than our backend service provider (Supabase) acting on our behalf.
 
 **Communications**
-- Messages and workout cards exchanged between an athlete and their coach
-- Coach–athlete connections you create using invite codes
+- Messages, photos, workout cards, reactions, and replies in your conversations:
+  your team chat, 1:1 chats, and group chats
+- Coach–athlete connections you create using invite codes or by accepting a
+  coach's request
 - Photos and images you choose to share in chat
 
 **Safety and moderation**
@@ -97,8 +99,18 @@ We do not use your information for advertising, and we do not sell or rent it.
 - **With your coach or athlete.** RecBuddy is a two-sided coaching tool. When you
   connect with a coach (or an athlete connects with you), training data and
   messages relevant to that relationship are visible to the connected person.
-  This is the core purpose of the app. Reports are private: we never tell the
-  reported user who reported them. A user you block can no longer see your chat.
+  This is the core purpose of the app. A coach can ask to coach you, or to join a
+  team as a co-coach, but nothing is shared until you accept. Reports are private: we never tell the
+  reported user who reported them. A user you block can no longer message you
+  directly or see your private conversations with them; in a group chat you both
+  belong to, you stop seeing their messages, but they can still see what you post
+  there unless you leave the group.
+- **With people in your conversations.** Everyone in a conversation sees each
+  other's names, photos, messages, and reactions. A conversation is visible only
+  to its members. Athletes who share a coach can find each other by name to
+  start a chat, unless you turn that off in Settings. When a coach is removed
+  from your team, they leave your group chats that include you, and your 1:1
+  with them becomes read-only.
 - **Service providers.** We use Supabase as our hosting and backend provider to
   store data and handle authentication and email delivery on our behalf, and
   Resend to deliver safety-report notifications to our support team (these
@@ -127,8 +139,12 @@ account is deleted, so we can act on them and protect other users.
   removes your personal data from our systems. This action cannot be undone.
 - **Disconnect a coach.** You can remove a coach connection in the app at any
   time.
+- **Who can find you.** Turn off “Let my coach's other athletes find me” in
+  Settings to keep other athletes from starting chats with you. You can also
+  leave any group chat.
 - **Report and block.** You can report any message or user and block any user
-  from the app; unblock anytime in Settings → Coaches.
+  from the app; unblock anytime in Settings (Settings → Coaches in the iPhone app,
+  Settings → Blocked on the web).
 - **Regional rights.** Depending on where you live, you may have additional
   rights (such as access, correction, deletion, or portability). Contact us at
   the email above to exercise them.

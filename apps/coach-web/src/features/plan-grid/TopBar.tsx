@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { HamburgerIcon } from '../../components/ui/FormIcons'
 import type { Plan, Profile } from '../../lib/types'
 import { Avatar } from '../../components/ui/Avatar'
 import { GearIcon } from '../../components/ui/FormIcons'
@@ -12,13 +13,6 @@ function FlagIcon({ className = '' }: { className?: string }) {
   )
 }
 
-function HamburgerIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-      <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
-    </svg>
-  )
-}
 
 export function TopBar({ athlete, plan, monday, actions, onMenu, onSettings }: { athlete: Profile; plan: Plan | null; monday: string; actions?: ReactNode; onMenu?: () => void; onSettings?: () => void }) {
   // Week x of y derives from the training block (start_date -> goal_date) and
@@ -35,7 +29,7 @@ export function TopBar({ athlete, plan, monday, actions, onMenu, onSettings }: {
           <HamburgerIcon />
         </button>
       )}
-      <Avatar initials={athlete.initials} url={athlete.avatar_url} className="h-10 w-10 rounded-[12px] text-base md:h-12 md:w-12" />
+      <Avatar initials={athlete.initials} url={athlete.avatar_url} className="h-10 w-10 text-base md:h-12 md:w-12" />
       <div className="min-w-0 flex-1 basis-40">
         <div className="flex min-w-0 items-center gap-2">
           <h2 className="min-w-0 truncate text-xl font-bold leading-tight tracking-tight md:text-[26px]">{athlete.name}</h2>

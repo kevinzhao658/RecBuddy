@@ -1,4 +1,5 @@
 import SwiftUI
+import Supabase
 
 /// Shows the athlete's team, lets them tune each coach's permission or remove a
 /// coach, and add a new coach via invite code. The athlete is always admin.
@@ -18,12 +19,30 @@ struct CoachesView: View {
     @State private var blocked: [BlockedUser] = []
     @State private var pendingBlock: TeamMember?
     @State private var reportTarget: ReportSheet.Target?
+    // Coaches asking to coach me — nothing is shared until I accept.
+    @State private var requests: [LinkRequest] = []
+    @State private var requestBusy = false
+    @State private var requestError: String?
 
     var body: some View {
         ZStack {
             RB.bg.ignoresSafeArea()
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
+
+                    // ── Requests ───────────────────────────────────────────
+                    if !requests.isEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
+                            RBLabel("REQUESTS")
+                            Text("A coach sees your plan, runs and chat only after you accept.")
+                                .font(.caption)
+                                .foregroundStyle(RB.textFaint)
+                            ForEach(requests) { requestRow($0) }
+                            if let requestError {
+                                Text(requestError).font(.footnote).foregroundStyle(.red)
+                            }
+                        }
+                    }
 
                     // ── Team list ──────────────────────────────────────────
                     if loading {
@@ -318,6 +337,41 @@ struct CoachesView: View {
             .execute().value) ?? []
         team = rows
         blocked = (try? await Moderation.blockedUsers()) ?? []
+        requests = (try? await LinkRequestsAPI.mine()) ?? []
+    }
+
+    private func requestRow(_ r: LinkRequest) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(LinkRequestText.title(r))
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white)
+            HStack(spacing: 10) {
+                Button("Accept") { Task { await respond(r, accept: true) } }
+                    .buttonStyle(VoltButtonStyle())
+                Button("Decline") { Task { await respond(r, accept: false) } }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(RB.textMute)
+                    .padding(.horizontal, 12)
+            }
+            .disabled(requestBusy)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .rbCard()
+    }
+
+    private func respond(_ r: LinkRequest, accept: Bool) async {
+        requestBusy = true; requestError = nil
+        defer { requestBusy = false }
+        do {
+            try await LinkRequestsAPI.respond(r.id, accept: accept)
+            await loadTeam()
+            if accept { await session.refreshProfile() }
+        } catch {
+            // The server explains refusals in words meant for people (e.g. a head-coach clash).
+            requestError = (error as? PostgrestError)?.message ?? "Couldn't answer that request. Please try again."
+            await loadTeam()
+        }
     }
 
     private func block(_ member: TeamMember) async {
