@@ -119,6 +119,13 @@ export function useSendVideo(threadId: string | null) {
   })
 }
 
+/** Download a chat video the caller can read (members only, while it lasts). */
+export async function downloadVideo(path: string): Promise<Blob> {
+  const { data, error } = await supabase.storage.from('chat-videos').download(path)
+  if (error) throw error
+  return data
+}
+
 /** One-off signed URL for a chat image (Copy image). */
 export async function signedChatImageUrl(path: string): Promise<string> {
   const { data, error } = await supabase.storage.from('chat-images').createSignedUrl(path, 300)
