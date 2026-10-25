@@ -354,6 +354,7 @@ struct AccountSheet: View {
 /// Cleared clips that the server has already deleted can't be watched again.
 private struct ChatVideoStorageRow: View {
     @State private var bytes = VideoStore.shared.totalBytes()
+    @State private var confirming = false
 
     /// "0 KB", "28 KB", "4.2 MB" (never "Zero KB").
     private static func size(_ bytes: Int) -> String {
@@ -374,14 +375,20 @@ private struct ChatVideoStorageRow: View {
                     .foregroundStyle(RB.textFaint)
             }
             Spacer()
-            Button("Clear") {
-                try? VideoStore.shared.clear()
-                bytes = VideoStore.shared.totalBytes()
-            }
+            Button("Clear") { confirming = true }
             .font(.subheadline.weight(.semibold))
             .foregroundStyle(bytes == 0 ? RB.textFaint : RB.accent)
             .disabled(bytes == 0)
         }
         .onAppear { bytes = VideoStore.shared.totalBytes() }
+        .confirmationDialog("Clear chat videos from this iPhone?", isPresented: $confirming, titleVisibility: .visible) {
+            Button("Clear Videos", role: .destructive) {
+                try? VideoStore.shared.clear()
+                bytes = VideoStore.shared.totalBytes()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Videos older than 7 days are gone from the server too, so you won't be able to watch them again.")
+        }
     }
 }

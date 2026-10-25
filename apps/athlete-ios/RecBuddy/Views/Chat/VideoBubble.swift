@@ -10,6 +10,8 @@ struct VideoBubble: View {
     @State private var hasLocal = false
     @State private var posterURL: URL?
     @State private var player: PlayingVideo?
+    @State private var loading = false
+    @State private var failed = false
 
     private var w: Int { message.payloadInt("w") ?? 16 }
     private var h: Int { message.payloadInt("h") ?? 9 }
@@ -34,13 +36,17 @@ struct VideoBubble: View {
                     Text(VideoText.expired)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.white)
+                } else if loading {
+                    ProgressView()
+                        .tint(.white)
+                        .frame(width: 44, height: 44)
+                        .background(.black.opacity(0.55), in: Circle())
                 } else {
                     Image(systemName: "play.fill")
                         .font(.system(size: 18))
                         .foregroundStyle(.white)
                         .frame(width: 44, height: 44)
                         .background(.black.opacity(0.55), in: Circle())
-                        .opacity(hasLocal ? 1 : 0.6)
                 }
             }
             .frame(width: size.width, height: size.height)
@@ -55,14 +61,14 @@ struct VideoBubble: View {
             }
             .clipShape(RoundedRectangle(cornerRadius: 16))
             .contentShape(Rectangle())
-            .onTapGesture {
-                if let url = VideoStore.shared.url(for: message.id) { player = PlayingVideo(url: url) }
-            }
+            .onTapGesture { Task { await play() } }
             .accessibilityElement(children: .combine)
             .accessibilityLabel(state == .expired ? VideoText.expired : "Video, \(VideoText.duration(message.payloadInt("duration_s") ?? 0))")
             .accessibilityAddTraits(state == .expired ? [] : .isButton)
 
-            if state == .remote, let expiresAt, let note = VideoText.expiry(expiresAt: expiresAt) {
+            if failed {
+                Text(VideoText.loadFailed).font(.caption2).foregroundStyle(.red)
+            } else if state == .remote, let expiresAt, let note = VideoText.expiry(expiresAt: expiresAt) {
                 Text(note).font(.caption2).foregroundStyle(RB.textFaint)
             }
         }
@@ -87,12 +93,30 @@ struct VideoBubble: View {
         if let poster = message.payloadString("poster") {
             posterURL = try? await Supa.shared.storage.from("chat-images").createSignedURL(path: poster, expiresIn: 3600)
         }
-        guard state == .remote, let path = message.payloadString("path"),
+        if state == .remote { _ = await download() } // a failure stays remote; tapping retries
+    }
+
+    /// Play the copy on this iPhone, downloading it first if needed (and retrying
+    /// a download that failed earlier).
+    private func play() async {
+        if let url = VideoStore.shared.url(for: message.id) { player = PlayingVideo(url: url); return }
+        hasLocal = false // e.g. cleared in Settings since this bubble appeared
+        guard state == .remote, !loading else { return }
+        loading = true
+        failed = false
+        let ok = await download()
+        loading = false
+        if ok, let url = VideoStore.shared.url(for: message.id) { player = PlayingVideo(url: url) } else { failed = true }
+    }
+
+    private func download() async -> Bool {
+        guard let path = message.payloadString("path"),
               let url = try? await Supa.shared.storage.from("chat-videos").createSignedURL(path: path, expiresIn: 600),
               let (data, response) = try? await URLSession.shared.data(from: url),
-              (response as? HTTPURLResponse)?.statusCode == 200 else { return }
+              (response as? HTTPURLResponse)?.statusCode == 200 else { return false }
         try? VideoStore.shared.save(data, messageId: message.id)
         hasLocal = VideoStore.shared.url(for: message.id) != nil
+        return hasLocal
     }
 }
 

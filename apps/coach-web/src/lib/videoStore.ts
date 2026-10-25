@@ -45,6 +45,11 @@ export async function getVideo(messageId: string): Promise<Blob | null> {
   return row ? new Blob([row.data], { type: row.type }) : null
 }
 
+/** Whether this browser has a copy, without reading the bytes into memory. */
+export async function hasVideo(messageId: string): Promise<boolean> {
+  return ((await run<number>('readonly', (s) => s.count(messageId))) ?? 0) > 0
+}
+
 export async function putVideo(messageId: string, blob: Blob): Promise<void> {
   const data = await blobBytes(blob)
   await run('readwrite', (s) => s.put({ type: blob.type, data } satisfies Stored, messageId))

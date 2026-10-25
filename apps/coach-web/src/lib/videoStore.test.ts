@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto'
-import { getVideo, putVideo } from './videoStore'
+import { getVideo, putVideo, hasVideo } from './videoStore'
 
 test('put then get returns the same bytes', async () => {
   await putVideo('m1', new Blob([new Uint8Array([1, 2, 3])], { type: 'video/mp4' }))
@@ -26,4 +26,10 @@ test('get resolves null (not throws) when IndexedDB is unavailable', async () =>
   } finally {
     globalThis.indexedDB = real
   }
+})
+
+test('hasVideo answers without loading the bytes', async () => {
+  await putVideo('m9', new Blob([new Uint8Array([9])], { type: 'video/mp4' }))
+  expect(await hasVideo('m9')).toBe(true)
+  expect(await hasVideo('missing')).toBe(false)
 })

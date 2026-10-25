@@ -15,7 +15,7 @@ struct PreparedVideo {
 }
 
 extension VideoPrep {
-    enum Refusal: Error { case tooLong, unreadable }
+    enum Refusal: Error { case tooLong, tooBig, unreadable }
 
     /// Check the length first (refuse over 60 s), then compress with the
     /// 1280x720 preset and grab a poster at 0.5 s.
@@ -44,6 +44,11 @@ extension VideoPrep {
             session.exportAsynchronously { done.resume() }
         }
         guard session.status == .completed else { throw session.error ?? Refusal.unreadable }
+        let bytes = (try? out.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+        if checkSize(bytes: bytes) != nil {
+            try? FileManager.default.removeItem(at: out)
+            throw Refusal.tooBig
+        }
         return PreparedVideo(file: out, poster: poster, posterImage: posterImage, w: w, h: h,
                              duration: Int(seconds.rounded()))
     }

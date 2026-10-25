@@ -59,8 +59,8 @@ export async function posterFrame(f: File): Promise<{ blob: Blob; w: number; h: 
   }
 }
 
-/** Load a file into a muted, detached <video> and run `use` once metadata is in. */
-function withVideo<T>(f: File, use: (v: HTMLVideoElement) => T | Promise<T>, timeoutMs = 8000): Promise<T> {
+/** Load a file into a muted, detached <video> and run `read` once metadata is in. */
+function withVideo<T>(f: File, read: (v: HTMLVideoElement) => T | Promise<T>, timeoutMs = 8000): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const url = URL.createObjectURL(f)
     const v = document.createElement('video')
@@ -68,7 +68,7 @@ function withVideo<T>(f: File, use: (v: HTMLVideoElement) => T | Promise<T>, tim
     const done = () => { clearTimeout(timer); URL.revokeObjectURL(url) }
     const timer = setTimeout(() => { done(); reject(new Error('timed out reading video')) }, timeoutMs)
     v.onloadedmetadata = async () => {
-      try { resolve(await use(v)) } catch (e) { reject(e) } finally { done() }
+      try { resolve(await read(v)) } catch (e) { reject(e) } finally { done() }
     }
     v.onerror = () => { done(); reject(new Error('could not read video')) }
     v.src = url

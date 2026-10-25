@@ -254,3 +254,25 @@ describe('a message can only expose its own sender\'s files', () => {
     expect(new Date(data.expires_at).getTime()).toBeGreaterThan(Date.now() + 6 * 24 * 3600 * 1000)
   })
 })
+
+describe('orphaned video files', () => {
+  it('purges a video file no message points at (e.g. the sender deleted their account), and keeps live ones', async () => {
+    const sql = admin()
+    const s = await createAndSignIn({ role: 'athlete', name: `Orphan ${randomUUID()}` })
+    const t = await makeChat([{ id: s.id }])
+    const orphan = `${t}/${randomUUID()}.mp4`
+    await s.client.storage.from('chat-videos').upload(orphan, Buffer.from('mp4'), { contentType: 'video/mp4' })
+    const live = await uploaded(s, t)
+    await s.client.from('messages').insert({ thread_id: t, from_user_id: s.id, kind: 'video', payload: live })
+    // Age 0 so the test needn't wait 7 days.
+    await purgeExpiredVideos(sql, 500, '0 seconds')
+    const left = ((await sql.storage.from('chat-videos').list(t)).data ?? []).map((o) => `${t}/${o.name}`)
+    expect(left).not.toContain(orphan)
+    expect(left).toContain(live.path)
+  })
+
+  it('clients cannot list orphaned files', async () => {
+    const u = await createAndSignIn({ role: 'athlete', name: `Nosy2 ${randomUUID()}` })
+    expect((await u.client.rpc('orphan_video_files', { p_older_than: '0 seconds', p_limit: 5 })).error).not.toBeNull()
+  })
+})

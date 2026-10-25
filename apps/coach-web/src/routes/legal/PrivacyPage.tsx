@@ -89,7 +89,7 @@ export default function PrivacyPage() {
       </LegalSection>
 
       <LegalSection title="Data retention">
-        <p>We keep your information for as long as your account is active or as needed to provide the service. Videos you send in chat are deleted from our servers 7 days after they&rsquo;re sent. Copies already saved on a participant&rsquo;s device stay on that device under their control. When you delete your account (see below), we delete your personal data, except where we are required to retain limited information for legal or security reasons. Reports about abusive content are kept after either account is deleted, so we can act on them and protect other users.</p>
+        <p>We keep your information for as long as your account is active or as needed to provide the service. Videos you send in chat are deleted from our servers about 7 days after they&rsquo;re sent, or later only while a report about them is under review. A still preview image of each video is kept with the conversation. Copies already saved on a participant&rsquo;s device stay on that device under their control. When you delete your account (see below), we delete your personal data, except where we are required to retain limited information for legal or security reasons. Reports about abusive content are kept after either account is deleted, so we can act on them and protect other users.</p>
       </LegalSection>
 
       <LegalSection title="Your choices and rights">

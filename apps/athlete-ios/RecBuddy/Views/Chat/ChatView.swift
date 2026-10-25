@@ -784,12 +784,13 @@ struct ChatView: View {
             if let video = stagedVideo {
                 // Photos first (the reply rides on the first), then the video
                 // with the caption, so the caption reads beneath the batch.
-                for (i, photo) in staged.enumerated() {
+                try await ComposerBatch.send(staged, one: { photo, i in
                     try await store.sendImage(photo.data, width: photo.w, height: photo.h,
                                               from: profile.id, replyTo: i == 0 ? replyingTo?.id : nil)
-                    if i == 0 { replyingTo = nil }
-                }
-                staged = []
+                }, sent: { photo in
+                    staged.removeAll { $0.id == photo.id }
+                    replyingTo = nil
+                })
                 do {
                     try await store.sendVideo(video, from: profile.id, body: body.isEmpty ? nil : body,
                                               replyTo: replyingTo?.id)
@@ -904,6 +905,8 @@ struct ChatView: View {
             stagedVideo = try await VideoPrep.prepare(source: source)
         } catch VideoPrep.Refusal.tooLong {
             sendError = VideoText.tooLong
+        } catch VideoPrep.Refusal.tooBig {
+            sendError = VideoText.tooBig
         } catch {
             sendError = "Couldn't process that video."
         }

@@ -19,11 +19,14 @@ beforeEach(() => {
   Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:clip'), revokeObjectURL: vi.fn() })
 })
 
-test('shows the poster, a play button and the length; play opens a player', async () => {
-  vi.spyOn(store, 'getVideo').mockResolvedValue(new Blob(['v'], { type: 'video/mp4' }))
+test('shows the poster, a play button and the length; bytes load only on play', async () => {
+  vi.spyOn(store, 'hasVideo').mockResolvedValue(true)
+  const get = vi.spyOn(store, 'getVideo').mockResolvedValue(new Blob(['v'], { type: 'video/mp4' }))
   const download = vi.spyOn(chat, 'downloadVideo')
   wrap(<VideoView messageId="m1" p={p} expiresAt={later} purgedAt={null} />)
   expect(screen.getByText('0:42')).toBeInTheDocument()
+  await waitFor(() => expect(store.hasVideo).toHaveBeenCalledWith('m1'))
+  expect(get).not.toHaveBeenCalled()
   expect(screen.getByRole('img', { name: /video/i })).toHaveAttribute('src', 'https://x/poster.jpg')
   fireEvent.click(await screen.findByRole('button', { name: /play video/i }))
   const player = await screen.findByTestId('video-player')
@@ -33,7 +36,7 @@ test('shows the poster, a play button and the length; play opens a player', asyn
 })
 
 test('an expired clip with no copy here says so, has no play button, and is not fetched', async () => {
-  vi.spyOn(store, 'getVideo').mockResolvedValue(null)
+  vi.spyOn(store, 'hasVideo').mockResolvedValue(false)
   const download = vi.spyOn(chat, 'downloadVideo')
   wrap(<VideoView messageId="m2" p={p} expiresAt={past} purgedAt={past} />)
   expect(await screen.findByText('Video expired')).toBeInTheDocument()
@@ -42,7 +45,7 @@ test('an expired clip with no copy here says so, has no play button, and is not 
 })
 
 test('a clip not on this device yet downloads and is kept, with an expiry note until then', async () => {
-  vi.spyOn(store, 'getVideo').mockResolvedValue(null)
+  vi.spyOn(store, 'hasVideo').mockResolvedValue(false)
   const blob = new Blob(['v'], { type: 'video/mp4' })
   let finish: (b: Blob) => void = () => {}
   const download = vi.spyOn(chat, 'downloadVideo').mockReturnValue(new Promise((r) => { finish = r }))
@@ -52,4 +55,20 @@ test('a clip not on this device yet downloads and is kept, with an expiry note u
   finish(blob)
   await waitFor(() => expect(store.putVideo).toHaveBeenCalledWith('m3', blob))
   await waitFor(() => expect(screen.queryByText('Expires in 3 days')).toBeNull())
+})
+
+test('play before the download lands fetches it then plays; a failed download can be retried', async () => {
+  vi.spyOn(store, 'hasVideo').mockResolvedValue(false)
+  const blob = new Blob(['v'], { type: 'video/mp4' })
+  const download = vi.spyOn(chat, 'downloadVideo')
+    .mockRejectedValueOnce(new Error('offline'))   // the automatic download
+    .mockRejectedValueOnce(new Error('offline'))   // first tap
+    .mockResolvedValueOnce(blob)                   // retry
+  wrap(<VideoView messageId="m4" p={p} expiresAt={later} purgedAt={null} />)
+  await waitFor(() => expect(download).toHaveBeenCalledTimes(1))
+  fireEvent.click(screen.getByRole('button', { name: /play video/i }))
+  expect(await screen.findByText(/Couldn.t load the video/)).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: /play video/i }))
+  expect(await screen.findByTestId('video-player')).toHaveAttribute('src', 'blob:clip')
+  expect(store.putVideo).toHaveBeenCalledWith('m4', blob)
 })

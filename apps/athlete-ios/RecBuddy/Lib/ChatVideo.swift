@@ -5,8 +5,10 @@ import Foundation
 /// lib/videoExpiry.ts and lib/videoFile.ts.
 enum VideoText {
     static let tooLong = "Videos can be up to 60 seconds."
+    static let tooBig = "That video is too large to send. Try a shorter clip."
     static let sendFailed = "Couldn't send that video — try again."
     static let expired = "Video expired"
+    static let loadFailed = "Couldn't load the video — tap to try again."
 
     /// "0:42", "1:00"
     static func duration(_ s: Int) -> String {
@@ -41,9 +43,29 @@ enum VideoState: Equatable {
 
 enum VideoPrep {
     static let maxSeconds: Double = 60
+    /// The chat-videos bucket's upload limit.
+    static let maxBytes = 50 * 1024 * 1024
+
     /// The refusal to show, or nil when the clip is short enough.
     static func check(duration: Double) -> String? {
         duration > maxSeconds ? VideoText.tooLong : nil
+    }
+
+    /// The refusal to show for a compressed clip the server would reject, or nil.
+    /// (The 720p preset doesn't cap bitrate, so a busy 60 s clip can exceed it.)
+    static func checkSize(bytes: Int) -> String? {
+        bytes > maxBytes ? VideoText.tooBig : nil
+    }
+}
+
+/// Sends a staged batch in order, taking each item off the tray as it goes, so
+/// a retry after a mid-batch failure sends only what's left (no duplicates).
+enum ComposerBatch {
+    static func send<T>(_ items: [T], one: (T, Int) async throws -> Void, sent: (T) -> Void) async throws {
+        for (i, item) in items.enumerated() {
+            try await one(item, i)
+            sent(item)
+        }
     }
 }
 

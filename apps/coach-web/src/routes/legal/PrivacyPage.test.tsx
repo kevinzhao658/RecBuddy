@@ -32,6 +32,8 @@ test('says a coach connection needs your acceptance', () => {
 
 test('says chat videos leave our servers after 7 days', () => {
   render(<MemoryRouter><PrivacyPage /></MemoryRouter>)
-  expect(screen.getByText(/deleted from our servers 7 days after they.re sent/)).toBeInTheDocument()
+  expect(screen.getByText(/deleted from our servers about 7 days after they.re sent/)).toBeInTheDocument()
+  expect(screen.getByText(/while a report about them is under review/)).toBeInTheDocument()
+  expect(screen.getByText(/still preview image of each video is kept/)).toBeInTheDocument()
   expect(screen.getByText(/Photos, videos and images you choose to share in chat/)).toBeInTheDocument()
 })

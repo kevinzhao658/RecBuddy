@@ -7,9 +7,30 @@ type Client = {
   storage: { from: (bucket: string) => { remove: (paths: string[]) => PromiseLike<{ error: { message: string } | null }> } }
 }
 
-/** Purge in batches until nothing expired is left. Returns how many were purged.
- *  A video with an open report is skipped by expired_videos until resolved. */
-export async function purgeExpiredVideos(admin: Client, batch = 500): Promise<number> {
+/** Purge in batches until nothing expired is left, then sweep files no message
+ *  points at (sender deleted their account, failed sends) once they're older
+ *  than `orphanAge`. Returns how many files were purged. A video with an open
+ *  report is skipped by expired_videos until the report is resolved. */
+export async function purgeExpiredVideos(admin: Client, batch = 500, orphanAge = '7 days'): Promise<number> {
+  const expired = await purgeExpired(admin, batch)
+  return expired + await purgeOrphans(admin, batch, orphanAge)
+}
+
+async function purgeOrphans(admin: Client, batch: number, orphanAge: string): Promise<number> {
+  let total = 0
+  for (;;) {
+    const { data, error } = await admin.rpc('orphan_video_files', { p_older_than: orphanAge, p_limit: batch })
+    if (error) throw new Error(error.message)
+    const names = ((data ?? []) as { name: string }[]).map((r) => r.name)
+    if (names.length === 0) return total
+    const { error: rmErr } = await admin.storage.from('chat-videos').remove(names)
+    if (rmErr) throw new Error(rmErr.message)
+    total += names.length
+    if (names.length < batch) return total
+  }
+}
+
+async function purgeExpired(admin: Client, batch: number): Promise<number> {
   let total = 0
   for (;;) {
     const { data, error } = await admin.rpc('expired_videos', { p_limit: batch })

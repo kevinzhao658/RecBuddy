@@ -90,4 +90,24 @@ import Foundation
         #expect(VideoText.parse("2026-11-01T10:00:00.250000+00:00") == Date(timeIntervalSince1970: 1_793_527_200)) // fractions dropped
         #expect(VideoText.parse("not a date") == nil)
     }
+
+    @Test func refusesCompressedClipsOverTheUploadLimit() {
+        #expect(VideoPrep.checkSize(bytes: 50 * 1024 * 1024 + 1) == "That video is too large to send. Try a shorter clip.")
+        #expect(VideoPrep.checkSize(bytes: 50 * 1024 * 1024) == nil)
+    }
+
+    @Test func aFailedBatchKeepsOnlyTheUnsentPhotosForRetry() async {
+        struct Boom: Error {}
+        var sent: [String] = []
+        var tried: [String] = []
+        await #expect(throws: Boom.self) {
+            try await ComposerBatch.send(["a", "b", "c"], one: { item, _ in
+                tried.append(item)
+                if item == "b" { throw Boom() }
+            }, sent: { sent.append($0) })
+        }
+        #expect(tried == ["a", "b"])
+        #expect(sent == ["a"])
+    }
 }
+
