@@ -49,9 +49,9 @@ export function useBlockedUsers() {
 export function useUnblock() {
   const qc = useQueryClient()
   return useMutation({
+    // The server also restores what the block took away: the coaching link and shared chats.
     mutationFn: async (userId: string) => {
-      const { data: me } = await supabase.auth.getUser()
-      const { error } = await supabase.from('user_blocks').delete().eq('blocker_id', me.user!.id).eq('blocked_id', userId)
+      const { error } = await supabase.rpc('unblock_user', { p_user_id: userId })
       if (error) throw error
     },
     // Their chats, messages, and search results come back too.

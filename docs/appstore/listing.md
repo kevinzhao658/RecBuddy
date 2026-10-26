@@ -166,41 +166,38 @@ npm run seed:review
 | User name | `review-athlete@recbuddy.app` |
 | Password | the `REVIEW_PASSWORD` the seed ran with |
 
-**Notes** (paste as-is):
+**Notes** (paste as-is). Apple's 2.1 "Information Needed" (Sep 13) asked for these six items both here and as a reply in the submission thread, with a screen recording from a physical iPhone attached:
 ```
-RecBuddy is a running-coaching app. This build is the athlete app; coaches
-build training plans and message athletes from the RecBuddy web app.
+RecBuddy is a running-coaching app. This build (1.1) is the athlete app; coaches build training plans and message athletes from the RecBuddy web app.
 
-Please sign in with the demo athlete account provided. It is pre-populated with
-a two-coach team, a 14-week half-marathon plan (completed history, the current
-week in progress, upcoming weeks), logged runs, and a coach chat, so no second
-device or coach account is needed.
+1. SCREEN RECORDING
+Attached, recorded on a physical iPhone running the latest iOS. It starts at launch and shows sign-up with a coach code, login with the demo account, the calendar and logging a run, chat (photos, videos, reactions, replies), reporting a message, blocking a user, and account deletion.
 
-Where to look:
-- Calendar tab: today's workouts, weekly mileage, week and month views. Tap a
-  workout to see the coach's structure and notes; completed workouts show the
-  logged results. "Mark as complete" logs a run.
-- Chat tab: the inbox lists the team chat with both coaches and a direct
-  message with the assistant coach. The team chat has shared workouts,
-  logged-run cards, and a plan adjustment. You can send text, photos, and
-  videos (up to 60 seconds; videos are removed from our servers after 7 days).
-  Press and hold a message to react, reply, copy, edit or delete your own, or
-  report someone else's. Tap the chat's names at the top for Chat Details
-  (rename, add or remove people, block, leave).
-- Profile icon (top right) opens Settings: race goal, coaches, units, Apple
-  Health, notifications, support, terms, and the Privacy Policy.
+2. PURPOSE AND AUDIENCE
+RecBuddy connects runners (13+, beginners to competitive racers) with their running coach. Coaches build personalized plans on the web; athletes use this app to see each day's workouts, log results (manually or from Apple Health), and message their coaching team. It replaces the spreadsheets and scattered texts most coached runners rely on with one shared plan and conversation.
 
-Apple Health (optional): Settings > Connected services > Apple Health >
-Connect requests READ-ONLY access to workouts, distance, heart rate, and
-cycling power. Recorded runs and rides are then logged against the plan
-automatically; activities that don't match a planned workout are offered for
-confirmation. Health data is never written, sold, or used for advertising. The
-app is fully usable if the Health prompt is declined.
+3. HOW TO ACCESS THE APP
+Sign in with the demo athlete in Sign-In Information. It has a two-coach team, a 14-week half-marathon plan, logged runs, a team chat, and a direct message, so no second device or coach account is needed.
+- Calendar tab: today's workouts, weekly mileage, week and month views. Tap a workout for the coach's structure and notes; "Mark as complete" logs a run.
+- Chat tab: the inbox. Send text, photos, and videos (up to 60 s; removed from our servers after 7 days). Press and hold a message to react, reply, copy, edit or delete your own, or report someone else's. Tap the names at the top for Chat Details (rename, add or remove people, block, leave).
+- Profile icon (top right): Settings with race goal, coaches, units, Apple Health, notifications, support, Terms, and Privacy Policy.
+Apple Health (optional): Settings > Connected services > Apple Health requests READ-ONLY access to workouts, distance, heart rate, and cycling power to log runs and rides against the plan. The app is fully usable if declined.
+Sign-up: on the sign-in screen tap "Create an account with a coach code" and enter APPREVIEW (email confirmation required), or "No code? Sign up solo".
+Account deletion: Settings > Account > "Delete account…", enter the password, confirm. You may test it on the demo account.
 
-Sign-up with a coach code: on the sign-in screen tap "Create an account with a
-coach code" and enter APPREVIEW. Email confirmation is required. Athletes
-without a code can use "No code? Sign up solo".
+4. EXTERNAL SERVICES
+- Supabase: database, authentication and auth emails, file storage (photos and videos), realtime messaging, serverless functions (account deletion, push, video cleanup).
+- Resend: delivers safety-report notifications to our support team.
+- Apple HealthKit (optional, read-only) and Apple Push Notification service.
+- Vercel: hosts the coach web app and legal pages.
+No AI services, payments, analytics, or advertising SDKs.
 
-Account deletion: Settings > Account > "Delete account…", enter the password,
-then confirm. You are welcome to test this on the demo account.
+5. REGIONAL DIFFERENCES
+None; the app works the same in every region.
+
+6. REGULATED INDUSTRY / THIRD-PARTY MATERIAL
+Not applicable. RecBuddy is a fitness tool, not a medical service, and has no protected third-party content. Health data is read only with permission and never written, sold, or used for advertising.
+
+USER-GENERATED CONTENT AND SAFETY
+Conversations are visible only to their members; there are no public posts. Athletes who share a coach can find each other to start a chat, which can be turned off in Settings. Any message or user can be reported in the app (press and hold a message, or Settings > Coaches); reports reach our support team and are reviewed within 24 hours. Blocking stops a user from messaging you and removes them from your team. Messages with prohibited language are refused automatically, and the Terms (zero tolerance for objectionable content) allow us to remove content and suspend accounts.
 ```
