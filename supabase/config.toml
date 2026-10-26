@@ -402,6 +402,10 @@ verify_jwt = false
 # Database Webhook on content_reports INSERT (no user JWT); guarded by x-webhook-secret.
 verify_jwt = false
 
+[functions.purge-chat-videos]
+# Called daily by pg_cron (no user JWT); guarded by x-purge-secret.
+verify_jwt = false
+
 [functions.admin-action]
 # Admin console actions; requires a signed-in user whose profile is_admin.
 verify_jwt = true

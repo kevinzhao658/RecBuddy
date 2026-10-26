@@ -1,12 +1,14 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { purgeExpiredVideos } from './purge.ts'
+import { purgeAuthorized } from './auth.ts'
 
-// Called daily by pg_cron (migration 20261024120000) with the service-role key.
+// Called daily by pg_cron (call_purge_chat_videos) with the shared secret in
+// x-purge-secret: Vault purge_videos_secret here, PURGE_SECRET in the function env.
 Deno.serve(async (req) => {
-  const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-  if (req.headers.get('authorization') !== `Bearer ${key}`) {
+  if (!purgeAuthorized(req.headers.get('x-purge-secret'), Deno.env.get('PURGE_SECRET'))) {
     return new Response(JSON.stringify({ error: 'forbidden' }), { status: 403, headers: { 'content-type': 'application/json' } })
   }
+  const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
   const admin = createClient(Deno.env.get('SUPABASE_URL')!, key, { auth: { autoRefreshToken: false, persistSession: false } })
   try {
     const purged = await purgeExpiredVideos(admin)
