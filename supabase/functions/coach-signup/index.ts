@@ -1,16 +1,20 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
+import { turnstileSecret } from './turnstile.ts'
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
+const GENERIC = 'Sign-up failed. Please try again.'
 const TITLES = ['Head Coach', 'Assistant Coach', 'Strength Coach', 'Physio']
-// Defaults to Cloudflare's public TEST secret (always passes) so signup works
-// with no setup; set TURNSTILE_SECRET_KEY to the real secret to enforce in prod.
-const TURNSTILE_SECRET = Deno.env.get('TURNSTILE_SECRET_KEY') || '1x0000000000000000000000000000000AA'
+const TURNSTILE_SECRET = turnstileSecret(Deno.env.get('TURNSTILE_SECRET_KEY'), Deno.env.get('SUPABASE_URL'))
 
 async function captchaOk(token: string): Promise<boolean> {
+  if (!TURNSTILE_SECRET) {
+    console.error('coach-signup: TURNSTILE_SECRET_KEY is not set; rejecting signup')
+    return false
+  }
   const form = new FormData()
   form.append('secret', TURNSTILE_SECRET)
   form.append('response', token ?? '')
@@ -58,7 +62,7 @@ Deno.serve(async (req) => {
         }
         const { error: prErr } = await admin.from('profiles')
           .update({ is_coach: true, title }).eq('id', owned.user.id)
-        if (prErr) return json({ error: prErr.message }, 400)
+        if (prErr) { console.error('coach-signup promote', prErr); return json({ error: GENERIC }, 500) }
         return json({ id: owned.user.id, promoted: true }, 200)
       }
       return json({ error: error.message }, 400)
@@ -69,12 +73,14 @@ Deno.serve(async (req) => {
     const { error: pErr } = await admin.from('profiles')
       .update({ role: 'coach', title, is_coach: true, is_athlete: false }).eq('id', data.user!.id)
     if (pErr) {
+      console.error('coach-signup profile', pErr)
       await admin.auth.admin.deleteUser(data.user!.id)
-      return json({ error: pErr.message }, 400)
+      return json({ error: GENERIC }, 500)
     }
     return json({ id: data.user!.id }, 200)
   } catch (e) {
-    return json({ error: String(e) }, 400)
+    console.error('coach-signup', e)
+    return json({ error: GENERIC }, 400)
   }
 })
 

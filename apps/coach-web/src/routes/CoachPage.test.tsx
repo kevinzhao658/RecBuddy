@@ -18,7 +18,6 @@ test('shows the empty state, and log out is reachable from the coach menu', () =
 
   render(<QueryClientProvider client={new QueryClient()}><MemoryRouter><CoachPage /></MemoryRouter></QueryClientProvider>)
   expect(screen.getByText(/select an athlete/i)).toBeInTheDocument()
-  // Log out now lives in the sidebar coach menu
-  fireEvent.click(screen.getByRole('button', { name: /coach menu/i }))
+  fireEvent.click(screen.getByRole('button', { name: /Mara Whitlock/ }))   // the coach's own name opens the menu
   expect(screen.getByRole('button', { name: /log out/i })).toBeInTheDocument()
 })

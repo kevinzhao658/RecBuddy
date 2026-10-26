@@ -30,7 +30,11 @@ const feelLabel = (feel: number) => (feel <= 2 ? 'Easy' : feel === 3 ? 'Moderate
 
 /** Right-rail panel for a COMPLETED workout: read-only, defaults to the
  *  athlete's logged RESULTS with a toggle to the prescribed PLAN. */
-export function WorkoutResults({ workout, onClose }: { workout: Workout; onClose: () => void }) {
+export function WorkoutResults({ workout, onClose, onMessage }: {
+  workout: Workout; onClose: () => void
+  /** Opens chat with this workout attached ("Message athlete about this"). */
+  onMessage?: () => void
+}) {
   const [tab, setTab] = useState<'results' | 'plan'>('results')
   const { unit } = useUnit()
   const actual = useActual(workout.id)
@@ -47,6 +51,12 @@ export function WorkoutResults({ workout, onClose }: { workout: Workout; onClose
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">Completed</p>
           <p className="font-display text-lg font-bold tracking-tight text-text">{fmtShortDate(workout.date)} · {workout.title}</p>
+          {onMessage && (
+            <button onClick={onMessage}
+              className="mt-2 rounded-[10px] border border-line px-3 py-1.5 text-xs font-semibold text-text-mute transition hover:border-text-mute hover:text-text">
+              Message athlete about this
+            </button>
+          )}
         </div>
 
         {/* Results | Plan toggle */}

@@ -33,10 +33,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         Task { await PushRegistrar.upload(token: deviceToken) }
     }
 
-    // Foreground: no banner while the chat tab is frontmost (realtime paints it).
+    // Foreground: no banner for the conversation on screen (realtime paints it).
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
-        await MainActor.run { AppRouter.shared.chatVisible } ? [] : [.banner, .sound]
+        let threadId = notification.request.content.userInfo["thread_id"] as? String
+        return await MainActor.run { AppRouter.shared.showsBanner(forThread: threadId) } ? [.banner, .sound] : []
     }
 
     // Tap -> chat tab; inline reply -> background send.
@@ -47,7 +48,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         if let textResponse = response as? UNTextInputNotificationResponse, let threadId {
             _ = await PushRegistrar.sendReply(textResponse.userText, threadId: threadId)
         } else {
-            await MainActor.run { AppRouter.shared.openChat = true }
+            await MainActor.run {
+                AppRouter.shared.openThreadId = threadId
+                AppRouter.shared.openChat = true
+            }
         }
     }
 }

@@ -11,6 +11,8 @@ const cors = {
 // server-side so a hijacked session alone can't destroy an account. Deleting the
 // auth user cascades through profiles to all owned rows (roster links, plans by
 // athlete_id are untouched — athletes keep their training data).
+const GENERIC = 'Could not delete the account. Please try again.'
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   try {
@@ -41,11 +43,12 @@ Deno.serve(async (req) => {
       { auth: { autoRefreshToken: false, persistSession: false } },
     )
     const { error: delErr } = await admin.auth.admin.deleteUser(u.user.id)
-    if (delErr) return json({ error: delErr.message }, 400)
+    if (delErr) { console.error('delete-account', delErr); return json({ error: GENERIC }, 500) }
 
     return json({ ok: true }, 200)
   } catch (e) {
-    return json({ error: String(e) }, 400)
+    console.error('delete-account', e)
+    return json({ error: GENERIC }, 400)
   }
 })
 

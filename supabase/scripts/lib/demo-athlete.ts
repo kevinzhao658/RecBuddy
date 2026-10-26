@@ -298,6 +298,30 @@ export async function seedDemoAthlete(sql: SupabaseClient, cfg: DemoConfig): Pro
     if (error) throw error
   }
 
+  // ---- a private 1:1 with the strength coach (conversations, 1.1+) ----
+  // Skipped quietly where the conversations schema isn't deployed yet (prod
+  // before the chat-enhancements migrations), so seed:review keeps working.
+  {
+    const { data: dm, error: dmErr } = await sql.from('message_threads')
+      .insert({ kind: 'chat', created_by: assistant }).select().single()
+    if (dmErr && !/kind|column|schema cache/i.test(dmErr.message)) throw dmErr
+    if (dm) {
+      const yesterday = addDays(TODAY, -1)
+      const { error: mErr } = await sql.from('thread_members').insert([
+        { thread_id: dm.id, user_id: athlete, status: 'active', joined_at: at(yesterday, 7, 0) },
+        { thread_id: dm.id, user_id: assistant, status: 'active', joined_at: at(yesterday, 7, 0) },
+      ])
+      if (mErr) throw mErr
+      const { error: msgErr } = await sql.from('messages').insert([
+        { thread_id: dm.id, from_user_id: assistant, kind: 'text', read: true, created_at: at(yesterday, 7, 5),
+          body: 'Quick one, just us: how is the left hip feeling after the long run?' },
+        { thread_id: dm.id, from_user_id: athlete, kind: 'text', read: true, created_at: at(yesterday, 7, 20),
+          body: 'Tight but fine. The mobility flow helps.' },
+      ])
+      if (msgErr) throw msgErr
+    }
+  }
+
   // ---- optional invite (code sign-up path) ----
   if (cfg.invite) {
     const { error } = await sql.from('invites').insert({

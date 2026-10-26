@@ -31,6 +31,7 @@ export function describeMessage(m: MessageLike | null | undefined): string {
   const str = (k: string) => (typeof p[k] === 'string' || typeof p[k] === 'number' ? String(p[k]) : '')
   switch (m.kind) {
     case 'image':   return `[Photo]${m.body ? ` ${m.body}` : ''}`
+    case 'video':   return `[Video]${m.body ? ` ${m.body}` : ''}`
     case 'workout': return `[Workout] ${str('title')}`.trim()
     case 'runcard': return `[Logged run] ${str('title')}${str('note') ? ` — ${str('note')}` : ''}`.trim()
     case 'adjust':  return `[Plan change] ${str('from')} → ${str('to')}${str('reason') ? ` — ${str('reason')}` : ''}`

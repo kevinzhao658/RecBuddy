@@ -21,7 +21,7 @@ test('searches by name/email and adds the picked athlete as co-coach by default'
   expect(searchMutate).toHaveBeenCalled()
   const result = await screen.findByText('Jordan Lee')
   fireEvent.click(result)
-  fireEvent.click(screen.getByRole('button', { name: /Add Jordan/ }))
+  fireEvent.click(screen.getByRole('button', { name: /Ask Jordan/ }))
   expect(addMutate).toHaveBeenCalledWith({ athleteId: 'ath-1', relationship: 'assistant' }, expect.anything())
 })
 
@@ -30,7 +30,7 @@ test('lets the coach choose the head role', async () => {
   fireEvent.change(screen.getByLabelText('Search athletes'), { target: { value: 'jordan' } })
   fireEvent.click(await screen.findByText('Jordan Lee'))
   fireEvent.click(screen.getByRole('button', { name: 'Head coach' }))
-  fireEvent.click(screen.getByRole('button', { name: /Add Jordan/ }))
+  fireEvent.click(screen.getByRole('button', { name: /Ask Jordan/ }))
   expect(addMutate).toHaveBeenCalledWith({ athleteId: 'ath-1', relationship: 'head' }, expect.anything())
 })
 
@@ -40,4 +40,26 @@ test('an athlete already on the roster cannot be picked', async () => {
   fireEvent.change(screen.getByLabelText('Search athletes'), { target: { value: 'jordan' } })
   await waitFor(() => expect(screen.getByText('On your roster')).toBeInTheDocument())
   expect(screen.getByRole('button', { name: /Jordan Lee/ })).toBeDisabled()
+})
+
+test('an athlete already asked shows as Requested and cannot be picked', async () => {
+  searchMutate.mockImplementationOnce((_q, opts) => opts.onSuccess([hit({ requested: true })]))
+  render(<AddExistingAthlete onAdded={() => {}} />)
+  fireEvent.change(screen.getByLabelText('Search athletes'), { target: { value: 'jordan' } })
+  await waitFor(() => expect(screen.getByText('Requested')).toBeInTheDocument())
+  expect(screen.getByRole('button', { name: /Jordan Lee/ })).toBeDisabled()
+})
+
+test('after sending, explains the athlete must accept, then Done closes', async () => {
+  const onAdded = vi.fn()
+  addMutate.mockImplementationOnce((_v, opts) => opts.onSuccess())
+  render(<AddExistingAthlete onAdded={onAdded} />)
+  fireEvent.change(screen.getByLabelText('Search athletes'), { target: { value: 'jordan' } })
+  fireEvent.click(await screen.findByText('Jordan Lee'))
+  fireEvent.click(screen.getByRole('button', { name: /Ask Jordan/ }))
+  expect(screen.getByText(/Request sent to Jordan Lee/)).toBeInTheDocument()
+  expect(screen.getByText(/once they accept in the RecBuddy app/)).toBeInTheDocument()
+  expect(onAdded).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: 'Done' }))
+  expect(onAdded).toHaveBeenCalled()
 })

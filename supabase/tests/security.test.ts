@@ -50,8 +50,11 @@ describe('access-model hardening (final-review fixes)', () => {
   it('an athlete cannot end up with two head coaches via redeem', async () => {
     const code = `HEAD2-${randomUUID()}`
     await admin().from('invites').insert({ code, coach_id: coachY.id })
+    // A second coach's code now joins them as a co-coach instead of failing.
     const { error } = await athlete.client.rpc('redeem_invite', { p_code: code })
-    expect(error).not.toBeNull() // already has a head coach
+    expect(error).toBeNull()
+    const link = await admin().from('coach_athlete').select('relationship').eq('athlete_id', athlete.id).eq('coach_id', coachY.id).single()
+    expect(link.data!.relationship).toBe('assistant')
     const heads = await admin().from('coach_athlete').select('*').eq('athlete_id', athlete.id).eq('relationship', 'head')
     expect(heads.data!.length).toBe(1)
   })

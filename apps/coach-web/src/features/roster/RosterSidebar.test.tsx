@@ -6,9 +6,11 @@ import * as invites from '../../lib/queries/invites'
 import * as meMod from '../../lib/queries/me'
 import * as chatMod from '../../lib/queries/chat'
 import * as authMod from '../../auth/AuthProvider'
+import * as convMod from '../../lib/queries/conversations'
+import { MemoryRouter } from 'react-router-dom'
 
 function wrap(ui: React.ReactNode) {
-  return render(<QueryClientProvider client={new QueryClient()}>{ui}</QueryClientProvider>)
+  return render(<QueryClientProvider client={new QueryClient()}><MemoryRouter>{ui}</MemoryRouter></QueryClientProvider>)
 }
 
 test('shows active athletes and dimmed pending invite rows', () => {
@@ -20,10 +22,58 @@ test('shows active athletes and dimmed pending invite rows', () => {
   vi.spyOn(invites, 'useCreateInvite').mockReturnValue({ mutate: vi.fn(), isPending: false } as any)
   vi.spyOn(meMod, 'useMe').mockReturnValue({ data: { name: 'Mara Whitlock', initials: 'MW', title: 'Head Coach' }, isLoading: false } as any)
   vi.spyOn(chatMod, 'useUnreadCounts').mockReturnValue({ data: { a1: 3 } } as any)
+  vi.spyOn(convMod, 'useConversations').mockReturnValue({ data: [{ unread: 2 }, { unread: 1 }] } as any)
 
   wrap(<RosterSidebar selectedId={'a1'} onSelect={() => {}} />)
   expect(screen.getByText('Rita Real')).toBeInTheDocument()
   expect(screen.getByText('Pending Pat')).toBeInTheDocument()
   expect(screen.getByText('ABCD2345')).toBeInTheDocument()
-  expect(screen.getByLabelText('3 unread')).toBeInTheDocument() // unread badge
+  expect(screen.getAllByLabelText('3 unread')).toHaveLength(2) // athlete badge + Messages total (2 + 1)
+  expect(screen.getByRole('button', { name: 'Messages, 3 unread' })).toBeInTheDocument()
+})
+
+test('a compact Plans | Messages toggle: icons only, labels as tooltips, current view pressed', () => {
+  vi.spyOn(authMod, 'useAuth').mockReturnValue({ session: { user: { id: 'c1' } }, role: 'coach', loading: false } as any)
+  vi.spyOn(roster, 'useRoster').mockReturnValue({ data: [], isLoading: false } as any)
+  vi.spyOn(invites, 'usePendingInvites').mockReturnValue({ data: [], isLoading: false } as any)
+  vi.spyOn(invites, 'useRevokeInvite').mockReturnValue({ mutate: vi.fn() } as any)
+  vi.spyOn(meMod, 'useMe').mockReturnValue({ data: { name: 'Mara', initials: 'M' } } as any)
+  vi.spyOn(chatMod, 'useUnreadCounts').mockReturnValue({ data: {} } as any)
+  vi.spyOn(convMod, 'useConversations').mockReturnValue({ data: [] } as any)
+
+  wrap(<RosterSidebar selectedId={null} onSelect={() => {}} messagesActive />)
+  const plans = screen.getByRole('button', { name: 'Plans' })
+  const messages = screen.getByRole('button', { name: 'Messages' })
+  expect(messages).toHaveAttribute('aria-pressed', 'true')
+  expect(plans).toHaveAttribute('aria-pressed', 'false')
+  // The words appear only inside tooltips, not as visible row labels.
+  expect(screen.getAllByRole('tooltip').map((t) => t.textContent)).toEqual(['Plans', 'Messages'])
+  expect(screen.queryByText('Messages', { selector: ':not([role=tooltip])' })).toBeNull()
+})
+
+test('the coach menu is a glass panel and Log out is red', async () => {
+  const { fireEvent } = await import('@testing-library/react')
+  vi.spyOn(authMod, 'useAuth').mockReturnValue({ session: { user: { id: 'c1' } }, role: 'coach', loading: false } as any)
+  vi.spyOn(roster, 'useRoster').mockReturnValue({ data: [], isLoading: false } as any)
+  vi.spyOn(invites, 'usePendingInvites').mockReturnValue({ data: [], isLoading: false } as any)
+  vi.spyOn(invites, 'useRevokeInvite').mockReturnValue({ mutate: vi.fn() } as any)
+  vi.spyOn(meMod, 'useMe').mockReturnValue({ data: { name: 'Mara', initials: 'M' } } as any)
+  vi.spyOn(chatMod, 'useUnreadCounts').mockReturnValue({ data: {} } as any)
+  vi.spyOn(convMod, 'useConversations').mockReturnValue({ data: [] } as any)
+  wrap(<RosterSidebar selectedId={null} onSelect={() => {}} />)
+  // no ⋯ button: the name and photo themselves open the menu
+  expect(screen.queryByText('⋯')).toBeNull()
+  const me = screen.getByRole('button', { name: /Mara/ })
+  expect(me).toHaveAttribute('aria-expanded', 'false')
+  fireEvent.click(me)
+  expect(me).toHaveAttribute('aria-expanded', 'true')
+  const logOut = screen.getByRole('button', { name: 'Log out' })
+  expect(logOut.className).toMatch(/text-missed/)
+  expect(logOut.parentElement!.className).toMatch(/rb-glass/)
+  // Escape or a click elsewhere closes it
+  fireEvent.keyDown(document, { key: 'Escape' })
+  expect(screen.queryByRole('button', { name: 'Log out' })).toBeNull()
+  fireEvent.click(me)
+  fireEvent.mouseDown(document.body)
+  expect(screen.queryByRole('button', { name: 'Log out' })).toBeNull()
 })

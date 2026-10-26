@@ -8,7 +8,31 @@ final class AppRouter {
     static let shared = AppRouter()
     /// Set by a notification tap; MainTabs switches to the chat tab and resets it.
     var openChat = false
-    /// True while the chat tab is frontmost — banners are suppressed there
-    /// (realtime already paints the incoming message).
+    /// Set with openChat by a push tap: ChatsView opens this conversation.
+    var openThreadId: String?
+    /// A conversation is pushed inside the Chat tab: the tab bar hides (like
+    /// Messages) so it doesn't cover the composer.
+    var inConversation = false
+    /// True while the chat tab is frontmost.
     var chatVisible = false
+    /// The conversation on screen in the chat tab, if any.
+    var viewingThreadId: String?
+    /// "Message coach about this" from a workout: ChatView attaches it to the
+    /// composer and clears it. Set together with openChat.
+    var pendingWorkoutQuote: WorkoutQuote?
+
+    /// Foreground banners are skipped only for the conversation on screen
+    /// (realtime already paints it); every other conversation still alerts.
+    func showsBanner(forThread threadId: String?) -> Bool {
+        !(chatVisible && threadId != nil && threadId == viewingThreadId)
+    }
+}
+
+/// A workout attached to a chat message ("Message coach about this"). Sent as a
+/// text message with workout_id + payload {quote:"workout", title, date, type}.
+struct WorkoutQuote: Equatable {
+    let workoutId: String
+    let date: String
+    let type: String
+    let title: String
 }

@@ -18,4 +18,12 @@ test('renders all seventeen sections with the support contact', () => {
   expect(screen.getAllByText(/support@recbuddy\.app/).length).toBeGreaterThanOrEqual(2)
   expect(screen.queryByText(/kevin@recbuddy\.app/)).not.toBeInTheDocument()
   expect(screen.getByText(/last updated october 2026/i)).toBeInTheDocument()
+  expect(screen.queryByText(/stops them from messaging you or seeing your chat/)).not.toBeInTheDocument()
+  expect(screen.getByText(/in a group chat you both belong to, you stop seeing their messages/)).toBeInTheDocument()
+  expect(screen.getByText(/messages and reactions you send in conversations, including group chats/)).toBeInTheDocument()
+})
+
+test('Your Content covers videos', () => {
+  render(<MemoryRouter><TermsPage /></MemoryRouter>)
+  expect(screen.getByText(/messages, notes, photos, videos, logged workouts/)).toBeInTheDocument()
 })

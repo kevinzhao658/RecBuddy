@@ -8,6 +8,7 @@ struct CalendarView: View {
     @State private var selected: Workout?
     @State private var selectedExtra: WorkoutActual?
     @State private var accountOpen = false
+    @State private var linkRequests: [LinkRequest] = []
     @State private var confirmOpen = false
     // Which volume the weekly mileage gauge shows (chip only appears when the
     // week has any cross volume).
@@ -52,6 +53,22 @@ struct CalendarView: View {
                     // theirs — offer the re-attach path (Settings → Coaches).
                     if session.hasCoach == false {
                         noCoachBanner
+                    }
+
+                    if let line = LinkRequestText.banner(linkRequests) {
+                        Button { accountOpen = true } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "person.badge.plus").foregroundStyle(RB.accent)
+                                Text(line).font(.subheadline.weight(.semibold)).foregroundStyle(.white)
+                                Spacer()
+                                Text("Review").font(.footnote.weight(.semibold)).foregroundStyle(RB.accent)
+                            }
+                            .padding(14)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .rbCard(highlighted: true)
+                        .accessibilityHint("Opens Settings to accept or decline")
                     }
 
                     if !health.state.pending.isEmpty {
@@ -105,9 +122,10 @@ struct CalendarView: View {
         .sheet(item: $selectedExtra) { a in
             ExtraActivitySheet(actual: a, store: store, unit: unit)
         }
-        .sheet(isPresented: $accountOpen) {
+        .sheet(isPresented: $accountOpen, onDismiss: { Task { await loadLinkRequests() } }) {
             AccountSheet(profile: profile, plan: store.plan)
         }
+        .task { await loadLinkRequests() }
         .sheet(isPresented: $confirmOpen) {
             ConfirmActivitySheet(store: store, unit: unit)
         }
@@ -115,6 +133,10 @@ struct CalendarView: View {
             selectedDate = WeekStripLogic.defaultSelection(weekDates: store.weekDates,
                                                            today: Week.todayISO())
         }
+    }
+
+    private func loadLinkRequests() async {
+        linkRequests = (try? await LinkRequestsAPI.mine()) ?? []
     }
 
     // MARK: - Header

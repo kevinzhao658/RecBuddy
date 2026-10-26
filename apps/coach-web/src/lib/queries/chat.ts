@@ -1,22 +1,23 @@
 import { useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { supabase } from '../supabase'
+import { supabase, uniqueTopic } from '../supabase'
 import { compressImage } from '../compressImage'
-import type { Message, Thread, Workout } from '../types'
+import type { Message, Thread, Workout, WorkoutQuote } from '../types'
+import { putVideo } from '../videoStore'
 
-/** Get (or create) the coach↔athlete thread. RLS surfaces the head coach's
- *  thread to assistants, so we reuse an existing one before creating. */
+/** A text send, optionally replying to a message and/or about a workout. */
+export type SendArgs = {
+  body: string
+  replyToId?: string | null
+  workout?: Pick<Workout, 'id' | 'date' | 'type' | 'title'> | null
+}
+
+/** The athlete's TEAM thread (get-or-create server-side via team_thread_id). */
 export async function fetchThread(client: SupabaseClient, athleteId: string): Promise<Thread> {
-  const { data: existing, error } = await client.from('message_threads')
-    .select('id, athlete_id, coach_id').eq('athlete_id', athleteId).limit(1).maybeSingle()
+  const { data: id, error } = await client.rpc('team_thread_id', { p_athlete: athleteId })
   if (error) throw error
-  if (existing) return existing as Thread
-  const { data: me } = await client.auth.getUser()
-  const { data: created, error: insErr } = await client.from('message_threads')
-    .insert({ athlete_id: athleteId, coach_id: me.user!.id }).select('id, athlete_id, coach_id').single()
-  if (insErr) throw insErr
-  return created as Thread
+  return { id: id as string, athlete_id: athleteId, coach_id: '' }
 }
 export function useThread(athleteId: string | null) {
   return useQuery({ queryKey: ['thread', athleteId], queryFn: () => fetchThread(supabase, athleteId!), enabled: !!athleteId })
@@ -31,16 +32,21 @@ export function useMessages(threadId: string | null) {
   return useQuery({ queryKey: ['messages', threadId], queryFn: () => fetchMessages(supabase, threadId!), enabled: !!threadId })
 }
 
-export async function sendMessage(client: SupabaseClient, threadId: string, body: string): Promise<void> {
+export async function sendMessage(client: SupabaseClient, threadId: string, args: SendArgs): Promise<void> {
   const { data: me } = await client.auth.getUser()
-  const { error } = await client.from('messages').insert({ thread_id: threadId, from_user_id: me.user!.id, kind: 'text', body })
+  const { body, replyToId, workout } = args
+  const payload: WorkoutQuote | null = workout
+    ? { quote: 'workout', title: workout.title, date: workout.date, type: workout.type } : null
+  const { error } = await client.from('messages').insert({
+    thread_id: threadId, from_user_id: me.user!.id, kind: 'text', body,
+    reply_to_id: replyToId ?? null, workout_id: workout?.id ?? null, payload,
+  })
   if (error) throw error
-  await client.from('message_threads').update({ updated_at: new Date().toISOString() }).eq('id', threadId)
 }
 export function useSendMessage(threadId: string | null) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (body: string) => sendMessage(supabase, threadId!, body),
+    mutationFn: (args: SendArgs) => sendMessage(supabase, threadId!, args),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['messages', threadId] }),
   })
 }
@@ -49,7 +55,7 @@ export function useSendMessage(threadId: string | null) {
  *  <thread_id>/<uuid>.jpg — first segment is the thread_id, which the storage
  *  policy uses to scope access to thread participants.  The path (not a public URL)
  *  is stored in the payload; callers exchange it for a signed URL at render time. */
-export async function sendImageMessages(client: SupabaseClient, threadId: string, files: File[], body?: string): Promise<void> {
+export async function sendImageMessages(client: SupabaseClient, threadId: string, files: File[], body?: string, replyToId?: string | null): Promise<void> {
   const { data: me } = await client.auth.getUser()
   const uid = me.user!.id
   for (let i = 0; i < files.length; i++) {
@@ -62,17 +68,69 @@ export async function sendImageMessages(client: SupabaseClient, threadId: string
     // The caption rides on the LAST image so it reads beneath the batch.
     const caption = i === files.length - 1 ? body || null : null
     const { error } = await client.from('messages')
-      .insert({ thread_id: threadId, from_user_id: uid, kind: 'image', body: caption, payload: { path, w, h } })
+      // The reply rides on the FIRST photo (it answers the quoted message).
+      .insert({ thread_id: threadId, from_user_id: uid, kind: 'image', body: caption, payload: { path, w, h },
+                reply_to_id: i === 0 ? replyToId ?? null : null })
     if (error) throw error
   }
-  await client.from('message_threads').update({ updated_at: new Date().toISOString() }).eq('id', threadId)
 }
 export function useSendImages(threadId: string | null) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (v: { files: File[]; body?: string }) => sendImageMessages(supabase, threadId!, v.files, v.body),
+    mutationFn: (v: { files: File[]; body?: string; replyToId?: string | null }) => sendImageMessages(supabase, threadId!, v.files, v.body, v.replyToId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['messages', threadId] }),
   })
+}
+
+/** A clip ready to send: checked by checkVideo, poster from posterFrame. */
+export interface StagedVideo { file: File; duration: number; w: number; h: number; poster: Blob | null }
+
+/** Upload a chat video (as-is; checked against the 60 s / 50 MB limits) and its
+ *  poster, then post kind='video'. Paths follow the photo convention
+ *  (<thread_id>/<uuid>.<ext>). The server sets expires_at (7 days). This browser
+ *  keeps its own copy under the new message id, so the sender never needs to
+ *  download it and can still play it after the server copy is purged. */
+export async function sendVideoMessage(client: SupabaseClient, threadId: string, v: StagedVideo, body?: string, replyToId?: string | null): Promise<string> {
+  const { data: me } = await client.auth.getUser()
+  const uid = me.user!.id
+  const ext = v.file.type === 'video/quicktime' ? 'mov' : 'mp4'
+  const path = `${threadId}/${crypto.randomUUID()}.${ext}`
+  let poster: string | null = null
+  if (v.poster) {
+    poster = `${threadId}/${crypto.randomUUID()}.jpg`
+    const { error } = await client.storage.from('chat-images').upload(poster, v.poster, { contentType: 'image/jpeg' })
+    if (error) throw error
+  }
+  const { error: upErr } = await client.storage.from('chat-videos').upload(path, v.file, { contentType: v.file.type })
+  if (upErr) throw upErr
+  const { data, error } = await client.from('messages')
+    .insert({ thread_id: threadId, from_user_id: uid, kind: 'video', body: body || null, reply_to_id: replyToId ?? null,
+              payload: { path, poster, w: v.w, h: v.h, duration_s: v.duration } })
+    .select('id').single()
+  if (error) throw error
+  await putVideo(data.id, v.file)
+  return data.id as string
+}
+export function useSendVideo(threadId: string | null) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (x: { video: StagedVideo; body?: string; replyToId?: string | null }) => sendVideoMessage(supabase, threadId!, x.video, x.body, x.replyToId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['messages', threadId] }),
+  })
+}
+
+/** Download a chat video the caller can read (members only, while it lasts). */
+export async function downloadVideo(path: string): Promise<Blob> {
+  const { data, error } = await supabase.storage.from('chat-videos').download(path)
+  if (error) throw error
+  return data
+}
+
+/** One-off signed URL for a chat image (Copy image). */
+export async function signedChatImageUrl(path: string): Promise<string> {
+  const { data, error } = await supabase.storage.from('chat-images').createSignedUrl(path, 300)
+  if (error) throw error
+  return data.signedUrl
 }
 
 /** Fetch a short-lived signed URL for a private chat-image path.
@@ -100,7 +158,6 @@ export async function shareWorkoutToChat(client: SupabaseClient, athleteId: stri
   const { error } = await client.from('messages')
     .insert({ thread_id: thread.id, from_user_id: me.user!.id, kind: 'workout', workout_id: w.id, payload })
   if (error) throw error
-  await client.from('message_threads').update({ updated_at: new Date().toISOString() }).eq('id', thread.id)
 }
 export function useShareWorkout(athleteId: string) {
   const qc = useQueryClient()
@@ -117,7 +174,6 @@ export async function shareAdjustToChat(client: SupabaseClient, athleteId: strin
   const { error } = await client.from('messages')
     .insert({ thread_id: thread.id, from_user_id: me.user!.id, kind: 'adjust', payload: { from, to, reason } })
   if (error) throw error
-  await client.from('message_threads').update({ updated_at: new Date().toISOString() }).eq('id', thread.id)
 }
 export function useShareAdjust(athleteId: string) {
   const qc = useQueryClient()
@@ -127,19 +183,19 @@ export function useShareAdjust(athleteId: string) {
   })
 }
 
-/** Mark the other party's unread messages in this thread as read. */
-export async function markThreadRead(client: SupabaseClient, threadId: string, meId: string): Promise<void> {
-  const { error } = await client.from('messages').update({ read: true })
-    .eq('thread_id', threadId).eq('read', false).neq('from_user_id', meId)
+/** Mark this thread read for me (chat: last_read_at; team: per-message flag). */
+export async function markThreadRead(client: SupabaseClient, threadId: string): Promise<void> {
+  const { error } = await client.rpc('mark_thread_read', { p_thread: threadId })
   if (error) throw error
 }
 export function useMarkThreadRead(threadId: string | null) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (meId: string) => markThreadRead(supabase, threadId!, meId),
+    mutationFn: () => markThreadRead(supabase, threadId!),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['messages', threadId] })
       qc.invalidateQueries({ queryKey: ['unread'] })
+      qc.invalidateQueries({ queryKey: ['conversations'] })
     },
   })
 }
@@ -159,7 +215,7 @@ export function useUnreadCounts() {
 export function useUnreadRealtime() {
   const qc = useQueryClient()
   useEffect(() => {
-    const ch = supabase.channel('unread')
+    const ch = supabase.channel(uniqueTopic('unread'))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' },
         () => qc.invalidateQueries({ queryKey: ['unread'] }))
       .subscribe()
@@ -167,14 +223,50 @@ export function useUnreadRealtime() {
   }, [qc])
 }
 
-/** Stream new messages for a thread into the cache. */
+/** Edit your own message's text or caption (the server checks it's yours). */
+export function useEditMessage(threadId: string | null) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (v: { id: string; body: string }) => {
+      const { error } = await supabase.rpc('edit_message', { p_message: v.id, p_body: v.body })
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['messages', threadId] })
+      qc.invalidateQueries({ queryKey: ['conversations'] })
+    },
+  })
+}
+
+/** Delete your own message for everyone. */
+export function useDeleteMessage(threadId: string | null) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.rpc('delete_message', { p_message: id })
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['messages', threadId] })
+      qc.invalidateQueries({ queryKey: ['conversations'] })
+    },
+  })
+}
+
+/** Stream a thread's new, edited and deleted messages into the cache. */
 export function useRealtimeThread(threadId: string | null) {
   const qc = useQueryClient()
   useEffect(() => {
     if (!threadId) return
-    const ch = supabase.channel(`messages:${threadId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: `thread_id=eq.${threadId}` },
-        () => qc.invalidateQueries({ queryKey: ['messages', threadId] }))
+    const refresh = () => qc.invalidateQueries({ queryKey: ['messages', threadId] })
+    const ch = supabase.channel(uniqueTopic(`messages:${threadId}`))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: `thread_id=eq.${threadId}` }, refresh)
+      // Delete events carry only the id and can't be filtered by thread: refresh
+      // when the deleted message is one this thread is showing.
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, (p) => {
+        const id = (p.old as { id?: string } | null)?.id
+        if (id && qc.getQueryData<Message[]>(['messages', threadId])?.some((m) => m.id === id)) refresh()
+      })
       .subscribe()
     return () => { supabase.removeChannel(ch) }
   }, [threadId, qc])

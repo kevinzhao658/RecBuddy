@@ -2,11 +2,30 @@ import SwiftUI
 
 struct RootView: View {
     @Environment(SessionStore.self) private var session
+    @State private var introDone = false
+
+    private var showsSplash: Bool {
+        SplashView.isShowing(loading: session.state == .loading, introDone: introDone)
+    }
 
     var body: some View {
+        ZStack {
+            // Building the tabs is heavy main-thread work; doing it under the
+            // splash stalls the opening move, so it waits until that has played.
+            if introDone { content } else { RB.bg.ignoresSafeArea() }
+            if showsSplash {
+                SplashView { introDone = true }
+                    .transition(.opacity)
+                    .zIndex(1)
+            }
+        }
+        .animation(.easeOut(duration: 0.35), value: showsSplash)
+    }
+
+    @ViewBuilder private var content: some View {
         switch session.state {
         case .loading:
-            ProgressView()
+            RB.bg.ignoresSafeArea() // under the splash
         case .networkError:
             VStack(spacing: 12) {
                 Image(systemName: "wifi.exclamationmark").font(.largeTitle).foregroundStyle(.secondary)
@@ -102,6 +121,9 @@ struct MainTabs: View {
     let profile: Profile
     @State private var tab = 0
     @State private var router = AppRouter.shared
+    /// A conversation is open in the Chat tab: hide the bar (like Messages).
+    private var hideTabBar: Bool { tab == 1 && router.inConversation }
+
     var body: some View {
         // Both tabs stay ALIVE (opacity toggle, not if/else): switching is
         // instant — no refetch, and the chat's realtime subscription persists.
@@ -110,12 +132,14 @@ struct MainTabs: View {
                 .opacity(tab == 0 ? 1 : 0)
                 .allowsHitTesting(tab == 0)
                 .accessibilityHidden(tab != 0)
-            ChatView(profile: profile)
+            ChatsView(profile: profile)
                 .opacity(tab == 1 ? 1 : 0)
                 .allowsHitTesting(tab == 1)
                 .accessibilityHidden(tab != 1)
         }
-        .safeAreaInset(edge: .bottom) { RBTabBar(tab: $tab) }
+        .safeAreaInset(edge: .bottom) {
+            if !hideTabBar { RBTabBar(tab: $tab) }
+        }
         .onAppear {
             router.chatVisible = (tab == 1)
             Task { await PushRegistrar.reregisterIfEnabled() }

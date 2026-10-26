@@ -16,10 +16,12 @@ const signIn = async (email: string) => { const c = createClient(URL, ANON, { au
 
 describe('additional coaches', () => {
   let coach1: any, coach2: any, c1: SupabaseClient, c2: SupabaseClient, athlete: any
+  // Unique, so earlier runs' "Jordan Lee"s can't push this one past the 20-result limit.
+  const tag = crypto.randomUUID().slice(0, 8)
   beforeAll(async () => {
     coach1 = await makeCoach('Coach One'); c1 = await signIn(coach1.email)
     coach2 = await makeCoach('Coach Two'); c2 = await signIn(coach2.email)
-    athlete = await makeAthlete('Jordan Lee')
+    athlete = await makeAthlete(`Jordan ${tag}`)
     // Coach1 invites with a goal -> athlete redeems: first coach = head, plan seeded.
     const { data: code1 } = await c1.rpc('create_invite', { p_athlete_name: 'Jordan Lee', p_goal_race: 'Original Half', p_goal_distance: '13.1 mi' })
     await athlete.client.rpc('redeem_invite', { p_code: code1 })
@@ -37,7 +39,7 @@ describe('additional coaches', () => {
   })
 
   it('search_athletes matches by name and by exact email, hiding the email', async () => {
-    const byName = await c1.rpc('search_athletes', { p_query: 'Jordan' })
+    const byName = await c1.rpc('search_athletes', { p_query: `Jordan ${tag}` })
     expect(byName.data!.some((r: any) => r.id === athlete.id)).toBe(true)
     expect(byName.data![0]).not.toHaveProperty('email')
     const byEmail = await c1.rpc('search_athletes', { p_query: athlete.email })
@@ -45,11 +47,16 @@ describe('additional coaches', () => {
     expect(byName.data!.find((r: any) => r.id === athlete.id).already_on_roster).toBe(true)
   })
 
-  it('coach_add_athlete adds an existing athlete as co-coach; head is refused when one exists', async () => {
+  it('coach_add_athlete asks an existing athlete, who joins as co-coached once they accept; head is refused when one exists', async () => {
     const solo = await makeAthlete('Solo Runner') // no coach yet
-    // A third coach adds them directly.
     const coach3 = await makeCoach('Coach Three'); const c3 = await signIn(coach3.email)
     await c3.rpc('coach_add_athlete', { p_athlete_id: solo.id, p_relationship: 'assistant' })
+    const before = await admin().from('coach_athlete').select('relationship').eq('athlete_id', solo.id).eq('coach_id', coach3.id)
+    expect(before.data).toEqual([])
+
+    const s = await signIn(solo.email)
+    const { data: reqs } = await s.rpc('my_link_requests')
+    await s.rpc('respond_link_request', { p_id: reqs![0].id, p_accept: true })
     const link = await admin().from('coach_athlete').select('relationship').eq('athlete_id', solo.id).eq('coach_id', coach3.id).single()
     expect(link.data!.relationship).toBe('assistant')
 

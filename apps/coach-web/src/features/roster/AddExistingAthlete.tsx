@@ -5,15 +5,16 @@ import { useSearchAthletes, useAddExistingAthlete, type AthleteHit } from '../..
 
 const field = 'w-full rounded-[10px] border border-line bg-surface2 px-3 py-2.5 text-text placeholder:text-text-faint focus:border-text-mute focus:outline-none'
 
-/** Search an existing athlete by name or email and add them to the roster,
- *  picking the role (co-coach by default). Sharing the athlete's plan — the
- *  add never touches their goal. */
+/** Search an existing athlete by name or email and ask to add them to the
+ *  roster, picking the role (co-coach by default). The athlete joins only once
+ *  they accept in the app; their plan and goal come with them untouched. */
 export function AddExistingAthlete({ onAdded }: { onAdded: () => void }) {
   const [q, setQ] = useState('')
   const [results, setResults] = useState<AthleteHit[]>([])
   const [picked, setPicked] = useState<AthleteHit | null>(null)
   const [role, setRole] = useState<'assistant' | 'head'>('assistant')
   const [error, setError] = useState<string | null>(null)
+  const [sent, setSent] = useState<AthleteHit | null>(null)
   const search = useSearchAthletes()
   const add = useAddExistingAthlete()
 
@@ -26,12 +27,22 @@ export function AddExistingAthlete({ onAdded }: { onAdded: () => void }) {
   const submit = () => {
     if (!picked) return
     add.mutate({ athleteId: picked.id, relationship: role },
-      { onSuccess: onAdded, onError: (e: any) => setError(e.message) })
+      { onSuccess: () => setSent(picked), onError: (e: any) => setError(e.message) })
+  }
+
+  if (sent) {
+    return (
+      <div className="flex flex-col gap-3">
+        <p className="text-sm text-text">Request sent to {sent.name}.</p>
+        <p className="text-sm text-text-mute">They'll join your roster once they accept in the RecBuddy app. Until then you won't see their plan or messages.</p>
+        <Button onClick={onAdded}>Done</Button>
+      </div>
+    )
   }
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-sm text-text-mute">Find an athlete already on RecBuddy by name or email — their existing plan comes with them.</p>
+      <p className="text-sm text-text-mute">Find an athlete already on RecBuddy by name or email. They'll get a request in the app, and their existing plan comes with them once they accept.</p>
 
       <input aria-label="Search athletes" value={q} onChange={(e) => runSearch(e.target.value)}
         placeholder="Name or email" className={field} autoFocus />
@@ -45,12 +56,14 @@ export function AddExistingAthlete({ onAdded }: { onAdded: () => void }) {
           {results.map((r) => {
             const selected = picked?.id === r.id
             return (
-              <button key={r.id} onClick={() => { setPicked(r); setError(null) }} disabled={r.already_on_roster}
+              <button key={r.id} onClick={() => { setPicked(r); setError(null) }} disabled={r.already_on_roster || r.requested}
                 className={`flex items-center gap-2 rounded-[10px] px-2 py-1.5 text-left transition disabled:opacity-50 ${selected ? 'bg-surface2 ring-1 ring-accent' : 'hover:bg-surface2/60'}`}>
                 <Avatar initials={r.initials} url={r.avatar_url} />
                 <span className="min-w-0 flex-1 truncate text-sm">{r.name}</span>
                 {r.already_on_roster
                   ? <span className="shrink-0 text-[11px] text-text-faint">On your roster</span>
+                  : r.requested
+                  ? <span className="shrink-0 text-[11px] text-text-faint">Requested</span>
                   : selected && <span className="shrink-0 text-accent" aria-hidden>✓</span>}
               </button>
             )
@@ -80,7 +93,7 @@ export function AddExistingAthlete({ onAdded }: { onAdded: () => void }) {
       {error && <p className="text-sm text-missed">{error}</p>}
 
       <Button disabled={!picked || add.isPending} onClick={submit}>
-        {add.isPending ? 'Adding…' : picked ? `Add ${picked.name.split(' ')[0]}` : 'Add to roster'}
+        {add.isPending ? 'Sending…' : picked ? `Ask ${picked.name.split(' ')[0]} to join` : 'Send request'}
       </Button>
     </div>
   )

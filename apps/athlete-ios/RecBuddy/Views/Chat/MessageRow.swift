@@ -7,11 +7,23 @@ import SwiftUI
 /// - Timestamps live only in the centered session-separator headers rendered by
 ///   ChatView; there are no per-bubble time labels here.
 struct MessageRow: View {
+    /// What a reply shows above its bubble. `available == false` when the
+    /// original was deleted or is hidden (e.g. from a blocked user).
+    struct Quote {
+        let author: String
+        let text: String
+        var available: Bool = true
+        var onTap: (() -> Void)? = nil
+    }
+
     let message: Message
     let mine: Bool
     let senderName: String?
     var showAvatar: Bool = false
     var senderAvatarUrl: String? = nil
+    /// The sender's name for the avatar initial; `senderName` is only set on
+    /// the first message of a run, but the avatar sits on the last.
+    var avatarName: String? = nil
     var grouped: Bool = false
     /// A newer card for the same workout exists below — render as a compact
     /// rolled-up placeholder instead of a full card.
@@ -22,6 +34,16 @@ struct MessageRow: View {
     /// so the chat can open results-vs-prescribed. Cards without a workout_id
     /// (legacy shares) stay static.
     var onOpenWorkout: ((String) -> Void)? = nil
+    /// Quote of the message this one replies to (resolved by ChatView).
+    var quote: Quote? = nil
+    /// Briefly true after jumping here from a reply quote.
+    var highlighted: Bool = false
+    /// Reaction kinds on this message (canonical order), total count, and
+    /// whether one is mine; tapping the badge shows who reacted.
+    var reactionKinds: [ReactionKind] = []
+    var reactionCount: Int = 0
+    var reactedByMe: Bool = false
+    var onTapReactions: (() -> Void)? = nil
     @AppStorage("unit") private var unitRaw = "mi"
     private var unit: Unit { Unit(rawValue: unitRaw) ?? .mi }
 
@@ -52,7 +74,9 @@ struct MessageRow: View {
             if mine {
                 Spacer(minLength: 52)
                 VStack(alignment: .trailing, spacing: 2) {
-                    content
+                    quoteView
+                    reactable(content)
+                    editedTag
                 }
             } else {
                 avatarColumn
@@ -62,12 +86,107 @@ struct MessageRow: View {
                             .font(.caption2.weight(.semibold))
                             .foregroundStyle(RB.textMute)
                     }
-                    content
+                    quoteView
+                    reactable(content)
+                    editedTag
                 }
                 Spacer(minLength: 52)
             }
         }
         .padding(.top, grouped ? 0 : 6)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(RB.accent.opacity(highlighted ? 0.14 : 0))
+                .padding(.horizontal, -6)
+                .animation(.easeOut(duration: 0.35), value: highlighted)
+        )
+    }
+
+    @ViewBuilder private var editedTag: some View {
+        if message.editedAt != nil && !superseded {
+            Text("Edited")
+                .font(.caption2)
+                .foregroundStyle(RB.textFaint)
+                .padding(.horizontal, 4)
+        }
+    }
+
+    // ── Reactions: corner badge (top-leading on mine, top-trailing on theirs) ──
+
+    @ViewBuilder private func reactable<C: View>(_ c: C) -> some View {
+        if reactionKinds.isEmpty || superseded {
+            c
+        } else {
+            c.padding(.top, 10)
+                .overlay(alignment: mine ? .topLeading : .topTrailing) {
+                    Button { onTapReactions?() } label: {
+                        ReactionBadge(kinds: reactionKinds, count: reactionCount, mineHighlighted: reactedByMe)
+                    }
+                    .buttonStyle(.plain)
+                    .offset(x: mine ? -10 : 10, y: -2)
+                }
+        }
+    }
+
+    // ── Reply quote (above the bubble) ─────────────────────────────────────
+
+    @ViewBuilder private var quoteView: some View {
+        if let quote, !superseded {
+            Button { quote.onTap?() } label: {
+                HStack(alignment: .top, spacing: 8) {
+                    RoundedRectangle(cornerRadius: 1.5)
+                        .fill(quote.available ? RB.accent : RB.textFaint)
+                        .frame(width: 3)
+                    VStack(alignment: .leading, spacing: 1) {
+                        if quote.available {
+                            Text(quote.author)
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(RB.accent)
+                        }
+                        Text(quote.available ? quote.text : "Original message unavailable")
+                            .font(.caption)
+                            .italic(!quote.available)
+                            .foregroundStyle(RB.textMute)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                    }
+                }
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(RB.surface.opacity(0.7))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+            }
+            .buttonStyle(.plain)
+            .disabled(quote.onTap == nil || !quote.available)
+            .accessibilityLabel(quote.available ? "Reply to \(quote.author): \(quote.text)" : "Reply to an unavailable message")
+            .accessibilityHint(quote.available ? "Shows the original message" : "")
+        }
+    }
+
+    /// A workout attached to a text message ("Message coach about this").
+    @ViewBuilder private var workoutChip: some View {
+        if message.payloadString("quote") == "workout" {
+            openable {
+                HStack(spacing: 6) {
+                    Image(systemName: TypeBadge.symbol(for: message.payloadString("type") ?? "easy"))
+                        .foregroundStyle(TypeBadge.tint(for: message.payloadString("type") ?? "easy"))
+                    Text((message.payloadString("title") ?? "Workout")
+                         + (message.payloadString("date").map { " · " + Week.fmtDayDate($0) } ?? ""))
+                        .lineLimit(1)
+                        .foregroundStyle(.white)
+                    if canOpen {
+                        Image(systemName: "chevron.right").foregroundStyle(RB.textFaint)
+                    }
+                }
+                .font(.caption.weight(.semibold))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(RB.surface)
+                .clipShape(Capsule())
+                .overlay(Capsule().stroke(RB.line, lineWidth: 1))
+            }
+        }
     }
 
     // ── Avatar column (24 pt wide; empty spacer when not the last of a run) ──
@@ -91,13 +210,18 @@ struct MessageRow: View {
         }
     }
 
+    static func avatarInitial(senderName: String?, avatarName: String?) -> String? {
+        let name = (avatarName ?? senderName)?.trimmingCharacters(in: .whitespaces)
+        return name?.first.map { String($0).uppercased() }
+    }
+
     private var avatarFallback: some View {
         ZStack {
             Circle()
                 .fill(RB.surface2)
                 .frame(width: 24, height: 24)
-            if let first = senderName?.first {
-                Text(String(first))
+            if let initial = Self.avatarInitial(senderName: senderName, avatarName: avatarName) {
+                Text(initial)
                     .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(.white)
             } else {
@@ -139,6 +263,7 @@ struct MessageRow: View {
         switch message.kind {
 
         case "text":
+            workoutChip
             Text(message.body ?? "")
                 .foregroundStyle(mine ? RB.onAccent : .white)
                 .padding(.horizontal, 14)
@@ -211,6 +336,19 @@ struct MessageRow: View {
                     .foregroundStyle(.white)
                 if let reason = message.payloadString("reason"), !reason.isEmpty {
                     Text(reason).font(.caption).foregroundStyle(RB.textMute)
+                }
+            }
+
+        case "video":
+            VStack(alignment: mine ? .trailing : .leading, spacing: 4) {
+                VideoBubble(message: message)
+                if let body = message.body, !body.isEmpty {
+                    Text(body)
+                        .foregroundStyle(mine ? RB.onAccent : .white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(mine ? RB.accent : RB.surface)
+                        .clipShape(RoundedRectangle(cornerRadius: 18))
                 }
             }
 
@@ -373,5 +511,23 @@ struct ChatImageView: View {
                     .frame(maxWidth: 220, minHeight: 120)
             }
         }
+    }
+}
+
+// ── ChatImageLoader ───────────────────────────────────────────────────────────
+/// Downloads a chat photo as a UIImage (for Copy Photo). Private-bucket images
+/// go through a short-lived signed URL; legacy https URLs load directly.
+enum ChatImageLoader {
+    static func image(for m: Message) async -> UIImage? {
+        let url: URL?
+        if let path = m.payloadString("path") {
+            url = try? await Supa.shared.storage.from("chat-images").createSignedURL(path: path, expiresIn: 300)
+        } else if let s = m.payloadString("url"), s.hasPrefix("https://") {
+            url = URL(string: s)
+        } else {
+            url = nil
+        }
+        guard let url, let (data, _) = try? await URLSession.shared.data(from: url) else { return nil }
+        return UIImage(data: data)
     }
 }

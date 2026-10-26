@@ -135,10 +135,17 @@ struct WorkoutActual: Codable, Identifiable, Equatable {
 /// Shadows Foundation.Thread; qualify as Foundation.Thread if OS thread API is ever needed.
 struct Thread: Codable, Identifiable, Equatable {
     let id: String
-    let athleteId: String
-    let coachId: String
+    var kind: String = "team"           // team | chat
+    var title: String? = nil
+    var readOnly: Bool = false
+    let athleteId: String?              // team threads only
+    let coachId: String?
+    var createdAt: String? = nil
+    var isTeam: Bool { kind == "team" }
     enum CodingKeys: String, CodingKey {
-        case id
+        case id, kind, title
+        case createdAt = "created_at"
+        case readOnly = "read_only"
         case athleteId = "athlete_id"
         case coachId = "coach_id"
     }
@@ -150,17 +157,28 @@ struct Message: Codable, Identifiable, Equatable {
     let id: String
     let threadId: String
     let fromUserId: String
-    let kind: String            // text|runcard|adjust|workout
+    let kind: String            // text|runcard|adjust|workout|image|video
     let body: String?
     let payload: [String: PayloadValue]?
     let workoutId: String?
+    /// The message this one quote-replies to (same thread), if any.
+    var replyToId: String? = nil
     var read: Bool
     let createdAt: String       // ISO timestamp string (compared lexically, like the web)
+    /// Videos only: when the server copy is deleted, and when it was.
+    var expiresAt: String? = nil
+    var mediaPurgedAt: String? = nil
+    /// Set when the sender edited the text or caption.
+    var editedAt: String? = nil
     enum CodingKeys: String, CodingKey {
         case id, kind, body, payload, read
+        case editedAt = "edited_at"
+        case expiresAt = "expires_at"
+        case mediaPurgedAt = "media_purged_at"
         case threadId = "thread_id"
         case fromUserId = "from_user_id"
         case workoutId = "workout_id"
+        case replyToId = "reply_to_id"
         case createdAt = "created_at"
     }
     func payloadString(_ key: String) -> String? {

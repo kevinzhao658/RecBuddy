@@ -82,7 +82,7 @@ rate, and in-app coach messaging. Thanks for running with us.
 |---|---|
 | Primary category | Health & Fitness |
 | Secondary category (optional) | Sports |
-| Age rating | Complete questionnaire → expected **4+** (no objectionable content) |
+| Age rating | Complete the questionnaire and target **13+**. Answer **Yes** to Messaging and Chat (coach and team chat) and **Yes** to User-Generated Content (messages, photos, videos). Report/block, the blocked-terms filter, and 24-hour report review are the moderation to cite. Don't aim for 4+, because the Terms (§2) require users to be at least 13. If the calculated rating comes out below 13+, pick 13+ where App Store Connect allows a higher rating. |
 | Price | Free *(confirm)* |
 | Privacy Policy URL | `https://recbuddy.app/privacy` *(host `privacy-policy.md`)* |
 | Support URL | `https://recbuddy.app/support` *(or a contact page)* |

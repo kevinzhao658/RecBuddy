@@ -46,9 +46,16 @@ final class SyncState {
         excludedSourceIds.insert(sourceId)
         defaults.set(Array(excludedSourceIds), forKey: ns + "excluded")
     }
+    /// Queue an activity, or — if it's already waiting — replace its workout
+    /// choices with this sync's, so they never point at a workout that was
+    /// since deleted, moved, or logged.
     func addPending(_ p: PendingActivity) {
-        guard !pending.contains(where: { $0.id == p.id }) else { return }
-        pending.append(p)
+        if let i = pending.firstIndex(where: { $0.id == p.id }) {
+            guard pending[i] != p else { return }
+            pending[i] = p
+        } else {
+            pending.append(p)
+        }
         persistPending()
     }
     func removePending(sourceId: String) {

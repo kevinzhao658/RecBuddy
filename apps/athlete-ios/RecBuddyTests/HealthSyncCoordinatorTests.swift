@@ -153,6 +153,21 @@ final class FakeSink: ActivityLogSink {
         #expect(state.pending.map(\.id) == ["r2"])
     }
 
+    @Test func aLaterSyncRefreshesAWaitingActivitysChoices() async {
+        // The plan changed after the first sync (a coach replaced w1, and w2 got
+        // logged by hand): the waiting run must offer today's workouts, not old ids.
+        let p = FakeProvider(); p.samples = [sample("r1")]
+        let s = FakeSink(); s.workouts = [workout("w1", type: "easy"), workout("w2", type: "tempo")]
+        let (c, state) = make(p, s)
+        _ = await c.sync()
+        s.workouts = [workout("w3", type: "easy"), workout("w2", type: "tempo"), workout("w4", type: "long")]
+        s.loggedIds = ["w2"]
+        let newPending = await c.sync()
+        #expect(newPending == 0)   // same activity, not a new one
+        #expect(state.pending.map(\.id) == ["r1"])
+        #expect(state.pending.first?.candidates.map(\.id) == ["w3", "w4"])
+    }
+
     @Test func duplicateRecordingsOfOneRunAutoLogOnce() async {
         // Coros + Watch both wrote the same run; only the richer copy imports.
         let p = FakeProvider()
@@ -163,6 +178,45 @@ final class FakeSink: ActivityLogSink {
         #expect(s.attached.map(\.0) == ["coros"])
         #expect(s.attached.map(\.1) == ["w1"])
         #expect(newPending == 0)
+        #expect(state.pending.isEmpty)
+    }
+
+    @Test func aRicherCopyArrivingLaterDoesNotDuplicateALoggedRun() async {
+        // Pass 1: only the Watch copy is in Health; it logs to w1.
+        let p = FakeProvider(); p.samples = [sample("watch")]
+        let s = FakeSink(); s.workouts = [workout("w1", type: "easy")]
+        let (c, state) = make(p, s)
+        _ = await c.sync()
+        #expect(s.attached.map(\.0) == ["watch"])
+        // Pass 2: Coros wrote its richer copy of the same run.
+        p.samples = [sample("watch"), sample("coros", start: 30, hr: 151)]
+        let newPending = await c.sync()
+        #expect(newPending == 0)
+        #expect(state.pending.isEmpty)          // no "keep as extra run" duplicate
+        #expect(s.standalones.isEmpty)
+        #expect(s.attached.count == 1)
+    }
+
+    @Test func aRicherCopyArrivingLaterDoesNotQueueASecondConfirmation() async {
+        let p = FakeProvider(); p.samples = [sample("watch")]
+        let s = FakeSink(); s.workouts = [workout("w1", type: "easy"), workout("w2", type: "tempo")]
+        let (c, state) = make(p, s)
+        _ = await c.sync()
+        #expect(state.pending.map(\.id) == ["watch"])
+        p.samples = [sample("watch"), sample("coros", start: 30, hr: 151)]
+        let newPending = await c.sync()
+        #expect(newPending == 0)
+        #expect(state.pending.map(\.id) == ["watch"])   // one run, one confirmation
+    }
+
+    @Test func aDismissedRunStaysDismissedWhenAnotherCopyArrives() async throws {
+        let p = FakeProvider(); p.samples = [sample("watch")]
+        let s = FakeSink(); s.workouts = [workout("w1", type: "easy"), workout("w2", type: "tempo")]
+        let (c, state) = make(p, s)
+        _ = await c.sync()
+        try await c.resolve("watch", .dismiss)
+        p.samples = [sample("watch"), sample("coros", start: 30, hr: 151)]
+        _ = await c.sync()
         #expect(state.pending.isEmpty)
     }
 }

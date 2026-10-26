@@ -62,3 +62,10 @@ test('localDayOf buckets a timestamptz to the local calendar day', () => {
   const local = new Date(2026, 7, 17, 22, 30) // Aug 17, 10:30pm local
   expect(localDayOf(local.toISOString())).toBe('2026-08-17')
 })
+
+it("firstWorkoutOn: an old chat card without a workout id opens that day's first workout", async () => {
+  const { firstWorkoutOn } = await import('./week')
+  const week = [[{ id: 'a', date: '2026-10-19' }], [{ id: 'b', date: '2026-10-20' }, { id: 'c', date: '2026-10-20' }]]
+  expect(firstWorkoutOn(week, '2026-10-20')).toBe('b')
+  expect(firstWorkoutOn(week, '2026-10-21')).toBeNull()
+})

@@ -1,9 +1,10 @@
 import 'dotenv/config'
 import { describe, it, expect, beforeAll } from 'vitest'
 import { randomUUID } from 'node:crypto'
-import { admin, createAndSignIn, anon } from './helpers'
+import { admin, createAndSignIn, anon, resetRateLimits } from './helpers'
 
 describe('invite flow', () => {
+  beforeAll(resetRateLimits)
   let coach: any
   // Unique codes per run so the suite is re-runnable without a db reset
   // (invites.code has a UNIQUE constraint and there is no per-test cleanup).

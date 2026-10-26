@@ -1,7 +1,7 @@
 import 'dotenv/config'
 import { describe, it, expect, beforeAll } from 'vitest'
 import { randomUUID } from 'node:crypto'
-import { createAndSignIn } from './helpers'
+import { createAndSignIn, addCoCoach } from './helpers'
 
 describe('get_team RPC', () => {
   let head: any, assistant: any, athleteId: string
@@ -14,7 +14,7 @@ describe('get_team RPC', () => {
     // head links to the athlete via the proper invite flow, then adds the assistant
     const { data: code } = await head.client.rpc('create_invite', { p_athlete_name: 'x' })
     await athlete.client.rpc('redeem_invite', { p_code: code })
-    await head.client.from('coach_athlete').insert({ coach_id: assistant.id, athlete_id: athleteId, relationship: 'assistant' })
+    await addCoCoach(head.client, athleteId, assistant)
   })
 
   it('returns the full team incl. the co-coach name a plain embed would hide as null', async () => {
