@@ -141,9 +141,14 @@ export async function seedDemoAthlete(sql: SupabaseClient, cfg: DemoConfig): Pro
   const between = (lo: number, hi: number) => lo + rand() * (hi - lo)
 
   const makeUser = async (p: Person, meta: Record<string, string> = {}) => {
-    const { data: list, error: lErr } = await sql.auth.admin.listUsers({ perPage: 1000 })
-    if (lErr) throw lErr
-    const existing = list.users.find((u) => u.email === p.email)
+    // Page through every user: a database with test-run accounts has more than one page.
+    let existing: { id: string } | undefined
+    for (let page = 1; !existing; page++) {
+      const { data: list, error: lErr } = await sql.auth.admin.listUsers({ page, perPage: 1000 })
+      if (lErr) throw lErr
+      existing = list.users.find((u) => u.email === p.email)
+      if (list.users.length < 1000) break
+    }
     if (existing) await sql.auth.admin.deleteUser(existing.id) // cascades their plan/workouts/chat/invites
     const { data, error } = await sql.auth.admin.createUser({
       email: p.email, password: cfg.password, email_confirm: true, user_metadata: { name: p.name, ...meta },
