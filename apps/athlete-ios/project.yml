@@ -33,7 +33,11 @@ targets:
         CFBundleDisplayName: RecBuddy
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
-        UILaunchScreen: {}
+        # Still frame before the app runs; SplashView animates from this exact frame.
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+          UIImageName: LaunchWordmark
+          UIImageRespectsSafeAreaInsets: false
         UIAppFonts: [SairaCondensed-ExtraBold.ttf]
         # Standard HTTPS/Supabase traffic is exempt encryption. Setting this to
         # NO skips the export-compliance question on every App Store upload.
