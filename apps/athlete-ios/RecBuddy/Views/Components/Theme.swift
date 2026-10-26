@@ -143,10 +143,16 @@ extension View {
 /// Wordmark component exactly.
 struct Wordmark: View {
     var size: CGFloat = 44
+    /// false draws flat glyphs with no metal shadows, for use as a mask.
+    var metal = true
     var body: some View {
         HStack(spacing: 0) {
-            Text("Rec").foregroundStyle(RB.metalLime).metalLime()
-            Text("Buddy").foregroundStyle(RB.metalSilver).metalSilver()
+            if metal {
+                Text("Rec").foregroundStyle(RB.metalLime).metalLime()
+                Text("Buddy").foregroundStyle(RB.metalSilver).metalSilver()
+            } else {
+                Text("RecBuddy")
+            }
         }
         .font(.custom("SairaCondensed-ExtraBold", size: size))
         .kerning(size * -0.03)
