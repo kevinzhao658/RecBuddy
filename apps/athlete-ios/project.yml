@@ -53,12 +53,36 @@ targets:
         CFBundleURLTypes:
           - CFBundleURLName: app.recbuddy.athlete
             CFBundleURLSchemes: [recbuddy]
+    preBuildScripts:
+      # Fail the build, not the app, when the Supabase config is missing.
+      # Without it Supa.swift crashes at launch, which App Review rejects.
+      - name: Check Supabase config
+        basedOnDependencyAnalysis: false
+        script: |
+          case "${SUPABASE_URL}|${SUPABASE_ANON_KEY}" in
+            "|"*|*"|"|*"<"*)
+              echo "error: SUPABASE_URL / SUPABASE_ANON_KEY are missing or still placeholders. Copy Config.example.xcconfig to Config.dev.xcconfig / Config.prod.xcconfig and fill them in."
+              exit 1 ;;
+          esac
+          case "${SUPABASE_URL}" in
+            https://*) ;;
+            *) if [ "${CONFIGURATION}" = "Release" ]; then
+                 echo "error: Release builds must point SUPABASE_URL at an https host (got ${SUPABASE_URL})."
+                 exit 1
+               fi ;;
+          esac
     entitlements:
       path: RecBuddy/RecBuddy.entitlements
       properties:
         com.apple.developer.healthkit: true
         com.apple.developer.healthkit.background-delivery: true
         com.apple.security.application-groups: [group.app.recbuddy.athlete]
+        # Leave this as development. Xcode swaps in the distribution profile's
+        # value (production) when it exports an App Store or TestFlight build,
+        # and PushRegistrar reads the env from the embedded profile at runtime.
+        # Setting production here breaks dev-profile installs from Xcode.
+        # Check after each export:
+        #   codesign -d --entitlements - <exported .app> | grep -A1 aps-environment
         aps-environment: development
     settings:
       base:
