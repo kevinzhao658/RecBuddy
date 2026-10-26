@@ -57,12 +57,10 @@ enum Moderation {
         try await Supa.shared.rpc("block_user", params: ["p_user_id": userId]).execute()
     }
 
+    /// Lifts the block and restores what it took away: a coach rejoins the team
+    /// with their old role and permission, and shared chats reopen.
     static func unblock(userId: String) async throws {
-        let me = try await Supa.shared.auth.session.user.id.uuidString.lowercased()
-        try await Supa.shared.from("user_blocks").delete()
-            .eq("blocker_id", value: me)
-            .eq("blocked_id", value: userId)
-            .execute()
+        try await Supa.shared.rpc("unblock_user", params: ["p_user_id": userId]).execute()
     }
 
     static func blockedUsers() async throws -> [BlockedUser] {

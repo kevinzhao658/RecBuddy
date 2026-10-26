@@ -385,12 +385,13 @@ struct CoachesView: View {
         }
     }
 
-    /// Unblocking doesn't re-add them — the athlete reconnects with a new invite code.
+    /// Unblocking restores the connection: a former coach is back on the team.
     private func unblock(_ user: BlockedUser) async {
         teamError = nil
         do {
             try await Moderation.unblock(userId: user.userId)
             await loadTeam()
+            await session.refreshProfile()
         } catch {
             teamError = "Couldn't unblock \(user.name). Please try again."
         }
