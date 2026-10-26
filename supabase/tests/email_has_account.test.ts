@@ -1,9 +1,10 @@
 import 'dotenv/config'
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeAll } from 'vitest'
 import { randomUUID } from 'node:crypto'
-import { anon, createUser } from './helpers'
+import { anon, createUser, resetRateLimits } from './helpers'
 
 describe('email_has_account', () => {
+  beforeAll(resetRateLimits)
   it('is true for a registered email, ignoring case and surrounding spaces', async () => {
     const { email } = await createUser({ role: 'athlete', name: 'Reset Check' })
     const { data, error } = await anon().rpc('email_has_account', { p_email: `  ${email.toUpperCase()} ` })

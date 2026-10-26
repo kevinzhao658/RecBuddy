@@ -84,3 +84,10 @@ export async function addCoCoach(head: SupabaseClient, athleteId: string, coach:
   const ok = await coach.client.rpc('respond_link_request', { p_id: req.id, p_accept: true })
   if (ok.error) throw ok.error
 }
+
+/** Clear the per-IP RPC rate-limit counters. Every local test call shares one
+ *  IP, so suites that hit rate-limited RPCs reset them to stay re-runnable. */
+export async function resetRateLimits() {
+  const { error } = await admin().from('rpc_rate_limits').delete().neq('bucket', '')
+  if (error) throw error
+}

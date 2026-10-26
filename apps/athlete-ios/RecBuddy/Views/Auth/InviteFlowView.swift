@@ -630,6 +630,9 @@ struct InviteFlowView: View {
             } else {
                 error = "That code is invalid, used, or expired."
             }
+        } catch let e as PostgrestError where e.code == "PT429" {
+            // Server-side lookup limit (rate_limit_lookups migration).
+            self.error = e.message
         } catch {
             self.error = "Could not check the code — are you online?"
         }
