@@ -18,9 +18,18 @@ alter table public.rpc_rate_limits enable row level security; -- no client polic
 revoke all on public.rpc_rate_limits from anon, authenticated;
 
 -- Records one call and raises SQLSTATE PT429 (PostgREST answers HTTP 429) once
--- the caller passes p_max calls in the current p_window. The client is keyed by
--- cf-connecting-ip, which Cloudflare sets on hosted Supabase and clients can't
--- forge. The first x-forwarded-for entry is the local-stack fallback.
+-- the caller passes p_max calls in the current p_window.
+--
+-- The client is keyed by cf-connecting-ip, which Cloudflare sets on hosted
+-- Supabase and overwrites if a client sends it. Without it, the key is the
+-- RIGHTMOST x-forwarded-for entry, which our own gateway appends. The leftmost
+-- entry is whatever the client claims, so it is never used. IPv6 addresses are
+-- grouped by /64 because one host usually controls a whole /64.
+--
+-- redeem_invite is deliberately not throttled here. It raises on a bad code,
+-- and that rollback would also undo the counter. It needs a signed-in,
+-- email-confirmed account, and guessing one live 8-character code from 31^8
+-- (about 8.5e11) takes billions of attempts.
 create or replace function public.rate_limit_hit(p_bucket text, p_max int, p_window interval)
 returns void
 language plpgsql
@@ -29,13 +38,24 @@ set search_path = public, pg_temp
 as $$
 declare
   v_headers json := coalesce(nullif(current_setting('request.headers', true), ''), '{}')::json;
-  v_key text := coalesce(
+  v_xff text[] := string_to_array(coalesce(v_headers->>'x-forwarded-for', ''), ',');
+  v_raw text := coalesce(
     nullif(trim(v_headers->>'cf-connecting-ip'), ''),
-    nullif(trim(split_part(v_headers->>'x-forwarded-for', ',', 1)), ''),
-    'unknown');
+    nullif(trim(v_xff[array_length(v_xff, 1)]), ''));
+  v_key text;
   v_window timestamptz := date_bin(p_window, now(), timestamptz 'epoch');
   v_hits int;
 begin
+  begin
+    v_key := case when family(v_raw::inet) = 6
+                  then network(set_masklen(v_raw::inet, 64))::text
+                  else host(v_raw::inet) end;
+  exception when others then
+    v_key := null;
+  end;
+  -- Missing or unparseable: every such caller shares one bucket.
+  v_key := coalesce(v_key, 'unknown');
+
   insert into rpc_rate_limits (bucket, client_key, window_start, hits)
   values (p_bucket, v_key, v_window, 1)
   on conflict (bucket, client_key, window_start)
